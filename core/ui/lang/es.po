@@ -4023,6 +4023,11 @@ msgid "NXDN RX AGC"
 msgstr "AGC RX NXDN"
 
 #: core/ui/ui_menus.c
+msgctxt "SET_LABEL_P25_CONTACT_LOOKUP"
+msgid "P25 contact lookup"
+msgstr "Consulta de contactos P25"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_LABEL_PRIVACY_KEY_TYPE"
 msgid "Key type"
 msgstr "Tipo clave"

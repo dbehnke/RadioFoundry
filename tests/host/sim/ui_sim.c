@@ -772,6 +772,18 @@ bool ui_svc_setting_set(uint8_t id, int32_t value)
 	return true;
 }
 
+#if CONFIG_P25_ID_LOOKUP
+const char *ui_svc_p25_name(uint32_t id)
+{
+	static char name[CODEPLUG_NAME_LEN + 1];
+	contact_t c;
+	name[0] = '\0';
+	if (ui_svc_setting_get(UI_SET_P25_ID_LOOKUP) && codeplug_contact_find(id, false, &c))
+		memcpy(name, c.name, sizeof name);
+	return name;
+}
+#endif
+
 // Channels the channel editor saved (ui_svc_write_channel): they shadow the built-in ones and fill numbers past 40
 #define SIM_EDITS	8
 static struct {
@@ -2769,6 +2781,8 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	for (uint8_t id = UI_SET_RX_AGC_DMR; id <= UI_SET_RX_AUDIO_LEVELS; id++)
 		ui_svc_setting_set(id, 0);
 #endif
+
+	ui_svc_setting_set(UI_SET_P25_ID_LOOKUP, 0);
 	ui_svc_setting_set(UI_SET_MESSAGE_TONE, 1);
 	ui_svc_setting_set(UI_SET_MSG_FORMAT, 255);
 	ui_svc_setting_set(UI_SET_VIBRATE, 1);
@@ -3517,6 +3531,12 @@ static bool run_token(char *t, char *err, size_t len)
 	}
 #endif
 #if CONFIG_P25
+	if (strcmp(t, "p25names") == 0 && arg != NULL) {
+		ui_svc_setting_set(UI_SET_P25_ID_LOOKUP, strcmp(arg, "on") == 0);
+		changed();
+		advance(200);
+		return true;
+	}
 	if (strcmp(t, "p25rx") == 0) {		// a P25 call: src,dst[,u|e|o] (unit call, encrypted, other talk group)
 		unsigned src = 0, dst = 0;
 		char kind = 'g';

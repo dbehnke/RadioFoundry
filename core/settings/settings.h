@@ -253,7 +253,8 @@ typedef struct {
 	// copy 60 bytes
 	uint8_t sig_dmr[3];
 	uint8_t sig_fm[3];
-	uint8_t reserved11[2];		// 0
+	uint8_t caller_flags;		// was reserved11[0]: SETTINGS_CALLER_* (0: numeric P25 caller IDs)
+	uint8_t reserved11[1];		// 0
 	// Digital receive AGC: stable target-choice indices (0 Off), DMR/P25/NXDN; history is RAM only.
 	uint8_t rx_agc[3];
 	uint8_t rx_audio_levels; // optional input/output dBFS row
@@ -268,6 +269,7 @@ typedef struct {
 #define SETTINGS_PAGE_SHIFT	12	// a record's layout field: the page in bits 12-15, the layout in bits 0-11
 // cp_flags: the owner kept another firmware's codeplug as the radio's own ("Use anyway", docs/spec/codeplug-native.md
 // 2); app.c keeps it equal to codeplug_acceptance(), which a codeplug written by a CPS or TFTP drops
+#define SETTINGS_CALLER_P25_DMR		0x01u	// use private contacts and DMR ID database for P25 caller labels
 #define SETTINGS_CP_ACCEPTED		0x01u
 #define SETTINGS_CP_RX_EXT		0x02u	// receive past the band table is on (not about the codeplug: the free bit here)
 #define SETTINGS_T3_STUN		0x80u	// t3_stun: a stun is kept (bits 0-6 say on which system)

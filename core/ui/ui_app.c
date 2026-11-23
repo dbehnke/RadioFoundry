@@ -2459,6 +2459,10 @@ bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
 #endif
 	ui_svc_poll();
 	ui_svc_keys_poll();
+#if CONFIG_P25_ID_LOOKUP
+	if (ui_svc_p25_names_poll(v))
+		dirty = true;
+#endif
 #if CONFIG_ZONE_EDIT
 	ui_svc_zone_poll();
 #endif

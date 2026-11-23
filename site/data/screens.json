@@ -946,6 +946,19 @@
     "RX_AGC",
     "DMR"
    ]
+  },
+  "p25_caller_names": {
+   "group": "calls",
+   "needs": [
+    "P25",
+    "P25_ID_LOOKUP"
+   ]
+  },
+  "p25_caller_numeric": {
+   "group": "calls",
+   "needs": [
+    "P25"
+   ]
   }
  }
 }

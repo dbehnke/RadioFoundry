@@ -2390,5 +2390,7 @@
  "editor.sig.no_audio": "Sin audio aquí",
  "editor.sig.empty": "Sin pasos: el sonido estándar",
  "screen.rx_agc": "Niveles de audio recibido antes y después del AGC",
- "screen.rx_agc_off": "AGC de audio recibido desactivado"
+ "screen.rx_agc_off": "AGC de audio recibido desactivado",
+ "screen.p25_caller_names": "Nombre del llamante P25 de los contactos o de la base de datos de ID DMR",
+ "screen.p25_caller_numeric": "Llamante P25 con ID numérico"
 }

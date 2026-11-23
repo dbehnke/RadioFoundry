@@ -2390,5 +2390,7 @@
  "editor.sig.no_audio": "No audio here",
  "editor.sig.empty": "No steps: the standard sound",
  "screen.rx_agc": "Receive audio levels before and after AGC",
- "screen.rx_agc_off": "Receive audio AGC off"
+ "screen.rx_agc_off": "Receive audio AGC off",
+ "screen.p25_caller_names": "P25 caller name from contacts or the DMR ID database",
+ "screen.p25_caller_numeric": "P25 caller with numeric ID"
 }

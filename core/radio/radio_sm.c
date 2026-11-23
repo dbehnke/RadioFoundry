@@ -26,6 +26,7 @@
 #include "dmr/call/dmr_call.h"
 #include "dmr/ambe/ambeVoice.h"
 #include "codeplug/dmr_iddb.h"
+#include "codeplug/contact_name.h"
 #endif
 #if CONFIG_DMR_PRIVACY
 #include "dmr/dmrPrivacy.h"
@@ -1605,16 +1606,7 @@ static void find_name(radio_sm_t *sm, uint32_t id, bool group, char *out)
 	n->id = id;
 	n->group = group;
 	n->name[0] = '\0';
-	contact_t c;
-	if (codeplug_contact_find(id, group, &c)) {
-		memcpy(n->name, c.name, sizeof(n->name));
-	} else if (!group) {
-		char text[DMR_IDDB_TEXT_MAX + 1];
-		if (dmr_iddb_lookup(id, text, sizeof(text))) {
-			memcpy(n->name, text, CODEPLUG_NAME_LEN);
-			n->name[CODEPLUG_NAME_LEN] = '\0';
-		}
-	}
+	contact_name_lookup(id, group, n->name);
 	memcpy(out, n->name, CODEPLUG_NAME_LEN + 1);
 }
 

@@ -39,6 +39,10 @@
 static const struct { const char *name, *script; } gallery[] = {
 	{ "boot", "splash" },
 	{ "stub_entry", "splash:loader" },	// while the flashing tools have the radio (web flasher)
+#if CONFIG_P25_ID_LOOKUP
+	{ "p25_caller_names", "p25 dlmode:p25 p25names:on p25rx:9991234,1" },
+	{ "p25_caller_numeric", "p25 dlmode:p25 p25rx:9991234,1" },
+#endif
 	{ "home_dmr", "" },
 	{ "home_dmr_lastheard", "call:9991234,91,g wait:11000" },
 	{ "home_reply", "call:9991234,91,g" },

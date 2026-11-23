@@ -6849,6 +6849,10 @@ static const set_item_t s_talk[] = {
 	LIST(TRN(SET_LABEL_NXDN_RX_AGC, "NXDN RX AGC"), "receive audio target gain level", UI_SET_RX_AGC_NXDN, v_rx_agc, n_rx_agc),
 #endif
 #endif
+#if CONFIG_P25_ID_LOOKUP
+	TOGGLE(TRN(SET_LABEL_P25_CONTACT_LOOKUP, "P25 contact lookup"), "DMR caller callsign name database",
+		UI_SET_P25_ID_LOOKUP),
+#endif
 };
 #if CONFIG_DMR && CONFIG_DMR_PRIVACY
 static const set_item_t s_privacy[] = {

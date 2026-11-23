@@ -459,6 +459,8 @@ typedef enum {
 	// UI_SIG_STEP(event, step, Hz, ms). Write only
 	UI_SET_SIG_STEP,
 	UI_SET_RX_AGC_DMR, UI_SET_RX_AGC_P25, UI_SET_RX_AGC_NXDN, UI_SET_RX_AUDIO_LEVELS,
+
+	UI_SET_P25_ID_LOOKUP = 165,	// optional P25 names from private contacts and the DMR ID database
 	UI_SET_COUNT
 } ui_setting_t;
 
@@ -534,6 +536,9 @@ void ui_svc_poll(void);
 // Every UI pass: the side key assignment follows a codeplug a CPS wrote, and a change made in Settings goes to the
 // codeplug (CONFIG_KEY_ASSIGN)
 void ui_svc_keys_poll(void);
+// UI task only: poll deferred P25 name lookups; true when cached presentation changed. The getter never reads flash.
+bool ui_svc_p25_names_poll(const radio_view_t *v);
+const char *ui_svc_p25_name(uint32_t id);
 // A home key's event (ACT_HOME_KEY_n, board.home_keys): the action it does now, its function on Home (home true) or
 // the key's own action elsewhere; ACT_NONE for nothing. Any other action comes back as it is (CONFIG_KEY_ASSIGN)
 uint8_t ui_svc_home_key(uint8_t action, uint8_t gesture, bool home);

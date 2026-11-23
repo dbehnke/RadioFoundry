@@ -2390,5 +2390,7 @@
  "editor.sig.no_audio": "此处无法播放",
  "editor.sig.empty": "无步骤:使用标准声音",
  "screen.rx_agc": "接收音频 AGC 处理前后的电平",
- "screen.rx_agc_off": "接收音频 AGC 已关闭"
+ "screen.rx_agc_off": "接收音频 AGC 已关闭",
+ "screen.p25_caller_names": "从联系人或 DMR ID 数据库显示 P25 呼叫者名称",
+ "screen.p25_caller_numeric": "以数字 ID 显示 P25 呼叫者"
 }

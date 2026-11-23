@@ -3,6 +3,7 @@
 // The p25 section: P25 conventional on the channel (docs/spec/p25.md 7, core/radio/radio_p25.h): the call heard, the
 // settings in force, the engine's and the voice path's counters. "p25.built=0" without CONFIG_P25
 #include "config.h"
+#include "settings/settings.h"
 #include "debuglink/debuglink.h"
 #if CONFIG_P25
 #include "board.h"
@@ -15,6 +16,8 @@
 void debuglink_view_p25(const radio_view_t *v, dl_text_t *t)
 {
 #if CONFIG_P25
+	dl_text(t, "p25.lookup.built=%u\np25.lookup.enabled=%u\n", CONFIG_P25_ID_LOOKUP,
+		CONFIG_P25_ID_LOOKUP && (SETTINGS_FIELD(caller_flags) & SETTINGS_CALLER_P25_DMR) != 0);
 	const radio_p25_view_t *p = &v->p25;
 	radio_p25_settings_t s;
 	radio_p25_stats_t c;
