@@ -727,6 +727,10 @@ uiFlowTest: uiFlowTest.c $(UIDEPS)
 # (CONFIG_BACKLIGHT_TEST=y, off in uiFlowTest): their screen, and the Advanced rows below it one further down; and
 # without privacy (CONFIG_DMR_PRIVACY=n): Settings > Privacy dimmed.
 # uiFlowTest has P25 and NXDN (CONFIG_P25, CONFIG_NXDN) and this one not: their home screen flows run in the first
+TESTS += uiFlowTestNoCallerLookup
+uiFlowTestNoCallerLookup: uiFlowTest.c $(UIDEPS)
+	$(CC) $(UIFLAGS) -DCONFIG_P25=1 -DCONFIG_P25_ID_LOOKUP=0 -DCONFIG_P25_TRUNK=1 -DCONFIG_NXDN=1 -o $@ uiFlowTest.c $(UIAPP) -lz
+
 uiFlowTestNoColor: uiFlowTest.c $(UIDEPS)
 	$(CC) $(UIFLAGS) -DCONFIG_UI_COLOR=0 -DCONFIG_LANG_ES=0 -DCONFIG_BACKLIGHT_TEST=1 -DCONFIG_DMR_PRIVACY=0 -o $@ \
 		uiFlowTest.c $(UIAPP) -lz
@@ -738,7 +742,7 @@ uiFlowTestSatellite: uiFlowTest.c $(UIDEPS)
 # off by default: make -B uiSim UI_LANG=fr (docs/dev/translating.md). The CJK face compiles to nothing without Chinese
 UI_LANG_FLAG := $(if $(UI_LANG),-DCONFIG_LANG_$(shell echo '$(UI_LANG)' | tr a-z A-Z)=1)
 uiSim: uiSim.c $(UIDEPS) $(CJK)
-	$(CC) $(UIFLAGS) $(UI_LANG_FLAG) -DCONFIG_SATELLITE_TLE=1 -o $@ uiSim.c $(UIAPP) $(CJK) -lz
+	$(CC) $(UIFLAGS) $(UI_LANG_FLAG) -DCONFIG_SATELLITE_TLE=1 -DCONFIG_P25=1 -o $@ uiSim.c $(UIAPP) $(CJK) -lz
 
 # The beep reel (tools/beep_reel.py). BEEP_DIR picks the beep.c and beep.h to build with, so CI can build the base
 # commit's beeps for a before and after comparison. We copy that beep.h into out/beep/radio/ and put out/beep first on
@@ -774,7 +778,7 @@ ui-sheets: uiSim
 	UI_GALLERY_COLORS="$(UI_GALLERY_COLORS)" ./uiSim --sheets out/sheets $(GEOM)
 
 run: run-ui
-run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault uiFlowTest uiFlowTestNoColor uiFlowTestSatellite uiSim beepReel
+run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault uiFlowTest uiFlowTestNoCallerLookup uiFlowTestNoColor uiFlowTestSatellite uiSim beepReel
 	./gfxTest
 	./gfxTestZh
 	./gfxFbEdgeTest
@@ -782,6 +786,7 @@ run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault 
 	./i18nTestNoLang
 	./i18nTestDefault
 	./uiFlowTest
+	./uiFlowTestNoCallerLookup
 	./uiFlowTestNoColor
 	./uiFlowTestSatellite
 	./uiSim --layout
@@ -1916,3 +1921,12 @@ run: run-hrc-pcm
 run-hrc-pcm: hrc7000PcmTest
 	./hrc7000PcmTest
 .PHONY: run-hrc-pcm
+
+# P25 caller labels: shared DMR precedence, deferred flash reads, positive/negative caching and stale results
+TESTS += callerNameTest
+callerNameTest: callerNameTest.c $(CORE)/ui/ui_svc_caller.c $(CORE)/codeplug/contact_name.h
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -o $@ callerNameTest.c $(CORE)/ui/ui_svc_caller.c
+run: run-caller-name
+run-caller-name: callerNameTest
+	./callerNameTest
+.PHONY: run-caller-name

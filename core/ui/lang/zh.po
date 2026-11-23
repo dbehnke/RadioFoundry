@@ -4005,6 +4005,11 @@ msgid "SFR CW ID"
 msgstr "单频中继 CW ID"
 
 #: core/ui/ui_menus.c
+msgctxt "SET_LABEL_P25_CONTACT_LOOKUP"
+msgid "P25 contact lookup"
+msgstr "P25 联系人查询"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_LABEL_PRIVACY_KEY_TYPE"
 msgid "Key type"
 msgstr "按键类型"

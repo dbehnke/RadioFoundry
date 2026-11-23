@@ -148,6 +148,20 @@ static const flow_t flows[] = {
 #endif
 	{ "P25 channel: bandwidth is FM only", "dlmode:p25", "quick 8", "mode=p25 toast=FM_only:_this_is_a_P25_channel",
 	  2, false },
+#if CONFIG_P25_ID_LOOKUP
+	{ "P25 lookup setting is opt in", "", "ok 7 3 up",
+	  "screen=group focus=P25_contact_lookup shows=Off", 4, false },
+	{ "P25 lookup enabled through its menu", "p25 dlmode:p25 p25rx:9991234,1 ok 7 3 up",
+	  "ok back back back", "screen=home shows=Q1ABC hides=ID_9991234", 4, false },
+	{ "P25 caller names default off", "p25 dlmode:p25 p25rx:9991234,1", "",
+	  "screen=home shows=ID_9991234 hides=Q1ABC", 0, false },
+	{ "P25 caller contact name", "p25 dlmode:p25 p25names:on p25rx:9991234,1", "",
+	  "screen=home shows=Q1ABC hides=ID_9991234", 0, false },
+	{ "P25 unknown caller keeps number", "p25 dlmode:p25 p25names:on p25rx:1234567,1", "",
+	  "screen=home shows=ID_1234567", 0, false },
+	{ "P25 caller lookup disabled during call", "p25 dlmode:p25 p25names:on p25rx:9991234,1", "p25names:off",
+	  "screen=home shows=ID_9991234 hides=Q1ABC", 0, false },
+#endif
 #if CONFIG_P25
 	// P25 on Home: what PTT calls on the talk line, the NAC in the chips, the caller while a call comes in
 	{ "P25 home: talk group and NAC", "dlmode:p25", "", "screen=home shows=TG_1 shows=NAC_293", 0, false },

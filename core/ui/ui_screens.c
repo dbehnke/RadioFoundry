@@ -2122,6 +2122,7 @@ static void draw_dmr_call(const radio_view_t *v, const ui_state_t *s)
 typedef struct {
 	bool played, enc, unit;
 	uint32_t src, dst;
+	const char *name;
 } air_call_t;
 
 static bool air_call(const radio_view_t *v, air_call_t *c)
@@ -2132,6 +2133,7 @@ static bool air_call(const radio_view_t *v, air_call_t *c)
 		c->played = (p->flags & RADIO_P25_PLAYED) != 0;
 		c->enc = (p->flags & RADIO_P25_ENC) != 0;
 		c->unit = (p->flags & RADIO_P25_UNIT) != 0;
+		c->name = ui_svc_p25_name(p->src);
 		c->src = p->src;
 		c->dst = p->dst;
 		return true;
@@ -2143,6 +2145,7 @@ static bool air_call(const radio_view_t *v, air_call_t *c)
 		c->played = (n->flags & RADIO_NXDN_PLAYED) != 0;
 		c->enc = (n->flags & RADIO_NXDN_ENC) != 0;
 		c->unit = (n->flags & RADIO_NXDN_UNIT) != 0;
+		c->name = "";
 		c->src = n->src;
 		c->dst = n->dst;
 		return true;
@@ -2166,25 +2169,35 @@ static void air_call_line(const air_call_t *c, const font_t *f, int y)
 		gfx_text(f, 0, y, fit, ui_col.warn);
 		return;
 	}
-	// Too wide: keep the marker and destination, then cut the destination if needed
-	for (int with_id = c->src != 0; with_id >= 0; with_id--) {
-		sb_init(&b, buf, sizeof buf);
-		if (c->enc)
-			sb_str(&b, "ENC ");
-		if (with_id) {
-			sb_str(&b, "ID ");
-			sb_u32(&b, c->src, 1);
+	// Fit the caller to the space left by the destination; a long database name must not disappear entirely.
+	char destination[48], caller[32];
+	sb_init(&b, destination, sizeof destination);
+	sb_str(&b, c->unit ? TR(CALL_VALUE_PRIVATE_TO, "Private to ") : "TG ");
+	sb_u32(&b, c->dst, 1);
+	sb_init(&b, buf, sizeof buf);
+	if (c->enc)
+		sb_str(&b, "ENC ");
+	if (c->src != 0) {
+		sbuf_t cb;
+		sb_init(&cb, caller, sizeof caller);
+		if (c->name[0])
+			sb_str(&cb, c->name);
+		else {
+			sb_str(&cb, "ID ");
+			sb_u32(&cb, c->src, 1);
+		}
+		int room = gfx_width() - gfx_text_width(f, destination) - gfx_text_width(f, " " GLYPH_ARROW " ") -
+			gfx_text_width(f, buf);
+		if (room >= 4 * f->w && c->name[0]) {
+			gfx_text_fit(f, caller, room, fit, sizeof fit);
+			sb_str(&b, fit);
+			sb_str(&b, " " GLYPH_ARROW " ");
+		} else if (gfx_text_width(f, caller) <= room) {
+			sb_str(&b, caller);
 			sb_str(&b, " " GLYPH_ARROW " ");
 		}
-		if (c->unit) {
-			sb_str(&b, TR(CALL_VALUE_PRIVATE_TO, "Private to "));
-		} else {
-			sb_str(&b, "TG ");
-		}
-		sb_u32(&b, c->dst, 1);
-		if (gfx_text_width(f, buf) <= gfx_width())
-			break;
 	}
+	sb_str(&b, destination);
 	gfx_text_fit(f, buf, gfx_width(), fit, sizeof fit);
 	gfx_text(f, 0, y, fit, ui_col.rx);
 }

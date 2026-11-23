@@ -4003,6 +4003,11 @@ msgid "SFR CW ID"
 msgstr "ID CW SFR"
 
 #: core/ui/ui_menus.c
+msgctxt "SET_LABEL_P25_CONTACT_LOOKUP"
+msgid "P25 contact lookup"
+msgstr "Ricerca contatti P25"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_LABEL_PRIVACY_KEY_TYPE"
 msgid "Key type"
 msgstr "Tipo chiave"

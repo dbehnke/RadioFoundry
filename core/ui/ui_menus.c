@@ -6828,6 +6828,10 @@ static const set_item_t s_talk[] = {
 	LIST(TRN(SET_LABEL_SFR_CW_ID, "SFR CW ID"), "single frequency repeater morse callsign identify",
 		UI_SET_SFR_CWID, v_sfrcwid, n_sfrcwid),
 #endif
+#if CONFIG_P25_ID_LOOKUP
+	TOGGLE(TRN(SET_LABEL_P25_CONTACT_LOOKUP, "P25 contact lookup"), "DMR caller callsign name database",
+		UI_SET_P25_ID_LOOKUP),
+#endif
 };
 #if CONFIG_DMR && CONFIG_DMR_PRIVACY
 static const set_item_t s_privacy[] = {

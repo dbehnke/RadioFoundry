@@ -317,6 +317,8 @@ static __attribute__((noinline)) int32_t setting_get_flash(uint8_t id)
 		return (SETTINGS_FIELD(accent) & SETTINGS_ACCENT_PLAIN) == 0;
 	case UI_SET_UPDOWN_HOME:
 		return settings_updown_home_of(SETTINGS_FIELD(updown_home));
+	case UI_SET_P25_ID_LOOKUP:
+		return CONFIG_P25_ID_LOOKUP && (SETTINGS_FIELD(caller_flags) & SETTINGS_CALLER_P25_DMR) != 0;
 	case UI_SET_LABEL_FIRST:
 		return (SETTINGS_FIELD(updown_home) & SETTINGS_HOME_LABEL_FIRST) != 0;
 	case UI_SET_LOW_BATTERY:
@@ -575,6 +577,14 @@ bool ui_svc_setting_set(uint8_t id, int32_t value)
 		st->volume = radio_volume_stored((uint8_t)clamp16(value, 0, RADIO_VOLUME_MAX));
 		settings_end(hal_millis());
 		radio_req_volume((uint8_t)clamp16(value, 0, RADIO_VOLUME_MAX));	// in force now, not at the next reload
+		return true;
+	case UI_SET_P25_ID_LOOKUP:
+		if (!CONFIG_P25_ID_LOOKUP)
+			return false;
+		st = settings_begin();
+		st->caller_flags = (uint8_t)(value ? st->caller_flags | SETTINGS_CALLER_P25_DMR :
+						st->caller_flags & ~SETTINGS_CALLER_P25_DMR);
+		settings_end(hal_millis());
 		return true;
 	case UI_SET_BRIGHTNESS:
 		st = settings_begin();

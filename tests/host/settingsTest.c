@@ -657,6 +657,30 @@ static void test_settings_power_levels(void)
 	CHECK(s.master_power == 1 && s.vfo_power == SETTINGS_UNSET8 && s.power_levels == 5);
 }
 
+// The opt-in caller policy uses a reserved byte without changing the stored layout.
+static void test_settings_caller_lookup(void)
+{
+	settings_t s;
+	settings_defaults(&s);
+	CHECK(s.caller_flags == 0);
+	sim_flash_create(FLASH_SIZE, &map);
+	boot();
+	settings_read(&s);
+	CHECK(s.caller_flags == 0);
+	settings_begin()->caller_flags = SETTINGS_CALLER_P25_DMR;
+	settings_end(1);
+	CHECK(settings_flush());
+	boot();
+	settings_read(&s);
+	CHECK(s.caller_flags == SETTINGS_CALLER_P25_DMR);
+	settings_begin()->caller_flags = 0;
+	settings_end(2);
+	CHECK(settings_flush());
+	boot();
+	settings_read(&s);
+	CHECK(s.caller_flags == 0);
+}
+
 // hal_flash_map_end: where a map's highest area ends, so a driver can refuse a map its chip is too small for
 static void test_map_end(void)
 {
@@ -928,7 +952,8 @@ static void test_settings_layout(void)
 		{ offsetof(settings_t, reserved10), 399 },
 		{ offsetof(settings_t, sig_dmr), 400 },
 		{ offsetof(settings_t, sig_fm), 403 },
-		{ offsetof(settings_t, reserved11), 406 },
+		{ offsetof(settings_t, caller_flags), 406 },
+		{ offsetof(settings_t, reserved11), 407 },
 	};
 	CHECK(sizeof(settings_t) == 408);
 	for (unsigned i = 0; i < sizeof(offs) / sizeof(offs[0]); i++) {
@@ -1267,6 +1292,7 @@ int main(void)
 	test_settings_pages();
 	test_settings_gateway_upgrade();
 	test_settings_power_levels();
+	test_settings_caller_lookup();
 	test_settings_bad_records();
 	test_settings_worn_sector();
 	test_write_across_sectors();

@@ -2388,5 +2388,7 @@
  "editor.sig.play": "Play",
  "editor.sig.roll": "The chain as pitch over time, {ms} ms",
  "editor.sig.no_audio": "No audio here",
- "editor.sig.empty": "No steps: the standard sound"
+ "editor.sig.empty": "No steps: the standard sound",
+ "screen.p25_caller_names": "P25 caller name from contacts or the DMR ID database",
+ "screen.p25_caller_numeric": "P25 caller with numeric ID"
 }

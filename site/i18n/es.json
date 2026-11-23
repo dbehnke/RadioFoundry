@@ -2388,5 +2388,7 @@
  "editor.sig.play": "Reproducir",
  "editor.sig.roll": "La cadena como tono a lo largo del tiempo, {ms} ms",
  "editor.sig.no_audio": "Sin audio aquí",
- "editor.sig.empty": "Sin pasos: el sonido estándar"
+ "editor.sig.empty": "Sin pasos: el sonido estándar",
+ "screen.p25_caller_names": "Nombre del llamante P25 de los contactos o de la base de datos de ID DMR",
+ "screen.p25_caller_numeric": "Llamante P25 con ID numérico"
 }
