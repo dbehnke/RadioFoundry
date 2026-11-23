@@ -42,6 +42,6 @@ Ordinary builds and other branches retain upstream version behavior.
 
 Output is under `build/kf8s/<label>/`. The ZIP includes every image and manifest, `SHA256SUMS`, build metadata,
 `LICENSE`, `AUTHORS`, `CONTRIBUTORS` and third-party licenses. Keep those notices when sharing it, as
-[FORKING.md](FORKING.md) requires. No AMBE codec is included. The 5 W MD-UV380 image also serves the RT3S.
+[FORKING.md](FORKING.md) requires. No AMBE codec is included.
 
 Host tests and firmware checks do not replace the owner's listening tests. No build command flashes or keys a radio.

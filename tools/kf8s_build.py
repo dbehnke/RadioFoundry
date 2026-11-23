@@ -149,7 +149,7 @@ def main():
         f'{version}\nPrivate KF8S test build based on RadioFoundry. Contact: dbehnke (KF8S).\n'
         'Includes receive audio AGC and optional P25 caller lookup.\n'
         'Enable P25 contact lookup under Settings > Talk & listen (default Off).\n'
-        'The 5 W mduv380 image supports RT3S. Match the band/power option to your hardware.\n'
+        'Match the image and its band/power option to your hardware; see the board reference.\n'
         'Use each image with its JSON manifest in the RadioFoundry web flasher.\n'
         'Images contain no AMBE codec. Follow the flasher instructions to preserve or supply your codec.\n'
         'P25 remains unavailable where upstream has not implemented it; see the feature matrix.\n'
