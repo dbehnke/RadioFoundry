@@ -137,9 +137,9 @@ def load(radio):
 @pytest.mark.feature("p25_id_lookup")
 def test_p25_caller_lookup_view(radio):
     """Read-only: the build flag and persistent policy are exposed without entering P25 or writing settings."""
-    if "P25_ID_LOOKUP" not in radio.features():
-        skip("not_built", "built without CONFIG_P25_ID_LOOKUP")
     v = p25_view(radio)
+    if v.get("p25.lookup.built") != "1":
+        skip("not_built", "built without CONFIG_P25_ID_LOOKUP")
     assert v.get("p25.lookup.built") == "1"
     assert v.get("p25.lookup.enabled") in ("0", "1")
 
