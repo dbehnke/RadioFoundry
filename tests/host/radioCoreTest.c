@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The radio core's state machine (core/radio/radio_sm.c) against a fake board and a fake codeplug
 #include "input/input.h"
 #include "input/keyassign.h"
@@ -498,6 +499,12 @@ static void air_step(void);	// with the far radio's engine, below
 static bool far_on_air(void) { return false; }
 #endif
 
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+static bool aes_test_observe_reboot;
+static bool aes_test_reboot(uint8_t mode);
+static const hal_system_t fake_system = { .reboot = aes_test_reboot };
+#endif
+
 const board_t board = {
 	.name = "fake",
 	.hwopts = fake_hwopts,
@@ -525,6 +532,9 @@ const board_t board = {
 	.vocoder = &fake_vocoder,
 #if CONFIG_AIR
 	.air = &fake_air0,
+#endif
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+	.system = &fake_system,
 #endif
 	.flash = &sim_flash,		// no map until test_factory_reset: RAM only, as on a radio without one
 };
@@ -1197,7 +1207,12 @@ static void test_parked_kind(void)
 	CHECK(radio_vfo_copy_check(&sm.view.ch, false) != VFO_COPY_OK);
 	// P25 trunked and NXDN the same where the board can't carry them (with their switches on or off), unknown ids too.
 	// A board that carries the mode runs it: test_p25_stored, test_nxdn_stored
-	static const uint8_t kinds[] = { CODEPLUG_KIND_P25_TRUNK, CODEPLUG_KIND_NXDN };
+	static const uint8_t kinds[] = {
+		CODEPLUG_KIND_P25_TRUNK, CODEPLUG_KIND_NXDN,
+#if !CONFIG_DMR_AES
+		CODEPLUG_KIND_DMR_AES,
+#endif
+	};
 	for (unsigned i = 0; i < sizeof kinds; i++) {
 		chans[6].kind = kinds[i];
 		req(RREQ_ZONE, 0);
@@ -3663,6 +3678,63 @@ static void test_dmr_voice_features(void)
 	req(RREQ_PTT, 1);
 	CHECK(sm.view.tx_deny == TXDENY_AES_KEY && sim.air_count == first);
 	req(RREQ_PTT, 0);
+	// Ambiguous private settings must not reserve or transmit. Recovery stays blocked until reboot.
+	for (unsigned keep = 0; keep < 2; keep++) {
+		settings_t *blocked = settings_begin();
+		blocked->aes_mi_res = 0x01050403u;
+		blocked->aes_migration = SETTINGS_AES_BLOCKED;
+		settings_end(now);
+		CHECK(settings_flush());
+		dmr_start(true);
+		chans[4].rx_only = true;
+		kv_t3_set(CODEPLUG_KEY_SYSTEM + 2, sys, sizeof sys);
+		kv_t3_set(CODEPLUG_KEY_CH_TAG + 3, tag, sizeof tag);
+		// The fresh-sequence choice follows retirement of the old traffic key.
+		traffic[CODEPLUG_TRAFFIC_HDR + 5] = (uint8_t)(90 + keep);
+		kv_t3_set(CODEPLUG_KEY_TRAFFIC, traffic, sizeof traffic);
+		reload_channel();
+		CHECK(d->privacy); // matching keys remain configured for reception
+		run(SETTINGS_SAVE_DELAY_MS + 100);
+		CHECK(settings_flush());
+		CHECK(SETTINGS_FIELD(aes_mi_res) == 0x01050403u);
+		first = sim.air_count;
+		req(RREQ_PTT, 1);
+		CHECK(sm.view.tx_deny == TXDENY_AES_MIGRATION && sim.air_count == first);
+		req(RREQ_PTT, 0);
+
+		settings_aes_recover(settings_begin(), keep != 0);
+		settings_end(now);
+		CHECK(settings_flush());
+		run(100);
+		CHECK(SETTINGS_FIELD(aes_mi_res) == (keep ? 0x01050403u : 0));
+		first = sim.air_count;
+		req(RREQ_PTT, 1);
+		CHECK(sm.view.tx_deny == TXDENY_AES_MIGRATION && sim.air_count == first);
+		req(RREQ_PTT, 0);
+
+		dmr_start(true);
+		chans[4].rx_only = true;
+		kv_t3_set(CODEPLUG_KEY_SYSTEM + 2, sys, sizeof sys);
+		kv_t3_set(CODEPLUG_KEY_CH_TAG + 3, tag, sizeof tag);
+		kv_t3_set(CODEPLUG_KEY_TRAFFIC, traffic, sizeof traffic);
+		reload_channel();
+		first = sim.air_count;
+		req(RREQ_PTT, 1);
+		CHECK(sm.view.tx_deny == TXDENY_AES_WAIT && sim.air_count == first);
+		req(RREQ_PTT, 0);
+		run(50);
+		CHECK(settings_flush());
+		run(50);
+		first = sim.air_count;
+		tx_once();
+		uint32_t recovered_mi = 0;
+		for (unsigned i = first; i < sim.air_count; i++)
+			if (sim.air[i].kind == DMR_BURST_PI_HEADER)
+				recovered_mi = ((uint32_t)sim.air[i].payload[3] << 24) |
+				               ((uint32_t)sim.air[i].payload[4] << 16) |
+				               ((uint32_t)sim.air[i].payload[5] << 8) | sim.air[i].payload[6];
+		CHECK(keep ? recovered_mi == 0x01050403u : recovered_mi != 0 && recovered_mi != 0x01050403u);
+	}
 	kv_t3_clear();
 	chans[4].rx_only = false;
 	reload_channel();
@@ -6464,6 +6536,8 @@ static const hal_flash_map_t reset_map = {
 	.native_addr = 0x30000u, .native_size = 0x4000u,
 };
 
+#define AES_TEST_RESERVATION	0x01050403u
+
 static void test_factory_reset(void)
 {
 	settings_t sv;
@@ -6475,7 +6549,10 @@ static void test_factory_reset(void)
 	memset(&sim_flash_data[0x10000u], 0x24, 64);		// the calibration copy
 	static const uint8_t magic[4] = { 0x4F, 0x44, 0x52, 0x4E };
 	CHECK(sim_flash.write(reset_map.native_addr, magic, 4));
-	settings_begin()->squelch = 2;
+	settings_t *st = settings_begin();
+	st->squelch = 2;
+	st->aes_mi_res = AES_TEST_RESERVATION;
+	st->aes_migration = SETTINGS_AES_REKEY;
 	settings_end(now);
 	CHECK(settings_flush());
 	n_ev = 0;
@@ -6483,10 +6560,12 @@ static void test_factory_reset(void)
 	storage_job_poll();
 	settings_read(&sv);
 	CHECK(n_ev == 0 && sv.squelch == SETTINGS_UNSET8 && sim_flash_data[reset_map.native_addr] == 0xFF);
+	CHECK(sv.aes_mi_res == AES_TEST_RESERVATION && sv.aes_migration == SETTINGS_AES_REKEY);
 	CHECK(sim_flash_data[0x20000u] == 0x42 && sim_flash_data[0x10000u] == 0x24);
 	settings_init();				// what the next boot finds
 	settings_read(&sv);
-	CHECK(sv.squelch == SETTINGS_UNSET8);
+	CHECK(sv.squelch == SETTINGS_UNSET8 && sv.aes_mi_res == AES_TEST_RESERVATION &&
+	      sv.aes_migration == SETTINGS_AES_REKEY);
 	// The settings can't be written (a worn ring): the toast says so
 	settings_begin()->squelch = 4;
 	settings_end(now);
@@ -6514,6 +6593,69 @@ static void test_factory_reset(void)
 	settings_init();
 	sim_flash_free();
 }
+
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+static unsigned aes_test_reboots;
+static bool aes_test_reboot(uint8_t mode)
+{
+	if (aes_test_observe_reboot) {
+		CHECK(mode == HAL_REBOOT_NORMAL);
+		CHECK(settings_u32_is_saved(offsetof(settings_t, aes_migration), SETTINGS_AES_READY));
+		CHECK(settings_u32_is_saved(offsetof(settings_t, aes_mi_res), SETTINGS_FIELD(aes_mi_res)));
+		aes_test_reboots++;
+	}
+	return false;	// the test resumes in place
+}
+
+static void test_aes_recovery_job(void)
+{
+	sim_flash_create(0x40000u, &reset_map);
+	CHECK(storage_init());
+	settings_init();
+	aes_test_observe_reboot = true;
+	aes_test_reboots = n_ev = 0;
+	CHECK(!ui_svc_aes_migration_required() && !ui_svc_aes_recover(false));
+
+	settings_t *st = settings_begin();
+	st->aes_mi_res = AES_TEST_RESERVATION;
+	st->aes_migration = SETTINGS_AES_BLOCKED;
+	settings_end(now);
+	CHECK(settings_flush());
+	CHECK(ui_svc_aes_migration_required() && ui_svc_aes_keep_reservation_allowed());
+	CHECK(ui_svc_aes_recover(true));
+	CHECK(!ui_svc_aes_recover(false));	// a queued choice cannot be replaced
+	CHECK(aes_test_reboots == 0 && settings_aes_migration_required());
+	sim_flash_bad_range(reset_map.settings_addr, reset_map.settings_size);
+	storage_job_poll();
+	CHECK(aes_test_reboots == 0 && n_ev == 1 && last_ev.kind == UI_EV_SAVE_FAILED);
+	CHECK(settings_u32_is_saved(offsetof(settings_t, aes_migration), SETTINGS_AES_BLOCKED));
+	CHECK(settings_u32_is_saved(offsetof(settings_t, aes_mi_res), AES_TEST_RESERVATION));
+	sim_flash_bad_range(0, 0);
+	CHECK(ui_svc_aes_recover(true));
+	storage_job_poll();
+	CHECK(aes_test_reboots == 1 && n_ev == 1);
+	settings_init();
+	CHECK(!settings_aes_migration_required() && SETTINGS_FIELD(aes_mi_res) == AES_TEST_RESERVATION);
+
+	st = settings_begin();
+	st->aes_migration = SETTINGS_AES_REKEY;
+	settings_end(now);
+	CHECK(settings_flush());
+	CHECK(ui_svc_aes_migration_required() && !ui_svc_aes_keep_reservation_allowed());
+	CHECK(!ui_svc_aes_recover(true) && !storage_job_busy());
+	CHECK(ui_svc_aes_recover(false));
+	storage_job_poll();
+	CHECK(aes_test_reboots == 2 && n_ev == 1);
+	settings_init();
+	CHECK(!settings_aes_migration_required() && SETTINGS_FIELD(aes_mi_res) == 0);
+
+	aes_test_observe_reboot = false;
+	sim_flash.map = NULL;
+	storage_init();
+	settings_init();
+	sim_flash_free();
+}
+#endif
 
 // DMR is TDMA: the radio's reading alternates between the signal and the floor. The published level holds the peak
 static void test_dmr_rssi_hold(void)
@@ -12135,6 +12277,9 @@ int main(void)
 #endif
 	test_dmr_data_glue();	// (last: the data service's state carries over)
 	test_factory_reset();
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+	test_aes_recovery_job();
+#endif
 	test_volume_step_of();
 	CHECK(rekeys == 0);	// every keying in every test above was ended before the next
 	printf("# radioCoreTest: %d checks, %s\n", checks, failures ? "FAILED" : "PASSED");

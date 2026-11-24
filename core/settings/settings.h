@@ -22,6 +22,9 @@
 #define SETTINGS_PRIVACY_KEYS	4
 #define SETTINGS_UNSET8		0xFFu	// "not set: the radio's default" in an 8-bit field
 #define SETTINGS_ROAM_ZONE_BYTES	10	// roaming zone bits for zones 0..79
+#define SETTINGS_AES_READY	0x59445241u	// "ARDY" on flash
+#define SETTINGS_AES_BLOCKED	0x4B4C4241u	// "ABLK" on flash
+#define SETTINGS_AES_REKEY	0x594B5241u	// "ARKY" on flash: incomplete reservation, rekey required
 
 // Fields are only ever appended (docs/spec/settings-store.md 3); a record written by an older firmware fills the
 // fields it knows, the rest keep their defaults. Fixed-width members, ordered so there is no padding
@@ -261,6 +264,7 @@ typedef struct {
 	// Digital receive AGC: stable target-choice indices (0 Off), DMR/P25/NXDN; history is RAM only.
 	uint8_t rx_agc[3];
 	uint8_t rx_audio_levels; // optional input/output dBFS row
+	uint32_t aes_migration;	// SETTINGS_AES_*: whether the stored AES reservation can be used
 } settings_t;
 
 // Pages: settings_t is stored as records of SETTINGS_PAGE_BYTES each (settings-store.md 2.1). Only the pages its size
@@ -514,6 +518,13 @@ uint32_t settings_read_field(size_t offset, size_t size);
 							      sizeof(((settings_t *)0)->f)))
 // A 32-bit field equals value both in force and in the last saved record, checked under one lock.
 bool settings_u32_is_saved(size_t offset, uint32_t value);
+// A legacy or malformed reservation awaits owner recovery before AES transmission can resume.
+bool settings_aes_migration_required(void);
+// Only a complete reservation is eligible for owner verification and retention.
+bool settings_aes_keep_reservation_allowed(void);
+// Call within a settings_begin/end edit. Clearing the reservation requires retiring all previously used TX keys.
+// An incomplete reservation cannot be kept. The caller must save a successful change before allowing AES TX.
+bool settings_aes_recover(settings_t *s, bool keep_reservation);
 // Change: begin returns the live copy (under a short lock), end releases it and notes the time if anything changed
 settings_t *settings_begin(void);
 void settings_end(uint32_t now_ms);

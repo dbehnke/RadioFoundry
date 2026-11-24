@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // core/storage (the sector journal) and core/settings (the record ring) on a simulated NOR flash, with power cuts
 // at every point of a save and of a sector rewrite: after the next boot the old or the new content is there, whole,
 // never a mix; wear goes round the ring; old and new record sizes load.
@@ -957,8 +958,9 @@ static void test_settings_layout(void)
 		{ offsetof(settings_t, aes_mi_res), 408 },
 		{ offsetof(settings_t, rx_agc), 412 },
 		{ offsetof(settings_t, rx_audio_levels), 415 },
+		{ offsetof(settings_t, aes_migration), 416 },
 	};
-	CHECK(sizeof(settings_t) == 416);
+	CHECK(sizeof(settings_t) == 420);
 	for (unsigned i = 0; i < sizeof(offs) / sizeof(offs[0]); i++) {
 		if (offs[i].got != offs[i].want) {
 			printf("FAIL settings_t field %u at %zu, layout 1 has it at %zu\n", i, offs[i].got, offs[i].want);
@@ -1277,34 +1279,212 @@ static void test_read_field(void)
 }
 
 
-static void test_settings_receive_agc(void)
+enum {
+	PRE_AES_SETTINGS_BYTES = 408,
+	LEGACY_SETTINGS_BYTES = 412,
+	UNMARKED_SETTINGS_BYTES = 416,
+	CURRENT_SETTINGS_BYTES = 420,
+};
+
+static void boot_audio_record(const settings_t *settings, uint16_t bytes)
 {
-	settings_t old, s;
-	settings_stats_t st;
-	settings_defaults(&old);
-	old.squelch = 4;
-	old.rx_agc[0] = 5;
-	old.rx_agc[1] = 7;
-	old.rx_agc[2] = 9;
-	old.rx_audio_levels = 1;
 	sim_flash_create(FLASH_SIZE, &map);
-	// Firmware predating AES wrote 408 bytes, without the appended fields.
 	put_record(&map, 0, 0, 1, SETTINGS_LAYOUT | (1u << SETTINGS_PAGE_SHIFT),
-		   408 - SETTINGS_PAGE_BYTES, (const uint8_t *)&old + SETTINGS_PAGE_BYTES, true, true);
-	put_record(&map, 0, 1, 2, SETTINGS_LAYOUT, SETTINGS_PAGE_BYTES, &old, true, true);
+		   bytes - SETTINGS_PAGE_BYTES, (const uint8_t *)settings + SETTINGS_PAGE_BYTES, true, true);
+	put_record(&map, 0, 1, 2, SETTINGS_LAYOUT, SETTINGS_PAGE_BYTES, settings, true, true);
 	boot();
+}
+
+static void check_audio_record(const settings_t *expected, settings_load_t load, uint32_t seq)
+{
+	settings_t s;
+	settings_stats_t st;
 	settings_read(&s);
 	settings_get_stats(&st);
-	CHECK(st.load == SETTINGS_UPGRADED && s.squelch == 4);
-	CHECK(s.rx_agc[0] == 0 && s.rx_agc[1] == 0 && s.rx_agc[2] == 0 && s.rx_audio_levels == 0);
-	settings_t *w = settings_begin();
-	memcpy(w->rx_agc, old.rx_agc, sizeof w->rx_agc);
-	w->rx_audio_levels = 1;
+	CHECK(st.load == load && st.seq == seq);
+	CHECK(memcmp(&s, expected, LEGACY_SETTINGS_BYTES) == 0);
+	CHECK(memcmp(s.rx_agc, expected->rx_agc, sizeof s.rx_agc) == 0 && s.rx_audio_levels == expected->rx_audio_levels);
+	CHECK(s.aes_migration == expected->aes_migration);
+	CHECK(settings_aes_migration_required() == (expected->aes_migration != SETTINGS_AES_READY));
+	CHECK(settings_aes_keep_reservation_allowed() == (expected->aes_migration == SETTINGS_AES_BLOCKED));
+}
+
+static void test_settings_receive_agc(void)
+{
+	settings_t old, current;
+	settings_defaults(&old);
+	old.squelch = 4;
+	old.vfo2_rx_hz = 446006250u;
+	current = old;
+	current.aes_mi_res = 0xfedcba98u;
+	current.rx_agc[0] = 5;
+	current.rx_agc[1] = 7;
+	current.rx_agc[2] = 9;
+	current.rx_audio_levels = 1;
+
+	boot_audio_record(&current, PRE_AES_SETTINGS_BYTES);
+	check_audio_record(&old, SETTINGS_UPGRADED, 2);
+	boot_audio_record(&current, UNMARKED_SETTINGS_BYTES);
+	old.aes_mi_res = current.aes_mi_res;
+	old.aes_migration = SETTINGS_AES_BLOCKED;
+	check_audio_record(&old, SETTINGS_UPGRADED, 2);
+	current.aes_mi_res = 0;
+	boot_audio_record(&current, UNMARKED_SETTINGS_BYTES);
+	old.aes_mi_res = 0;
+	old.aes_migration = SETTINGS_AES_READY;
+	check_audio_record(&old, SETTINGS_UPGRADED, 2);
+
+	current.aes_mi_res = 0xfedcba98u;
+	boot_audio_record(&current, CURRENT_SETTINGS_BYTES);
+	check_audio_record(&current, SETTINGS_LOADED, 2);
+	current.squelch = 5;
+	settings_begin()->squelch = current.squelch;
 	settings_end(1);
 	CHECK(settings_flush());
 	boot();
-	settings_read(&s);
-	CHECK(memcmp(s.rx_agc, old.rx_agc, sizeof s.rx_agc) == 0 && s.rx_audio_levels == 1);
+	check_audio_record(&current, SETTINGS_LOADED, 4);
+}
+
+static void test_settings_legacy_audio_tail(void)
+{
+	// The layout-1 tail can be any AES value, even when its bytes look like valid AGC preferences.
+	static const uint32_t tail[] = { 0, 0x01050403u, 0xfedcba98u, UINT32_MAX };
+	for (unsigned i = 0; i < sizeof tail / sizeof tail[0]; i++) {
+		settings_t old;
+		settings_defaults(&old);
+		old.squelch = 4;
+		old.vfo2_rx_hz = 446006250u;
+		old.aes_mi_res = tail[i];
+		boot_audio_record(&old, LEGACY_SETTINGS_BYTES);
+		old.aes_migration = tail[i] ? SETTINGS_AES_BLOCKED : SETTINGS_AES_READY;
+		check_audio_record(&old, SETTINGS_UPGRADED, 2);
+		old.squelch = 5;
+		settings_begin()->squelch = old.squelch;
+		settings_end(1);
+		CHECK(settings_flush());
+		boot();
+		check_audio_record(&old, SETTINGS_LOADED, 4);
+		CHECK(sim_flash_violations() == 0);
+	}
+}
+
+static void test_settings_incomplete_aes_tail(void)
+{
+	settings_t record, expected;
+	settings_defaults(&record);
+	expected = record;
+	expected.aes_migration = SETTINGS_AES_REKEY;
+	// Even zero reservation bytes and the first bytes of a READY marker must fail closed when incomplete.
+	for (unsigned i = 1; i < sizeof record.aes_mi_res; i++) {
+		boot_audio_record(&record, PRE_AES_SETTINGS_BYTES + i);
+		check_audio_record(&expected, SETTINGS_UPGRADED, 2);
+	}
+	expected.aes_migration = SETTINGS_AES_BLOCKED;
+	for (unsigned i = 1; i < sizeof record.aes_migration; i++) {
+		boot_audio_record(&record, UNMARKED_SETTINGS_BYTES + i);
+		check_audio_record(&expected, SETTINGS_UPGRADED, 2);
+	}
+	record.aes_migration = 0;
+	CHECK(!settings_aes_recover(&record, true) && record.aes_migration == 0);
+	boot_audio_record(&record, CURRENT_SETTINGS_BYTES);
+	check_audio_record(&expected, SETTINGS_LOADED, 2);
+	record.aes_migration = SETTINGS_AES_BLOCKED;
+	record.rx_agc[0] = 5;
+	boot_audio_record(&record, CURRENT_SETTINGS_BYTES);
+	check_audio_record(&record, SETTINGS_LOADED, 2);
+}
+
+static void test_settings_aes_rekey_only(void)
+{
+	settings_t old;
+	settings_defaults(&old);
+	old.aes_mi_res = 0xfedcba98u;
+	boot_audio_record(&old, PRE_AES_SETTINGS_BYTES + 3);
+	old.aes_mi_res = 0x00dcba98u;
+	old.aes_migration = SETTINGS_AES_REKEY;
+	check_audio_record(&old, SETTINGS_UPGRADED, 2);
+	CHECK(!settings_aes_recover(settings_begin(), true));
+	settings_end(1);
+	check_audio_record(&old, SETTINGS_UPGRADED, 2);
+	old.squelch = 5;
+	settings_begin()->squelch = old.squelch;
+	settings_end(2);
+	CHECK(settings_flush());
+	boot();
+	check_audio_record(&old, SETTINGS_LOADED, 4);
+	CHECK(!settings_aes_recover(settings_begin(), true));
+	settings_end(3);
+	check_audio_record(&old, SETTINGS_LOADED, 4);
+	CHECK(settings_aes_recover(settings_begin(), false));
+	settings_end(4);
+	CHECK(settings_flush());
+	boot();
+	old.aes_mi_res = 0;
+	old.aes_migration = SETTINGS_AES_READY;
+	check_audio_record(&old, SETTINGS_LOADED, 6);
+}
+
+static void test_settings_aes_recovery_cut(void)
+{
+	settings_t old;
+	settings_defaults(&old);
+	old.squelch = 4;
+	old.vfo2_rx_hz = 446006250u;
+	old.aes_mi_res = 0x01050403u;
+	boot_audio_record(&old, LEGACY_SETTINGS_BYTES);
+	old.aes_migration = SETTINGS_AES_BLOCKED;
+	check_audio_record(&old, SETTINGS_UPGRADED, 2);
+
+	settings_t *w = settings_begin();
+	w->squelch = 5;
+	w->vfo2_rx_hz = 446012500u;
+	CHECK(settings_aes_recover(w, true));
+	settings_end(1);
+	CHECK(!settings_u32_is_saved(offsetof(settings_t, aes_migration), SETTINGS_AES_READY));
+	// Page 1 is committed, and page 0 has its header, payload and CRC. Cut at page 0's commit word.
+	sim_flash_cut_after(CURRENT_SETTINGS_BYTES + 2u * STORAGE_SLOT_HDR + 12u);
+	CHECK(!settings_flush() && sim_flash_is_cut());
+	const uint8_t *page1 = &sim_flash_data[map.settings_addr + 2u * STORAGE_SLOT_SIZE];
+	const uint8_t *page0 = page1 + STORAGE_SLOT_SIZE;
+	const uint32_t committed = 0, erased = UINT32_MAX;
+	CHECK(storage_slot_check(page1) == STORAGE_SLOT_VALID);
+	CHECK(memcmp(page1 + STORAGE_SLOT_COMMIT, &committed, sizeof committed) == 0);
+	CHECK(memcmp(page0, "OSET", 4) == 0);
+	CHECK(memcmp(page0 + STORAGE_SLOT_COMMIT, &erased, sizeof erased) == 0);
+	boot();
+	check_audio_record(&old, SETTINGS_UPGRADED, 2);
+
+	old.squelch = 5;
+	old.vfo2_rx_hz = 446012500u;
+	w = settings_begin();
+	w->squelch = old.squelch;
+	w->vfo2_rx_hz = old.vfo2_rx_hz;
+	CHECK(settings_aes_recover(w, true));
+	settings_end(2);
+	CHECK(settings_flush());
+	CHECK(settings_u32_is_saved(offsetof(settings_t, aes_migration), SETTINGS_AES_READY));
+	boot();
+	old.aes_migration = SETTINGS_AES_READY;
+	check_audio_record(&old, SETTINGS_LOADED, 5);
+	CHECK(sim_flash_violations() == 0);
+}
+
+static void test_settings_aes_recovery_clear(void)
+{
+	settings_t old;
+	settings_defaults(&old);
+	old.vfo2_rx_hz = 446006250u;
+	old.aes_mi_res = UINT32_MAX;
+	boot_audio_record(&old, LEGACY_SETTINGS_BYTES);
+	old.aes_migration = SETTINGS_AES_BLOCKED;
+	check_audio_record(&old, SETTINGS_UPGRADED, 2);
+	CHECK(settings_aes_recover(settings_begin(), false));
+	settings_end(1);
+	CHECK(settings_flush());
+	boot();
+	old.aes_mi_res = 0;
+	old.aes_migration = SETTINGS_AES_READY;
+	check_audio_record(&old, SETTINGS_LOADED, 4);
 }
 
 int main(void)
@@ -1313,6 +1493,11 @@ int main(void)
 	test_journal_cuts();
 	test_settings_basic();
 	test_settings_receive_agc();
+	test_settings_legacy_audio_tail();
+	test_settings_incomplete_aes_tail();
+	test_settings_aes_rekey_only();
+	test_settings_aes_recovery_cut();
+	test_settings_aes_recovery_clear();
 	test_settings_wear();
 	test_settings_cuts();
 	test_settings_versions();

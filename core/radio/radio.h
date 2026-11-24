@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The radio core: owns the channel / VFO state, squelch, PTT and the TX timer, and drives board.radio.
 // It runs in its own task. The UI reads a snapshot and posts requests; it never touches the hardware.
 #ifndef RADIO_CORE_H
@@ -66,6 +67,7 @@ typedef enum {
 	TXDENY_CEASED,	// the system stopped the over (DMR reverse channel)
 	TXDENY_BENCH, TXDENY_TRUNK, TXDENY_AIR_NO_TX, TXDENY_AES_KEY,
 	TXDENY_AES_WAIT,	// AES: the MI reservation is not saved yet (dmrAesSeq_t)
+	TXDENY_AES_MIGRATION,	// AES: legacy settings require owner recovery and restart
 } tx_deny_t;
 
 // Busy channel lockout (FM): CARRIER refuses PTT while anything is heard on the channel; WRONG_TONE only while a

@@ -238,6 +238,30 @@ static const flow_t flows[] = {
 	{ "AES key row: saved with the channel", "aeskeys ok 5 ok down down down down down down down ok", "long:ok",
 	  "writes=1 toast=Saved_channel_3 focus=AES_key shows=3/0", 1, true },
 #endif
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+	{ "AES recovery hidden with an unambiguous counter", "ok 7 up ok", "up",
+	  "hides=AES_recovery aes_recover=0", 1, false },
+	{ "AES recovery offers a safe default", "aesrecover ok 7 up ok up", "ok",
+	  "screen=aes-recovery focus=Cancel aes_recover=0", 1, false },
+	{ "AES recovery Cancel leaves it blocked", "aesrecover ok 7 up ok up ok", "ok",
+	  "screen=group focus=AES_recovery aes_recover=0", 1, false },
+	{ "AES counter confirmation starts at Cancel", "aesrecover ok 7 up ok up ok", "down ok",
+	  "screen=aes-recovery focus=Cancel shows=verified? aes_recover=0", 2, false },
+	{ "AES counter confirmation requires the owner", "aesrecover ok 7 up ok up ok down ok", "down ok",
+	  "aes_recover=1", 2, false },
+	{ "AES rekey confirmation starts at Cancel", "aesrecover ok 7 up ok up ok", "down down ok",
+	  "screen=aes-recovery focus=Cancel shows=retired? aes_recover=0", 3, false },
+	{ "AES rekey confirmation can go Back", "aesrecover ok 7 up ok up ok down down ok", "back",
+	  "screen=aes-recovery focus=Use_new_AES_keys aes_recover=0", 1, false },
+	{ "AES rekey confirmation requires the owner", "aesrecover ok 7 up ok up ok down down ok", "down ok",
+	  "aes_recover=2", 2, false },
+	{ "AES recovery cannot retain a partial counter", "aesrecover:rekey ok 7 up ok up", "ok",
+	  "screen=aes-recovery focus=Cancel count=2 hides=Keep_AES_counter aes_recover=0", 1, false },
+	{ "AES recovery can retire keys with a partial counter", "aesrecover:rekey ok 7 up ok up ok", "down ok down ok",
+	  "screen=aes-recovery aes_recover=2", 4, false },
+	{ "AES recovery can be retried after the storage queue is busy", "aesrecover:busy ok 7 up ok up ok down ok", "down ok",
+	  "screen=aes-recovery toast=Couldn't_save aes_recover=0", 2, false },
+#endif
 #if CONFIG_CHANNEL_EDIT
 	// A channel saved from P25 (New from current): P25 and its NAC, no FM or DMR-only rows, talkaround automatic
 	{ "P25 new from current: its rows", "dlmode:p25", "ok 5 up up up ok down down down",

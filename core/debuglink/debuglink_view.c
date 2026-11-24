@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The radio view as key=value text for GET_VIEW (docs/spec/debuglink.md 3.7). One key per line; keys are stable
 // (DL_VIEW_VERSION is bumped when one changes meaning or goes away); new keys may appear anywhere in a section.
 #include "config.h"
@@ -71,7 +72,7 @@ static const char *deny_key(uint8_t d)
 	static const char *const names[] = { "none", "rx_only", "band", "timeout", "no_freq", "mode", "no_codec",
 					     "no_dmr", "busy", "no_repeater", "rejected", "hotspot", "no_id", "inhibit",
 					     "battery", "am", "bcast", "sfr_rpt", "hwopt", "refused", "ceased", "bench",
-					     "trunk", "air_no_tx", "aes_key", "aes_wait" };
+					     "trunk", "air_no_tx", "aes_key", "aes_wait", "aes_migration" };
 	return d < sizeof(names) / sizeof(names[0]) ? names[d] : "?";
 }
 

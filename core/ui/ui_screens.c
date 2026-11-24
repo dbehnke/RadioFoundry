@@ -1386,6 +1386,9 @@ static const char *deny_reason(const radio_view_t *v, char *buf, size_t len)
 	case TXDENY_NO_FREQ: sb_str(&b, TR(DENY_WHY_NO_TX_FREQ, "No TX frequency set")); break;
 	case TXDENY_AES_KEY: sb_str(&b, TR(WHY_AES_KEY, "AES key or TX disabled")); break;
 	case TXDENY_AES_WAIT: sb_str(&b, TR(WHY_AES_WAIT, "AES: saving, try again")); break;
+#if CONFIG_DMR_AES
+	case TXDENY_AES_MIGRATION: sb_str(&b, TR(WHY_AES_MIGRATION, "AES recovery required")); break;
+#endif
 	case TXDENY_MODE: sb_str(&b, TR(WHY_MODE_NOT_IN_BUILD, "Mode: not in this build")); break;
 	case TXDENY_NO_CODEC: sb_str(&b, TR(WHY_NO_CODEC, "No codec: voice off")); break;
 	case TXDENY_NO_DMR: sb_str(&b, TR(DENY_WHY_MODEM_NOT_RUNNING, "DMR modem not running")); break;
@@ -1443,6 +1446,9 @@ static const char *deny_action(const radio_view_t *v)
 	case TXDENY_NO_DMR: return TR(DENY_FIX_RELEASE_AND_RETRY, "Release PTT, try again");
 	case TXDENY_HOTSPOT: return TR(HOTSPOT_HINT_OK_STOPS, "OK stop hotspot");
 	case TXDENY_NO_ID: return TR(DENY_FIX_SET_DMR_ID, "Set your DMR ID in qdmr");
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+	case TXDENY_AES_MIGRATION: return TR(DENY_FIX_AES_RECOVERY, "Settings > Advanced");
+#endif
 	case TXDENY_AM:
 	case TXDENY_BCAST: return v->vfo ? TR(DENY_FIX_TUNE_OUT_OF_BAND, "Tune out of the band") :
 		TR(DENY_FIX_PICK_ANOTHER_CHANNEL, "Pick another channel");

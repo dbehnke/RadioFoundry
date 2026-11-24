@@ -212,7 +212,7 @@ msgctxt "APRS_BANNER_MSG_FROM"
 msgid "APRS message from "
 msgstr "Messaggio APRS da "
 
-#: core/ui/ui_app.c core/ui/ui_menus.c core/ui/ui_svc_zone.c
+#: core/ui/ui_app.c core/ui/ui_menus.c core/ui/ui_svc_storage.c core/ui/ui_svc_zone.c
 msgctxt "TOAST_SAVE_FAILED"
 msgid "Couldn't save: try again"
 msgstr "Salvataggio non riuscito: riprova"
@@ -4363,6 +4363,11 @@ msgid "Freq trim"
 msgstr "Trim freq."
 
 #: core/ui/ui_menus.c
+msgctxt "AES_RECOVERY_TITLE"
+msgid "AES recovery"
+msgstr "Ripristino AES"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_ROW_SOUND"
 msgid "Sound"
 msgstr "Suono"
@@ -4633,6 +4638,46 @@ msgid "Factory Reset"
 msgstr "Ripristino fabbrica"
 
 #: core/ui/ui_menus.c
+msgctxt "AES_RECOVERY_ASK_KEEP"
+msgid "Old AES counter verified?"
+msgstr "Contatore AES precedente verificato?"
+
+#: core/ui/ui_menus.c
+msgctxt "AES_RECOVERY_ASK_REKEY"
+msgid "All used AES TX keys retired?"
+msgstr "Ritirate tutte le chiavi AES TX già usate?"
+
+#: core/ui/ui_menus.c
+msgctxt "AES_RECOVERY_BODY_BLOCKED"
+msgid "AES TX blocked"
+msgstr "TX AES bloccata"
+
+#: core/ui/ui_menus.c
+msgctxt "CPLUG_ROW_CANCEL"
+msgid "Cancel"
+msgstr "Annulla"
+
+#: core/ui/ui_menus.c
+msgctxt "AES_RECOVERY_ROW_KEEP"
+msgid "Keep AES counter"
+msgstr "Mantieni contatore AES"
+
+#: core/ui/ui_menus.c
+msgctxt "AES_RECOVERY_ROW_REKEY"
+msgid "Use new AES keys"
+msgstr "Usa nuove chiavi AES"
+
+#: core/ui/ui_menus.c
+msgctxt "AES_RECOVERY_CONFIRM_KEEP"
+msgid "Yes, keep counter"
+msgstr "Sì, mantieni"
+
+#: core/ui/ui_menus.c
+msgctxt "AES_RECOVERY_CONFIRM_REKEY"
+msgid "Yes, keys retired"
+msgstr "Sì, chiavi ritirate"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_EMPTY_USE_QDMR"
 msgid "Set them with qdmr"
 msgstr "Impostale con qdmr"
@@ -4701,11 +4746,6 @@ msgstr "Modifica liste scan in qdmr"
 msgctxt "LANG_VALUE_IN_USE"
 msgid "In use"
 msgstr "In uso"
-
-#: core/ui/ui_menus.c
-msgctxt "CPLUG_ROW_CANCEL"
-msgid "Cancel"
-msgstr "Annulla"
 
 #: core/ui/ui_menus.c
 msgctxt "CPLUG_ROW_START_NEW"
@@ -5033,6 +5073,11 @@ msgid "AES: saving, try again"
 msgstr "AES: salvataggio, riprova"
 
 #: core/ui/ui_screens.c
+msgctxt "WHY_AES_MIGRATION"
+msgid "AES recovery required"
+msgstr "Ripristino AES richiesto"
+
+#: core/ui/ui_screens.c
 msgctxt "WHY_MODE_NOT_IN_BUILD"
 msgid "Mode: not in this build"
 msgstr "Modo: non in questa build"
@@ -5191,6 +5236,11 @@ msgstr "OK ferma hotspot"
 msgctxt "DENY_FIX_SET_DMR_ID"
 msgid "Set your DMR ID in qdmr"
 msgstr "Imposta il tuo ID DMR in qdmr"
+
+#: core/ui/ui_screens.c
+msgctxt "DENY_FIX_AES_RECOVERY"
+msgid "Settings > Advanced"
+msgstr "Impostazioni > Avanzate"
 
 #: core/ui/ui_screens.c
 msgctxt "DENY_FIX_TUNE_OUT_OF_BAND"

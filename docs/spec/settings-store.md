@@ -76,7 +76,7 @@ so with two pages a sector is erased once every 64 saves.
 ### 2.1 Pages
 
 `settings_t` is longer than one slot's payload, so it is stored as pages: page k holds bytes `236 * k` on.
-`SETTINGS_PAGES` is the number its size needs (2 now, 416 bytes); the page field allows 16 (3776 bytes). Each page is
+`SETTINGS_PAGES` is the number its size needs (2 now, 420 bytes); the page field allows 16 (3776 bytes). Each page is
 a record with its own length, so `settings_t` grows by appending fields, and a short page fills the fields it has.
 
 | Rule | Why |
@@ -176,7 +176,9 @@ callsign. The own DMR ID is always the codeplug's.
 | Satellite selection | Page 1, offset 398 (`reserved10[0]`): `satellite_index`, the installed TLE record index selected in Tools > Satellite; 0 selects the first record. Older records read as 0, not `SETTINGS_UNSET8`. The selection is saved when changed. TLE records and frequency pairs are stored separately ([satellite.md](satellite.md) 5) |
 | signaling tones | Page 1, offsets 400-405: `sig_dmr[3]` and `sig_fm[3]`, where the start, end and idle tone sound in DMR and in FM (0 default, 1 off, 2 speaker, 3 on air, 4 speaker + air). Offset 399 remains reserved (`reserved10[1]`); offset 407 is `reserved11[1]` (0). Older records read these as 0, the radio's own tone. The chains of steps are not here: each event's is its codeplug record (`CODEPLUG_KEY_SIG_BEGIN` + event, [codeplug-settings.md](codeplug-settings.md) 3.3), read at start and on every change, so `settings_t` copies on task stacks stay small. `radio_settings_t.sig_dmr`, `sig_fm`, `sig_hz`, `sig_ms` ([radio-features.md](radio-features.md) 4.3) |
 | P25 caller lookup | Page 1, offset 406: `caller_flags`, bit 0 (`SETTINGS_CALLER_P25_DMR`) enables caller names from private contacts and the DMR ID database. Other bits are reserved (0). Older records read as 0: off. No layout or record-size change ([p25.md](p25.md) 7.3.1) |
-| DMR AES MI reservation | Page 1, offsets 408-411, appended after `reserved11` (a record from before reads 0): `aes_mi_res`, u32, the end of the MI positions reserved for our AES overs ([dmr-voice.md](dmr-voice.md) 5.1.1). 0 = no position yet: the first AES channel with a key seeds one. Written between overs at first use after power-up and renewed as the reservation runs low. A restore while the radio runs can overwrite it; the radio writes back the in-memory end between overs. A restart before that save or a factory reset can still cause keystream reuse |
+| DMR AES MI reservation | Page 1, offsets 408-411. `aes_mi_res` is the end of the MI positions reserved for AES voice transmissions. Zero means no position yet. The first AES channel with a key seeds one. The radio writes a reservation before first use after power-up and renews it as the reservation runs low. Factory reset preserves it. See [Receive audio preferences](#receive-audio-preferences) and [DMR voice](dmr-voice.md) 5.1.1. |
+| Receive audio preferences | Page 1, offsets 412-414 hold `rx_agc[3]` in DMR, P25, NXDN order. Offset 415 holds `rx_audio_levels`. All four default to 0. |
+| DMR AES recovery state | Page 1, offsets 416-419 hold `aes_migration`, a u32 marker. Factory reset preserves it. See [Receive audio preferences](#receive-audio-preferences). |
 | crash report | packed into spare bits, so an older record reads as off with no target: the mode (0 off, 1 ask, 2 send at once) in `accent` bits 4-5; the target's codeplug contact number (0 none, else 1..1024, 11 bits) bits 0-5 in `theme` bits 2-7 and bits 6-10 in `updown_home` bits 2-6. `theme` and `updown_home` keep their value in bits 0-1; read and write them through `settings_theme` / `settings_updown_home` and `settings_crash_*` (`settings.h`). Firmware from before reads a `theme` or `updown_home` with these bits as out of range: the dark theme and Up/Down = channel ([crash-log.md](crash-log.md) 5.2) |
 
 All of these are still layout 1: they were appended before any firmware with the settings store shipped. Page 0
@@ -344,6 +346,7 @@ send it:
 | Test | What |
 |---|---|
 | `tests/host/settingsTest.c` | load, save, debounce, ring wrap, layout change, older and newer payload sizes; pages (a page 0 alone from an older firmware, a page newer than page 0, a save that passes over a sector holding an old page); power levels stored against another level count reset; a power cut at every flash operation of a save (the previous or the new set is in force, never neither, and never pages of two saves) |
+| AES migration in `settingsTest.c` | Layout-1 records before AES, old ambiguous records, truncated reservations or markers, and current records. Tests cover preservation of unrelated settings, recovery choices, and an interrupted recovery write before page 0 commits. |
 | the journal part of `settingsTest.c` | a power cut at every one of the 701 flash operations of a sequence of sector rewrites, then a boot: every sector holds either its old or its new content, and the replayed ones the new |
 | `tests/host/sim/sim_flash.c` | the simulated NOR: program only clears bits (violations counted), erase per 4 KB, a power cut after N operations (a torn program or erase leaves random bits) |
 | `tests/host/radioCoreTest.c` `test_persist` | the radio core saves the zone, the channel and the VFO and comes back to them after a reboot |
@@ -355,14 +358,37 @@ send it:
 
 ## Receive audio preferences
 
-The private `kf8sfork` integration keeps upstream `aes_mi_res` at offsets 408-411 and appends
-`rx_agc[3]` at 412-414, in DMR, P25, NXDN order. Each byte is the target choice in
-[rx-agc.md](rx-agc.md); zero is Off. Offset 415 is `rx_audio_levels` (0 hidden, 1 shown).
+The private firmware keeps `aes_mi_res` at offsets 408-411 and stores the DMR, P25 and NXDN
+[receive AGC targets](rx-agc.md) at offsets 412-414. Each target defaults to Off. Offset 415 is
+`rx_audio_levels`, with 0 hidden and 1 shown. The layout stays at 1. Current saves write 420 payload bytes across
+two pages of 236 and 184 bytes.
 
-**Release blocker:** earlier private AGC firmware stored these four preferences at 408-411. Both that
-firmware and upstream AES firmware wrote layout 1 records with 412-byte payloads. Their last four bytes
-cannot identify which firmware wrote them. This integration snapshot has no migration for that overlap.
-Do not flash it or restore its settings into older firmware. `tools/kf8s_build.py` refuses packaging until
-an explicit migration policy and its persistence tests are implemented and independently reviewed.
-Preserve upstream AES reservation values; never infer provenance from the numeric value or reset a
-reservation that might have been used. Preserve unrelated preferences when implementing the migration.
+Earlier private AGC firmware put four audio settings at 408-411, where upstream firmware stores the AES
+reservation. The 412-byte settings format cannot identify the source of those bytes. An unmarked 416-byte record
+may also carry those bytes forward. Identical audio preferences interpreted as AES reservations can reuse the same
+keystream when radios share a key.
+
+At boot the selected page 1 establishes the AES recovery state. An unmarked record or a malformed marker resets
+the three receive AGC targets to Off and hides the audio levels display. Any recorded reservation bytes and
+unrelated preferences are preserved.
+
+| Selected settings data | AES recovery state |
+|---|---|
+| Defaults, legacy record before offset 408, or a zero reservation with no marker bytes | `SETTINGS_AES_READY` (`ARDY`). No old position is present. |
+| Complete nonzero reservation with no marker, or complete reservation with a partial or unknown marker | `SETTINGS_AES_BLOCKED` (`ABLK`). AES TX requires owner recovery. |
+| One to three reservation bytes | `SETTINGS_AES_REKEY` (`ARKY`). AES TX requires owner recovery with new keys. A partial reservation cannot be kept. |
+| Recognized four-byte marker at offsets 416-419 | Honors the stored state and preserves the four audio preferences. |
+
+A normal settings save records the state, so later saves and reboots retain any recovery requirement. Factory
+reset preserves both the reservation and the recovery state because open-firmware codeplug keys can survive it.
+On AES-enabled images, **Settings > Advanced > AES recovery** offers **Keep AES counter** when a complete
+reservation can be verified as this radio's latest genuine AES reservation. If its provenance is unknown or it is
+incomplete, retire every AES transmit key previously used on the radio. Install new key material, then choose
+**Use new AES keys** to clear the reservation. Recovery takes effect after a successful save and restart. AES
+transmission stays blocked until then. Avoid downgrade to firmware without this migration and older settings
+restores after AES use, which can roll back a reservation.
+
+`tools/kf8s_build.py` uses each board's AES default. `--without-aes` sets `CONFIG_DMR_AES=n` for every image.
+In that profile AES channels are unavailable and PTT on them is rejected. `--parrot` enables the codec diagnostic
+where P25 is built. The wrapper retries diagnostic images that exceed RAM with `CONFIG_DMR_IP_GATEWAY=n` if the
+gateway was on. `build.json` records each image's overrides and each image manifest lists its enabled features.

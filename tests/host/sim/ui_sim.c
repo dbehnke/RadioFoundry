@@ -2518,6 +2518,20 @@ bool ui_svc_emergency(bool on) { emergency_on = on; return true; }
 bool ui_svc_emergency_active(void) { return emergency_on; }
 bool ui_svc_factory_reset(void) { return true; }
 
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+static bool sim_aes_blocked, sim_aes_busy, sim_aes_rekey_only;
+static unsigned sim_aes_recover_choice;
+bool ui_svc_aes_migration_required(void) { return sim_aes_blocked; }
+bool ui_svc_aes_keep_reservation_allowed(void) { return sim_aes_blocked && !sim_aes_rekey_only; }
+bool ui_svc_aes_recover(bool keep_reservation)
+{
+	if (!sim_aes_blocked || sim_aes_busy || (keep_reservation && sim_aes_rekey_only))
+		return false;
+	sim_aes_recover_choice = keep_reservation ? 1 : 2;
+	return true;
+}
+#endif
+
 // The crash log (ui_svc.h): "crash:on" a record from before this start nobody has seen, "crash:ask" / "crash:auto"
 // the same with the report's mode and the first contact (USA, TG 3100) as its target. A report goes at once;
 // "crashtx:refuse" makes the next sends fail to start (one still going), "crashtx:fail" makes them end failed
@@ -2707,6 +2721,10 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	memset(&sim_rec, 0, sizeof sim_rec);
 #if CONFIG_DMR_AES
 	sim_aes_keys = false;
+#endif
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+	sim_aes_blocked = sim_aes_busy = sim_aes_rekey_only = false;
+	sim_aes_recover_choice = 0;
 #endif
 #if CONFIG_SATELLITE_TLE
 	sim_satellite_predicting = false;
@@ -2991,6 +3009,9 @@ static bool check(const char *kv, char *err, size_t len)
 								     view.ch.mode == RADIO_MODE_P25 ? "p25" :
 								     view.ch.mode == RADIO_MODE_NXDN ? "nxdn" : "fm");
 	else if (strcmp(key, "tx") == 0) snprintf(got, sizeof got, "%u", (unsigned)sim_rec.tx_count);
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+	else if (strcmp(key, "aes_recover") == 0) snprintf(got, sizeof got, "%u", sim_aes_recover_choice);
+#endif
 	else if (strcmp(key, "txid") == 0) snprintf(got, sizeof got, "%u", (unsigned)sim_rec.tx_id);
 	else if (strcmp(key, "txpriv") == 0) snprintf(got, sizeof got, "%u", sim_rec.tx_private);
 	else if (strcmp(key, "talk") == 0) snprintf(got, sizeof got, "%u", (unsigned)view.dmr.target_id);
@@ -3794,6 +3815,14 @@ static bool run_token(char *t, char *err, size_t len)
 #if CONFIG_DMR_AES
 	if (strcmp(t, "aeskeys") == 0) {
 		sim_aes_keys = true;
+		return true;
+	}
+#endif
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+	if (strcmp(t, "aesrecover") == 0) {
+		sim_aes_blocked = true;
+		sim_aes_busy = arg != NULL && strcmp(arg, "busy") == 0;
+		sim_aes_rekey_only = arg != NULL && strcmp(arg, "rekey") == 0;
 		return true;
 	}
 #endif

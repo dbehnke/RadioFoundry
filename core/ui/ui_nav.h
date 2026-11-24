@@ -52,6 +52,9 @@ typedef enum {
 #if CONFIG_BACKLIGHT_TEST
 	SCR_BL_TEST,			// Settings > Advanced > Backlight tests
 #endif
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+	SCR_AES_RECOVERY,		// Settings > Advanced > AES recovery
+#endif
 	SCR_COUNT
 } ui_scr_t;
 

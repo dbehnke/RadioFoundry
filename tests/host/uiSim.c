@@ -186,6 +186,11 @@ static const struct { const char *name, *script; } gallery[] = {
 	{ "signaling_step_edit", "ok 7 up up ok down down down down down down ok ok 1 5 7 0" },
 	{ "settings_advanced", "ok 7 up ok" },
 	{ "factory_reset", "ok 7 up ok down down down ok" },
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+	{ "aes_recovery", "aesrecover ok 7 up ok up ok expect:screen=aes-recovery expect:focus=Cancel" },
+	{ "aes_recovery_keep", "aesrecover ok 7 up ok up ok down ok expect:shows=verified?" },
+	{ "aes_recovery_rekey", "aesrecover ok 7 up ok up ok down down ok expect:shows=retired?" },
+#endif
 	{ "about", "ok 7 up ok ok" },
 	{ "crash_log", "crash:on ok 7 up ok down down down down ok" },
 	{ "crash_prompt", "crash:ask wait:2500" },

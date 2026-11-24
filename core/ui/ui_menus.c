@@ -6683,7 +6683,8 @@ static const ui_scr_def_t tools_screen = {
 
 typedef enum { ST_TOGGLE, ST_LIST, ST_NUMBER, ST_ACTION } set_type_t;
 enum { SA_DIAG, SA_FIRMWARE, SA_CODEPLUG, SA_RESET, SA_MY_RADIO, SA_CRASH, SA_LANGUAGE, SA_HARDWARE, SA_FIXED_POS,
-	SA_SAVE_GPS_POS, SA_DATA_SERVICES, SA_BL_TEST, SA_P25_PARROT, SA_SIG_BEGIN, SA_SIG_END, SA_SIG_IDLE };	// signaling tone steps, by sig_event_t
+	SA_SAVE_GPS_POS, SA_DATA_SERVICES, SA_BL_TEST, SA_P25_PARROT, SA_AES_RECOVERY, SA_SIG_BEGIN, SA_SIG_END,
+	SA_SIG_IDLE };	// signaling tone steps, by sig_event_t
 
 typedef struct {
 	tr_id_t name;			// TRN; TR_NONE for a key's row (set_name)
@@ -7172,6 +7173,9 @@ static const set_item_t s_advanced[] = {
 	// Only on radios with hardware options (hal_hwopt.h): last, so the rows above keep their places
 	ACTION(TRX(HW_TITLE, "Hardware"), "board revision", SA_HARDWARE),
 #endif
+#if CONFIG_DMR_AES
+	ACTION(TRN(AES_RECOVERY_TITLE, "AES recovery"), NULL, SA_AES_RECOVERY),
+#endif
 };
 
 #define GROUP(nm, a)		{ nm, nm, a, sizeof a / sizeof a[0] }
@@ -7219,6 +7223,10 @@ static uint16_t hwopt_visible(void)
 // shown disabled
 static bool set_hidden(const set_item_t *s)
 {
+#if CONFIG_DMR_AES
+	if (s->type == ST_ACTION && s->id == SA_AES_RECOVERY)
+		return !ui_svc_aes_migration_required();
+#endif
 #if RFOUNDRY_HWOPTS
 	if (s->type == ST_ACTION && s->id == SA_HARDWARE)
 		return hwopt_visible() == 0;	// none, or every one detected
@@ -7809,6 +7817,9 @@ static void group_select(uint16_t i, bool hold)
 		case SA_CODEPLUG: ui_push(SCR_INFO, INFO_CODEPLUG); break;
 		case SA_MY_RADIO: ui_push(SCR_DMR_ID, 0); break;
 		case SA_RESET: ui_push(SCR_CONFIRM, 0); break;
+#if CONFIG_DMR_AES
+		case SA_AES_RECOVERY: ui_push(SCR_AES_RECOVERY, 0); break;
+#endif
 		case SA_LANGUAGE: ui_push(SCR_LANGUAGE, 0); break;
 #if CONFIG_SIG_TONES
 		case SA_SIG_BEGIN ... SA_SIG_IDLE: ui_push(SCR_SIG_CHAIN, (uint16_t)(s->id - SA_SIG_BEGIN)); break;
@@ -8042,6 +8053,65 @@ static const ui_scr_def_t confirm_screen = {
 	.hint = TRN(HINT_OK_CHOOSE_BACK_CANCELS, "OK choose  Back cancel"),
 	.count = confirm_count, .item = confirm_item, .select = confirm_select, .body = confirm_body,
 };
+
+#if CONFIG_DMR_AES
+enum { AES_RECOVERY_CHOOSE, AES_RECOVERY_KEEP, AES_RECOVERY_REKEY };
+
+static uint16_t aes_recovery_count(void)
+{
+	return ui_frame()->arg == AES_RECOVERY_CHOOSE && ui_svc_aes_keep_reservation_allowed() ? 3 : 2;
+}
+
+static uint16_t aes_recovery_option(uint16_t i)
+{
+	return i == 1 && ui_svc_aes_keep_reservation_allowed() ? AES_RECOVERY_KEEP : AES_RECOVERY_REKEY;
+}
+
+static const char *aes_recovery_body(void)
+{
+	switch (ui_frame()->arg) {
+	case AES_RECOVERY_KEEP: return TR(AES_RECOVERY_ASK_KEEP, "Old AES counter verified?");
+	case AES_RECOVERY_REKEY: return TR(AES_RECOVERY_ASK_REKEY, "All used AES TX keys retired?");
+	default: return TR(AES_RECOVERY_BODY_BLOCKED, "AES TX blocked");
+	}
+}
+
+static void aes_recovery_item(uint16_t i, ui_item_t *it)
+{
+	uint16_t stage = ui_frame()->arg;
+	const char *label;
+	if (i == 0) {
+		label = TR(CPLUG_ROW_CANCEL, "Cancel");
+	} else if (stage == AES_RECOVERY_CHOOSE) {
+		label = aes_recovery_option(i) == AES_RECOVERY_KEEP ? TR(AES_RECOVERY_ROW_KEEP, "Keep AES counter") :
+			TR(AES_RECOVERY_ROW_REKEY, "Use new AES keys");
+	} else {
+		label = stage == AES_RECOVERY_KEEP ? TR(AES_RECOVERY_CONFIRM_KEEP, "Yes, keep counter") :
+			TR(AES_RECOVERY_CONFIRM_REKEY, "Yes, keys retired");
+		it->flags |= UI_ITEM_WARN;
+	}
+	str_copy(it->label, sizeof it->label, label);
+}
+
+static void aes_recovery_select(uint16_t i, bool hold)
+{
+	if (hold)
+		return;
+	if (i == 0) {
+		ui_pop();
+	} else if (ui_frame()->arg == AES_RECOVERY_CHOOSE) {
+		ui_push(SCR_AES_RECOVERY, aes_recovery_option(i));
+	} else if (!ui_svc_aes_recover(ui_frame()->arg == AES_RECOVERY_KEEP)) {
+		ui_toast(TR(TOAST_SAVE_FAILED, "Couldn't save: try again"));
+	}
+}
+
+static const ui_scr_def_t aes_recovery_screen = {
+	.name = "aes-recovery", .flags = SF_LIST | SF_NO_STRIP, .prefix = TRN(AES_RECOVERY_TITLE, "AES recovery"),
+	.hint = TRN(HINT_OK_CHOOSE_BACK_CANCELS, "OK choose  Back cancel"),
+	.count = aes_recovery_count, .item = aes_recovery_item, .select = aes_recovery_select, .body = aes_recovery_body,
+};
+#endif
 #else
 uint8_t ui_set_group_count(void) { return 0; }
 tr_id_t ui_set_group_name(uint8_t g) { (void)g; return TR_NONE; }
@@ -8374,6 +8444,9 @@ const ui_scr_def_t *const ui_scr[SCR_COUNT] = {
 	[SCR_RECENT] = &recent_screen, [SCR_ZONES] = &channels_screen, [SCR_ZONE] = &zone_screen,
 	[SCR_TOOLS] = &tools_screen, [SCR_SETTINGS] = &settings_screen, [SCR_GROUP] = &group_screen,
 	[SCR_PICKER] = &picker_screen, [SCR_INFO] = &info_screen, [SCR_CONFIRM] = &confirm_screen,
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+	[SCR_AES_RECOVERY] = &aes_recovery_screen,
+#endif
 #if CONFIG_DMR_TRUNK
 	[SCR_INCOMING_CALL] = &incoming_call_screen,
 #endif

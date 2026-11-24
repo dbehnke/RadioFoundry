@@ -1518,7 +1518,12 @@ static void factory_reset_job(void *ctx)
 {
 	(void)ctx;
 	settings_t *st = settings_begin();
+	uint32_t aes_mi_res = st->aes_mi_res;
+	uint32_t aes_migration = st->aes_migration;
 	settings_defaults(st);	// cp_flags too: "Use anyway" doesn't outlive a reset
+	// AES keys in the open codeplug stay, so the counter and any recovery requirement must stay too.
+	st->aes_mi_res = aes_mi_res;
+	st->aes_migration = aes_migration;
 	board_rx_ext_set(false);
 	settings_end(hal_millis());
 	codeplug_accept(false);
@@ -1542,6 +1547,48 @@ bool ui_svc_factory_reset(void)
 {
 	return storage_job_post(factory_reset_job, NULL);
 }
+
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+bool ui_svc_aes_migration_required(void)
+{
+	return settings_aes_migration_required();
+}
+
+bool ui_svc_aes_keep_reservation_allowed(void)
+{
+	return settings_aes_keep_reservation_allowed();
+}
+
+static void aes_recover_job(void *ctx)
+{
+	settings_t *st = settings_begin();
+	uint32_t aes_migration = st->aes_migration;
+	uint32_t aes_mi_res = st->aes_mi_res;
+	bool changed = aes_migration != SETTINGS_AES_READY && settings_aes_recover(st, ctx != NULL);
+	settings_end(hal_millis());
+	if (!changed) {
+		save_failed(TRN(TOAST_SAVE_FAILED, "Couldn't save: try again"));
+		return;
+	}
+	if (!settings_flush()) {
+		// A failed write leaves the old decision available for retry.
+		st = settings_begin();
+		st->aes_migration = aes_migration;
+		st->aes_mi_res = aes_mi_res;
+		settings_end(hal_millis());
+		save_failed(TRN(TOAST_SAVE_FAILED, "Couldn't save: try again"));
+		return;
+	}
+	board.system->reboot(HAL_REBOOT_NORMAL);
+}
+
+bool ui_svc_aes_recover(bool keep_reservation)
+{
+	return storage_ready() && board.system != NULL && board.system->reboot != NULL &&
+	       settings_aes_migration_required() && (!keep_reservation || settings_aes_keep_reservation_allowed()) &&
+	       storage_job_post(aes_recover_job, (void *)(uintptr_t)keep_reservation);
+}
+#endif
 
 void ui_svc_boot_text(char line1[17], char line2[17])
 {

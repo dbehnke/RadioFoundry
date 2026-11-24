@@ -192,12 +192,13 @@ When the keys lock by themselves and what still works while they are locked ([Ke
 | Codeplug | Where the channels come from (built-in or from the CPS), the number of zones and channels |
 | Diagnostics | The diagnostics page (also **OK**, **6**, **7**) |
 | Backlight tests | Only in builds with `CONFIG_BACKLIGHT_TEST` ([Build configuration](../build-config.md)): a bench tool for measuring the backlight, in English only. **OK** steps through the pages the radio supports. **Compare value**: the knob steps 1, **Up** / **Down** 50 (1 on a radio whose channel knob has end stops), digits type a value (it applies when it has as many digits as the maximum; **#** applies a shorter one, **Back** deletes a digit), **\*** changes the PWM rate, holding **OK** switches to full and back; it shows the duty and the on and off time each period. **Brightness**: 0 to 100 % in steps of 10, kept as the Brightness setting (10 % for 0). **PWM rate**: the rates the radio has, at that brightness; the standard rate again on leaving. How to use them: [Backlight curve](../testing/backlight-curve.md) |
-| Factory reset | Puts every setting back to its default ([below](#factory-reset)) |
+| Factory reset | Restores the default preferences and keeps the AES counter and recovery state ([below](#factory-reset)) |
 | Crash log | What the last crash left, and sending it to the developers ([below](#crash-log)) |
 | RX past bands | Only on radios with a range for it: receive above the radio's rated bands, FM only. Off by default. Sensitivity isn't rated there, and the radio never transmits there |
 | Codec diagnostic | A local microphone and codec check in builds with `CONFIG_P25_PARROT`. **Mode** shows P25 / IMBE. Press **OK** on **Record** to record up to 10 seconds or stop early for playback. **Input AGC** toggles automatic gain. **Target dBFS** steps from -35 to -15, initially -25. With AGC off, the test uses your saved **Mic gain** step. The test controls apply only here and reset when you reopen the screen. The diagnostic blocks transmission, including Emergency. **Back** stops the test and restores the channel |
 | Freq trim | Moves the radio's receive and transmit frequency together, for a radio that is off frequency. Measure the error (a frequency counter, a service monitor, or a hotspot's BER test) and enter it with the sign reversed. The page shows what the trim comes to in Hz at 440 MHz and 144 MHz: a radio 2 kHz high at 440 MHz takes about -4.5 ppm (-1980 Hz). The page shows the trim in large type over a slider from -10 to +10, with "+ to increase frequency" under it where the display has room. Up and Down (or the knob) step 0.1 ppm, # flips the sign, digits type it (# 4 5 OK is -4.5 ppm). Takes effect once you stop changing it. Only on radios that have it ([which radios](../feature-matrix.md)). Range -10.0 to +10.0 ppm in 0.1 ppm steps, default 0 |
 | Hardware | Only on radios that need it: facts about the radio the firmware can't detect, such as a board revision (one the radio detects isn't listed). **OK** steps through the choices, holding **OK** stores the one shown. "Not set" shows in the warning color until one is stored, and the radio won't transmit until then. A choice other than the one the radio runs applies from the next start-up |
+| AES recovery | Appears in AES builds when the radio cannot verify a legacy transmit counter. Follow [AES recovery](09-dmr.md#aes-recovery) before resuming AES transmission |
 
 <img src="../ux/screens/160x120i5/about.png" width="200" alt="Settings > Advanced > About">
 
@@ -270,8 +271,9 @@ undone." The focus starts on "No, keep settings". Focus "Yes, reset" and press *
 
 <img src="../ux/screens/160x120i5/factory_reset.png" width="200" alt="Factory reset confirmation">
 
-The reset puts every setting back to its default (brightness, radio settings, the privacy key, the channel
-position), erases RadioFoundry's own data area, and restarts the radio. The codeplug and the calibration stay.
+The reset restores the default brightness, radio settings, basic privacy key, channel position, and other
+preferences. It erases RadioFoundry's own data area and restarts the radio. The codeplug, calibration, AES counter,
+and AES recovery state are retained.
 
 ## Crash log
 

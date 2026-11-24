@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 #include "config.h"
 #if CONFIG_DMR_AES
 #include <string.h>
@@ -15,15 +16,31 @@ static dmrAesState_t channel_keys;
 static uint16_t channel_key_ref;
 static uint8_t channel_key_system;
 static bool channel_tx_allowed;
+static bool migration_blocked;
 static dmrAesSeq_t aes_seq;		// the radio's MI sequence, every key
 
-void radio_aes_start(uint32_t saved)
+void radio_aes_start(uint32_t saved, bool blocked)
 {
+	migration_blocked = blocked;
 	dmrAesSeqStart(&aes_seq, saved);	// TX waits for the next reservation
+}
+
+// Recovery takes effect only after a durable settings save and restart.
+static bool migration_required(void)
+{
+	migration_blocked |= settings_aes_migration_required();
+	return migration_blocked;
+}
+
+static uint32_t new_mi(uint32_t now_ms, void *ctx)
+{
+	return migration_required() ? 0 : dmrAesNewMi(now_ms, ctx);
 }
 
 uint8_t radio_aes_tx_deny(const channel_t *ch)
 {
+	if (migration_required())
+		return TXDENY_AES_MIGRATION;
 	if (!ch->aes_ref || channel_key_ref != ch->aes_ref || channel_key_system != ch->system || !channel_tx_allowed)
 		return TXDENY_AES_KEY;
 	return aes_seq.left == 0 ? TXDENY_AES_WAIT : TXDENY_NONE;
@@ -65,7 +82,7 @@ bool radio_aes_configure(const channel_t *ch, dmr_call_config_t *cfg)
 	cfg->crypt_ctx = &channel_keys;
 	if (!dmrAesTxKey(&channel_keys, &cfg->tx_crypt_alg, &cfg->tx_crypt_key_id))
 		return false;
-	cfg->crypt_mi = dmrAesNewMi;
+	cfg->crypt_mi = new_mi;
 	cfg->tx_fid = DMR_PRIVACY_FID;
 	cfg->tx_svc |= DMR_PRIVACY_SERVICE_OPTION;
 	return true;
@@ -73,6 +90,8 @@ bool radio_aes_configure(const channel_t *ch, dmr_call_config_t *cfg)
 
 void radio_aes_poll(const channel_t *ch, uint32_t own_id, uint32_t now_ms)
 {
+	if (migration_required())
+		return;
 	dmrAesSeqSettle(&aes_seq);
 	uint32_t stored = SETTINGS_FIELD(aes_mi_res);
 

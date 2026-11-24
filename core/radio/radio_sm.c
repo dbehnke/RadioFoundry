@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The radio core's state machine: channel / zone / VFO selection, software squelch, PTT checks and the TX timer,
 // and the everyday features around them (docs/spec/radio-features.md): scan, busy channel lockout, roger beep and
 // 1750 Hz burst, VOX, beeps, the battery monitor and receiver battery saving.
@@ -8254,7 +8255,7 @@ void radio_sm_init(radio_sm_t *sm, uint32_t now_ms)
 
 	memset(sm, 0, sizeof(*sm));
 #if CONFIG_DMR_AES
-	radio_aes_start(st.aes_mi_res);
+	radio_aes_start(st.aes_mi_res, st.aes_migration != SETTINGS_AES_READY);
 #endif
 #if CONFIG_SFR
 	direct_sm = sm;

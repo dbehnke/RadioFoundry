@@ -28,7 +28,9 @@ _Static_assert(SETTINGS_PAGES <= SETTINGS_PAGES_MAX, "settings_t outgrew its pag
 _Static_assert(sizeof(settings_t) % 4 == 0, "settings_t has tail padding");
 _Static_assert(offsetof(settings_t, dual_b) == SETTINGS_PAGE_BYTES, "page 1 starts at its first field");
 _Static_assert(offsetof(settings_t, ref_trim_ppb) % 2 == 0, "ref_trim_ppb is aligned");
-_Static_assert(sizeof(settings_t) == 416, "settings_t changed size: update docs/spec/settings-store.md 3 and this");
+_Static_assert(offsetof(settings_t, aes_mi_res) == 408, "legacy AES reservation offset");
+_Static_assert(offsetof(settings_t, aes_migration) == 416, "AES migration marker offset");
+_Static_assert(sizeof(settings_t) == 420, "settings_t changed size: update docs/spec/settings-store.md 3 and this");
 
 static settings_t live;			// under the quick lock
 static settings_t saved;		// what the newest record holds (or the defaults)
@@ -65,6 +67,7 @@ void settings_defaults(settings_t *s)
 	s->vfo2_ts = 1;
 	s->satellite_index = SETTINGS_UNSET8;
 	s->power_levels = board.power_count;
+	s->aes_migration = SETTINGS_AES_READY;
 }
 
 // Power levels stored against another level count (an older record, or a board whose levels changed) may name a
@@ -139,6 +142,26 @@ static uint8_t slot_buf[SLOT_SIZE];
 static uint16_t rec_page(const uint8_t *r) { return (uint16_t)((r[8] | (r[9] << 8)) >> SETTINGS_PAGE_SHIFT); }
 static uint16_t rec_layout(const uint8_t *r) { return (uint16_t)((r[8] | (r[9] << 8)) & 0x0FFFu); }
 
+static void aes_migration_check(settings_t *s, size_t bytes)
+{
+	const size_t marker = offsetof(settings_t, aes_migration);
+	const size_t reservation = offsetof(settings_t, aes_mi_res);
+	if (bytes >= marker + sizeof s->aes_migration &&
+	    (s->aes_migration == SETTINGS_AES_READY || s->aes_migration == SETTINGS_AES_BLOCKED ||
+	     s->aes_migration == SETTINGS_AES_REKEY)) {
+		return;
+	}
+	// Prior layout-1 writers could put four audio preferences where others put AES reservation state.
+	// Preserve every reservation byte and block AES if the data may have been used or is incomplete.
+	memset(s->rx_agc, 0, sizeof s->rx_agc);
+	s->rx_audio_levels = 0;
+	if (bytes > reservation && bytes < reservation + sizeof s->aes_mi_res) {
+		s->aes_migration = SETTINGS_AES_REKEY;
+	} else {
+		s->aes_migration = s->aes_mi_res || bytes > marker ? SETTINGS_AES_BLOCKED : SETTINGS_AES_READY;
+	}
+}
+
 settings_load_t settings_init(void)
 {
 	const hal_flash_map_t *m = storage_map();
@@ -199,6 +222,7 @@ settings_load_t settings_init(void)
 		uint16_t n = (uint16_t)(r[10] | (r[11] << 8));
 		memcpy(&live, &r[HDR], n < page_len(0) ? n : page_len(0));
 		bool whole = n == page_len(0);
+		uint16_t page1_bytes = 0;
 		// Second pass: each other page, the newest of it older than page 0 (an older firmware's save wrote
 		// page 0 alone: the page from before it, else the defaults)
 		for (unsigned k = 1; k < SETTINGS_PAGES; k++) {
@@ -223,6 +247,9 @@ settings_load_t settings_init(void)
 			if (found && read_slot(sk, lk, r) == SLOT_VALID) {
 				uint16_t nk = (uint16_t)(r[10] | (r[11] << 8));
 				memcpy((uint8_t *)&live + k * SETTINGS_PAGE_BYTES, &r[HDR], nk < page_len(k) ? nk : page_len(k));
+				if (k == 1) {
+					page1_bytes = nk;
+				}
 				whole = whole && nk == page_len(k) && qk == seq0 - k;
 				valid_mask |= 1u << sk;	// part of the set in force: saves must not erase it either
 			} else {
@@ -231,6 +258,7 @@ settings_load_t settings_init(void)
 		}
 		stats.load = whole ? SETTINGS_LOADED : SETTINGS_UPGRADED;
 		power_levels_check(&live);
+		aes_migration_check(&live, SETTINGS_PAGE_BYTES + page1_bytes);
 	}
 	storage_unlock();
 	saved = live;
@@ -290,6 +318,28 @@ bool settings_u32_is_saved(size_t offset, uint32_t value)
 		memcmp((const uint8_t *)&saved + offset, &value, sizeof(value)) == 0;
 	storage_quick_unlock();
 	return match;
+}
+
+bool settings_aes_migration_required(void)
+{
+	return SETTINGS_FIELD(aes_migration) != SETTINGS_AES_READY;
+}
+
+bool settings_aes_keep_reservation_allowed(void)
+{
+	return SETTINGS_FIELD(aes_migration) == SETTINGS_AES_BLOCKED;
+}
+
+bool settings_aes_recover(settings_t *s, bool keep_reservation)
+{
+	if (keep_reservation && s->aes_migration != SETTINGS_AES_BLOCKED) {
+		return false;
+	}
+	if (!keep_reservation) {
+		s->aes_mi_res = 0;
+	}
+	s->aes_migration = SETTINGS_AES_READY;
+	return true;
 }
 
 settings_t *settings_begin(void)

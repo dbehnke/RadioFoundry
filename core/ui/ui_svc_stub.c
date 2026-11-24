@@ -197,6 +197,11 @@ WEAK bool ui_svc_emergency(bool on) { (void)on; return false; }
 WEAK void ui_svc_emergency_dismiss(void) { }
 WEAK bool ui_svc_emergency_active(void) { return false; }
 WEAK bool ui_svc_factory_reset(void) { return false; }
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+WEAK bool ui_svc_aes_migration_required(void) { return false; }
+WEAK bool ui_svc_aes_keep_reservation_allowed(void) { return false; }
+WEAK bool ui_svc_aes_recover(bool keep_reservation) { (void)keep_reservation; return false; }
+#endif
 WEAK bool ui_svc_codeplug_answer(uint8_t answer) { (void)answer; return false; }
 
 WEAK bool ui_svc_crash_get(ui_crash_t *out) { (void)out; return false; }

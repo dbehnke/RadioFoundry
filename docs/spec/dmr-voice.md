@@ -306,9 +306,16 @@ position that never repeats, not one that can't be guessed (the late-entry field
 
 Two radios with the same key meet only if their stretches of the sequence do. After a settings restore while the
 radio is running, the radio writes back its last saved reservation between overs. TX continues from the in-memory
-position. A restart before the repair reaches flash, a restore while the radio is off, or a factory reset can still
-repeat keystream under the same key. Change the key in those cases or if unsure the repair was saved. The period is
+position. A restart before the repair reaches flash or a restore while the radio is off can still
+repeat keystream under the same key. Factory reset preserves the reservation and recovery marker. Change the key in those cases or if unsure the repair was saved. The period is
 2^32 - 1 superframes; change a key that has carried a lot of traffic (`docs/user/09-dmr.md`).
+
+Private settings upgrades also check the persistent recovery marker described in
+[settings-store.md](settings-store.md#receive-audio-preferences). Ambiguous legacy reservations refuse AES TX
+(`aes_migration`), including the call stack's MI callback, and cannot be repaired or advanced automatically.
+Matching keys remain configured for receive. Owner recovery saves the marker and restarts the radio before TX can
+reserve positions again. A failed save leaves TX blocked. Factory reset preserves this recovery state even when AES
+is compiled out.
 
 #### 5.1.2 Open points
 

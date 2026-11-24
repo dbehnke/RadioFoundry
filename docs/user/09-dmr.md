@@ -319,10 +319,25 @@ What AES does not do:
 - A clear call on an AES channel is still played.
 - Anyone with the radio and a USB cable can read the keys from its codeplug. If a radio is lost, give everyone new
   keys.
-- Change the key after a factory reset. The radio repairs its saved encryption position after a settings restore
-  while it's running, but a restart before it saves the repair can reuse part of the sequence. Change the key if
-  settings were restored while the radio was off or you're unsure the repair was saved.
+- A factory reset keeps the AES counter and any pending recovery. A settings restore while the radio runs can
+  overwrite its saved counter until the radio writes it back. Change the key if settings were restored while the
+  radio was off or you're unsure the repair was saved.
 - Change a key that has carried a lot of traffic, for example once a year on a busy channel.
+
+#### AES recovery
+
+If PTT reports **AES recovery required**, the radio found legacy settings with an ambiguous AES counter. AES
+transmission stays blocked until recovery is saved and the radio restarts. Open **Settings > Advanced >
+AES recovery** to choose an option.
+
+- **Keep AES counter** is offered when the record contains the full counter. Use it only if you have verified
+  that this is the valid, latest AES counter for this radio. Confirm **Yes, keep counter**.
+- **Use new AES keys** starts a new counter. First remove or replace every AES transmit key previously used on
+  this radio. Confirm **Yes, keys retired** only once all those keys are retired or you have verified that none
+  were used.
+- **Cancel** leaves AES transmit blocked. Use it if you cannot verify either condition.
+
+<img src="../ux/screens/160x120i5/aes_recovery.png" width="200" alt="AES recovery options">
 
 To set a basic privacy key on the radio, open **Settings > Privacy** (**OK**, **7**, **4**).
 

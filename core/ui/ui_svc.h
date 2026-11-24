@@ -292,6 +292,13 @@ void ui_svc_emergency_dismiss(void);
 // calibration: those would need a second, explicit confirmation), then the radio restarts. Done by the housekeeping
 // task, not the UI's; false if it can't be started (no flash, or a save still going on)
 bool ui_svc_factory_reset(void);
+#if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
+bool ui_svc_aes_migration_required(void);
+bool ui_svc_aes_keep_reservation_allowed(void);
+// The owner confirmed the old counter is valid or every previously used AES TX key was retired.
+// Save that choice on the housekeeping task, then restart. False if the job could not be queued.
+bool ui_svc_aes_recover(bool keep_reservation);
+#endif
 // Another firmware's codeplug (codeplug_foreign, docs/spec/codeplug-native.md 2): the codeplug write the UI asks for
 // is held, not made, and UI_EV_CODEPLUG_FOREIGN asks the owner. The answer: UI_CP_CANCEL drops the write; UI_CP_NEW
 // clears the old codeplug, starts a new one and makes the write; UI_CP_USE keeps the old codeplug as the radio's own,
