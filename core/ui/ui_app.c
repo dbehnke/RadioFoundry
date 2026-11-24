@@ -1958,6 +1958,9 @@ static bool roams_known;
 
 void ui_app_init(void)
 {
+#if CONFIG_UI_SETTINGS && CONFIG_KEY_ASSIGN
+	ui_menus_keys_reset();
+#endif
 #if CONFIG_DMR_ROAMING
 	roams_known = false;
 #endif

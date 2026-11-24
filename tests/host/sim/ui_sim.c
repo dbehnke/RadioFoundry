@@ -342,7 +342,7 @@ const sim_geom_t *sim_geom_find(const char *name)
 // ---------------- the board ----------------
 
 enum { K_GREEN, K_RED, K_UP, K_DOWN, K_LEFT, K_RIGHT, K_STAR, K_HASH, K_0, K_9 = K_0 + 9, K_SK1, K_SK2, K_SK3,
-       K_FN1, K_FN2, K_PTT, K_P1, K_P2 };
+       K_FN1, K_FN2, K_PTT, K_P1, K_P2, K_MIC_A, K_MIC_B, K_MIC_C, K_MIC_D, K_MIC_AB };
 
 static const keymap_entry_t map_k[] = {	// DM-1701 (7.1)
 	{ K_GREEN, ACT_SELECT, ACT_SELECT, false, false, 0 }, { K_RED, ACT_BACK, ACT_BACK, false, false, 0 },
@@ -380,8 +380,13 @@ static const keymap_entry_t map_v[] = {	// MD-9600 front panel + hand mic (7.4);
 	{ K_0 + 4, ACT_DIGIT_4, ACT_DIGIT_4, false, false, 0 }, { K_0 + 5, ACT_DIGIT_5, ACT_DIGIT_5, false, false, 0 },
 	{ K_0 + 6, ACT_DIGIT_6, ACT_DIGIT_6, false, false, 0 }, { K_0 + 7, ACT_DIGIT_7, ACT_DIGIT_7, false, false, 0 },
 	{ K_0 + 8, ACT_DIGIT_8, ACT_DIGIT_8, false, false, 0 }, { K_0 + 9, ACT_DIGIT_9, ACT_DIGIT_9, false, false, 0 },
-	{ K_SK1, ACT_MONITOR, ACT_MONITOR, true, false, 0 }, { K_SK2, ACT_AB, ACT_USER_2, false, false, 0 },
+	{ K_SK1, ACT_MONITOR, ACT_MONITOR, true, false, 0 }, { K_SK2, ACT_TALK_TARGET, ACT_USER_2, false, false, 0 },
 	{ K_SK3, ACT_USER_3, ACT_USER_3, false, false, 0 }, { K_PTT, ACT_PTT, ACT_PTT, true, false, 0 },
+	{ K_MIC_A, ACT_USER_1, ACT_USER_1, false, false, 'A' },
+	{ K_MIC_B, ACT_USER_4, ACT_USER_4, false, false, 'B' },
+	{ K_MIC_C, ACT_MONITOR, ACT_MONITOR, true, false, 'C' },
+	{ K_MIC_D, ACT_TALK_TARGET, ACT_TALK_TARGET, false, false, 'D' },
+	{ K_MIC_AB, ACT_SELECT_AB, ACT_SELECT_AB, false, false, 0 },
 };
 static const keymap_entry_t map_f[] = {	// few keys (7.5): Up / Down / Select / Back, PTT
 	{ K_GREEN, ACT_SELECT, ACT_SELECT, false, false, 0 }, { K_RED, ACT_BACK, ACT_BACK, false, false, 0 },
@@ -403,7 +408,8 @@ static const keymap_entry_t map_s[] = {	// side keys only, no display to navigat
 };
 static const uint8_t side_k[] = { K_SK1, K_SK2, K_SK3 }, side_m[] = { K_SK1, K_SK2 };	// board.side_keys
 static const char *const side_names[] = { "SK1", "SK2", "SK3" };
-static const char *const side_names_p[] = { "P3", "P4", "Orange" };	// the MD-9600 (boards/md9600/board.c)
+static const uint8_t side_p[] = { K_SK1, K_SK2, K_SK3, K_MIC_A, K_MIC_B, K_MIC_C, K_MIC_D };
+static const char *const side_names_p[] = { "P3", "P4", "Orange", "Mic A", "Mic B", "Mic C", "Mic D" };	// the MD-9600 (boards/md9600/board.c)
 static const struct {
 	const keymap_entry_t *m;
 	uint8_t n;
@@ -414,9 +420,9 @@ static const struct {
 } maps[SIM_MAP_COUNT] = {
 	{ map_k, sizeof map_k / sizeof map_k[0], CAP_KEYPAD | CAP_ENCODER | CAP_DMR, side_k, 3, side_names },	// the DM-1701 has the channel knob
 	{ map_m, sizeof map_m / sizeof map_m[0], CAP_KEYPAD | CAP_DMR, side_m, 2, side_names },
-	{ map_v, sizeof map_v / sizeof map_v[0], CAP_KEYPAD | CAP_ENCODER | CAP_DMR, side_m, 2, side_names },
+	{ map_v, sizeof map_v / sizeof map_v[0], CAP_KEYPAD | CAP_ENCODER | CAP_DMR, side_p, 7, side_names_p },
 	{ map_f, sizeof map_f / sizeof map_f[0], CAP_ENCODER | CAP_DMR, NULL, 0, NULL },
-	{ map_p, sizeof map_p / sizeof map_p[0], CAP_ENCODER | CAP_DMR, side_k, 3, side_names_p },
+	{ map_p, sizeof map_p / sizeof map_p[0], CAP_ENCODER | CAP_DMR, side_p, 7, side_names_p },
 	{ map_s, sizeof map_s / sizeof map_s[0], 0, side_m, 2, side_names },
 };
 

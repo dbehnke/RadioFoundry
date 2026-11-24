@@ -199,6 +199,9 @@ uint16_t ui_filter_raw(uint16_t i);
 const char *ui_filter_text(void);
 void ui_filter_reset(void);
 void ui_filter_rebuild(void);
+#if CONFIG_UI_SETTINGS && CONFIG_KEY_ASSIGN
+void ui_menus_keys_reset(void);	// a new UI session rebuilds labels from its board metadata
+#endif
 bool ui_menus_home_leave(ui_scr_t scr, bool text_open);	// true: the editor needs its normal discard question before Home
 void ui_menus_save_failed(void);	// a codeplug write failed: what waited for it is dropped (ui_menus.c)
 #if CONFIG_ZONE_EDIT
