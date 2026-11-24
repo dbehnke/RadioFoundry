@@ -2403,5 +2403,10 @@
  "editor.sig.play": "Play",
  "editor.sig.roll": "The chain as pitch over time, {ms} ms",
  "editor.sig.no_audio": "No audio here",
- "editor.sig.empty": "No steps: the standard sound"
+ "editor.sig.empty": "No steps: the standard sound",
+ "screen.rx_signal": "Digital receive signal details",
+ "screen.rx_signal_held": "Held receive signal measurement",
+ "screen.rx_signal_unavailable": "Receive signal unavailable",
+ "screen.settings_rx_details": "Receive detail settings",
+ "screen.home_dual_signal": "Dual receive signal details"
 }

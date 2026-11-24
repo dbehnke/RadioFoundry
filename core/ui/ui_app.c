@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The UI's behavior (docs/ux/information-architecture.md, docs/spec/ui.md): the navigation stack, the keys with
 // one meaning everywhere (P3), Home, quick settings, banners and interruptions, key lock, Recent. No RTOS: ui.c
 // runs it in the UI task and the host simulator runs it on a PC.
@@ -2481,9 +2482,42 @@ __attribute__((noinline)) static void knob_tick(const radio_view_t *v)
 }
 #endif
 
-bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
+#if CONFIG_RX_SIGNAL_MENU
+static uint32_t signal_caller;
+static uint8_t signal_state, signal_mode;
+
+static void signal_tick(const radio_view_t *v, uint32_t now_ms)
+{
+	uint32_t caller = 0;
+#if CONFIG_DMR
+	if (v->ch.mode == RADIO_MODE_DMR)
+		caller = v->dmr.call.src;
+#endif
+#if CONFIG_P25
+	if (v->ch.mode == RADIO_MODE_P25)
+		caller = v->p25.src;
+#endif
+#if CONFIG_NXDN
+	if (v->ch.mode == RADIO_MODE_NXDN)
+		caller = v->nxdn.src;
+#endif
+	bool reset = !ui_st.signal_ready || signal_state != v->state || signal_mode != v->ch.mode ||
+		signal_caller != caller;
+	if (ui_signal_commit(&ui_st.signal, &v->signal, now_ms, &ui_st.signal_commit_ms, reset))
+		dirty = true;
+	ui_st.signal_ready = true;
+	signal_state = v->state;
+	signal_mode = v->ch.mode;
+	signal_caller = caller;
+}
+#endif
+
+bool ui_app_tick_serials(const radio_view_t *v, uint32_t now_ms, uint32_t serial, uint32_t signal_serial)
 {
 	static uint32_t serial_seen;
+#if CONFIG_RX_SIGNAL_MENU
+	static uint32_t signal_serial_seen;
+#endif
 	static uint8_t battery_seen;
 #if CONFIG_DUAL_WATCH
 	view = ui_dual_view(v);	// in dual watch, the selected channel's settings wherever the receiver is
@@ -2492,6 +2526,9 @@ bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
 #endif
 	now = now_ms;
 	ui_st.now_ms = now_ms;
+#if CONFIG_RX_SIGNAL_MENU
+	signal_tick(v, now_ms);
+#endif
 #if CONFIG_VOLUME_BAR
 	knob_tick(v);
 #endif
@@ -2729,11 +2766,18 @@ bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
 			sb_u32(&b, t.id, 1);
 		}
 	}
-	uint32_t serial = radio_view_serial();
+#if CONFIG_RX_SIGNAL_MENU
+	if (serial - serial_seen != signal_serial - signal_serial_seen)
+		dirty = true;
+	signal_serial_seen = signal_serial;
+	serial_seen = serial;
+#else
+	(void)signal_serial;
 	if (serial != serial_seen) {
 		serial_seen = serial;
 		dirty = true;
 	}
+#endif
 	bool has_batt = board_has_battery();
 	uint8_t bat = has_batt && board.power != NULL && board.power->battery_pct != NULL ? board.power->battery_pct() : 0;
 	ui_st.no_battery = !has_batt;
@@ -2759,6 +2803,19 @@ bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
 	}
 	bool d = dirty;
 	return d;
+}
+
+// Single-threaded drivers may use the live counters. The UI task passes the counters copied with its view.
+bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
+{
+	uint32_t serial, signal_serial;
+#if CONFIG_RX_SIGNAL_MENU
+	radio_view_serials(&serial, &signal_serial);
+#else
+	serial = radio_view_serial();
+	signal_serial = 0;
+#endif
+	return ui_app_tick_serials(v, now_ms, serial, signal_serial);
 }
 
 static bool strip_ok, volbar_top;

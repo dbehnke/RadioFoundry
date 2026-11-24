@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // RT10 radio: the FD6818 on its two-wire bus (hardware-rt10.md 7) with the RT10's register set, FM receive and
 // transmit. The FD6818 modulates the microphone itself; the PA is keyed through the supply pins and DAC B with the
 // factory calibration's level (calibration_rt10.c). TX is refused without a calibration, outside the band, or with a
@@ -619,6 +620,7 @@ static bool ref_trim(int16_t ppb)
 
 static void status(radio_status_t *st)
 {
+	st->rssi_valid = st->rssi_fresh = fd_ok && have_rx && !transmitting && !asleep;
 	if (!fd_ok || asleep) {
 		st->rssi_dbm = -160;
 		st->noise = 0;

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The radio view as key=value text for GET_VIEW (docs/spec/debuglink.md 3.7). One key per line; keys are stable
 // (DL_VIEW_VERSION is bumped when one changes meaning or goes away); new keys may appear anywhere in a section.
 #include "config.h"
@@ -599,7 +600,7 @@ static const char *const section_names[DL_VIEW_COUNT] = { "core", "channel", "dm
 						  "dmr_data_stats", "roam", "aprs", "aprs_set", "dmr_ip", "net", "snmp", "usrp",
 						  "sfr", "tasks", "crash", "watchdog", "reset", "air", "net_svc",
 						  "net_link", "cps", "board", "audio", "t3", "t3_svc", "t3_roam", "voice_cap", "t3_msg",
-						  "t3_ra", "p25", "p25_trunk", "nxdn" };
+						  "t3_ra", "p25", "p25_trunk", "nxdn", "signal" };
 
 const char *debuglink_view_name(uint8_t section)
 {
@@ -736,6 +737,9 @@ void debuglink_view_section(uint8_t section, const radio_view_t *v, dl_text_t *t
 		break;
 	case DL_VIEW_NXDN:
 		debuglink_view_nxdn(v, t);
+		break;
+	case DL_VIEW_SIGNAL:
+		debuglink_view_signal(v, t);
 		break;
 	case DL_VIEW_USRP:
 #if CONFIG_NET_USRP

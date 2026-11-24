@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The DMR voice call stack (see dmr_call.h). Two independent halves share this file: the RX side (rx_*: is a call
 // on our slot, and do we play it) and the TX side (tx_*: from PTT to the modem's tx_done). RX bursts are ignored while
 // the modem transmits (their status can't be trusted then, docs/spec/dmr-modem.md 6.5).
@@ -75,6 +76,9 @@ static struct {
 	uint32_t now;		// time of the current / last poll
 	dmr_call_view_t view;
 	bool dirty;
+#if CONFIG_RX_SIGNAL_MENU
+	bool signal_dirty;
+#endif
 
 	bool ptt;
 	bool ptt_seen;		// PTT state as last handled by the poll
@@ -1175,11 +1179,20 @@ static void rx_burst(const dmr_burst_t *b, uint32_t now, uint32_t slot)
 		s.last_activity_ms = now;
 		s.activity_seen = true;
 	}
+#if CONFIG_RX_SIGNAL_MENU
+	if (b->rssi_dbm != 0)
+		s.view.rssi_ms = now;
+#endif
 	if (b->rssi_dbm != 0 && b->rssi_dbm != s.view.rssi_dbm) {
 		int d = b->rssi_dbm - s.view.rssi_dbm;
 
-		if (d >= 2 || d <= -2)
+		if (d >= 2 || d <= -2) {
+#if CONFIG_RX_SIGNAL_MENU
+			s.signal_dirty = true;
+#else
 			s.dirty = true;
+#endif
+		}
 		s.view.rssi_dbm = b->rssi_dbm;
 	}
 
@@ -2282,6 +2295,12 @@ static void view_update(uint32_t now)
 	v->repeater_up = rpt;
 	v->call_ms = call_ms;
 	v->evq_overflows = evq_drops;
+#if CONFIG_RX_SIGNAL_MENU
+	if (s.signal_dirty && !s.dirty)
+		v->signal_serial++;
+	s.dirty |= s.signal_dirty;
+	s.signal_dirty = false;
+#endif
 	if (s.dirty) {
 		v->serial++;
 		s.dirty = false;

@@ -2403,5 +2403,10 @@
  "editor.sig.play": "Riproduci",
  "editor.sig.roll": "La catena come tono nel tempo, {ms} ms",
  "editor.sig.no_audio": "Nessun audio qui",
- "editor.sig.empty": "Nessun passo: il suono standard"
+ "editor.sig.empty": "Nessun passo: il suono standard",
+ "screen.rx_signal": "Dettagli del segnale digitale ricevuto",
+ "screen.rx_signal_held": "Misura memorizzata del segnale ricevuto",
+ "screen.rx_signal_unavailable": "Segnale ricevuto non disponibile",
+ "screen.settings_rx_details": "Impostazioni dettagli ricezione",
+ "screen.home_dual_signal": "Dettagli segnale in doppia ricezione"
 }

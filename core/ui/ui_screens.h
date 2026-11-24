@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // Screen drawing (docs/ux/wireframes): layout from the display size, no task or input code, so host tests and the
 // host simulator can render any screen at any geometry
 #ifndef UI_SCREENS_H
@@ -65,6 +66,11 @@ typedef struct {
 	bool busy;		// one receiver: a look in the wait after a call on the other pane found a signal here (not
 				// played; the watch comes here when the wait ends)
 	int16_t rssi_dbm;
+#if CONFIG_RX_SIGNAL_MENU
+	radio_signal_t signal;
+	uint32_t caller_id;
+	uint32_t signal_commit_ms;
+#endif
 	char caller[48];	// the call coming in: "Joe Smith TG 91" (with a shorter alternate, font.h)
 } ui_dual_pane_t;
 
@@ -91,9 +97,20 @@ typedef struct {
 } ui_dual_t;
 #endif
 
+#if CONFIG_RX_SIGNAL_MENU
+// Commit signal values at a readable cadence; validity and receiver changes are immediate.
+bool ui_signal_commit(radio_signal_t *shown, const radio_signal_t *next, uint32_t now_ms,
+	uint32_t *committed_ms, bool reset);
+#endif
+
 // What the screens show besides the radio view; owned by the UI (ui_app.c)
 typedef struct {
 	uint32_t now_ms;
+#if CONFIG_RX_SIGNAL_MENU
+	radio_signal_t signal;
+	uint32_t signal_commit_ms;
+	bool signal_ready;
+#endif
 	uint8_t battery_pct;
 	bool no_battery;		// the radio has no battery: no icon, percentage or battery pages (board_has_battery)
 	bool dmr_off;			// the DMR channel's modem has been off a while (ui_app.c), not just a moment

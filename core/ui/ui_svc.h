@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // What the UI needs from packages it doesn't own, as thin calls. ui_svc_stub.c defines every one weakly with a
 // harmless "not in this build" behavior, so the UI builds and runs alone; the owning package defines the real one
 // (a strong definition replaces the weak one at link time). docs/spec/ui.md lists who owns what.
@@ -155,6 +156,7 @@ typedef struct {
 	bool dmr;
 	bool group;
 	int16_t rssi_dbm;
+	radio_signal_t signal;
 	uint32_t src, dst;
 	char src_name[24];
 } ui_dual_rx_t;
@@ -459,6 +461,7 @@ typedef enum {
 	// One step of a chain, set whole (its frequency and length in one write of the settings area): the value is
 	// UI_SIG_STEP(event, step, Hz, ms). Write only
 	UI_SET_SIG_STEP,
+	UI_SET_RX_DETAILS,	// 0 caller details, 1 signal details; primary caller and dBm stay visible
 	UI_SET_COUNT
 } ui_setting_t;
 

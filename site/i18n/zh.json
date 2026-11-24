@@ -2403,5 +2403,10 @@
  "editor.sig.play": "播放",
  "editor.sig.roll": "链路的音高随时间变化，{ms} 毫秒",
  "editor.sig.no_audio": "此处无法播放",
- "editor.sig.empty": "无步骤:使用标准声音"
+ "editor.sig.empty": "无步骤:使用标准声音",
+ "screen.rx_signal": "数字接收信号详情",
+ "screen.rx_signal_held": "保持的接收信号测量",
+ "screen.rx_signal_unavailable": "接收信号不可用",
+ "screen.settings_rx_details": "接收详情设置",
+ "screen.home_dual_signal": "双接收信号详情"
 }

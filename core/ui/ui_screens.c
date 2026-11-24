@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // Home, quick settings and the boot splash, laid out from the display size (docs/ux/information-architecture.md 3, 5;
 // docs/ux/wireframes). Regions top to bottom: status strip, place, talk target, activity, hint row.
 #include <string.h>
@@ -490,7 +491,14 @@ static int draw_top_as(const radio_view_t *v, radio_state_t st, const ui_state_t
 		}
 		int sw = bh + 4;
 		rx -= sw + f->w / 2;
-		gfx_icon_bars(rx, ty + f->ascent - bh - 1, sw, bh + 1, 4, rssi_bars(v->rssi_dbm), sfg, filled ? ui_col.idle : ui_col.line);
+#if CONFIG_RX_SIGNAL_MENU
+		const radio_signal_t *signal = s->signal_ready ? &s->signal : &v->signal;
+		uint8_t bars = signal->state == RADIO_SIGNAL_CURRENT || signal->state == RADIO_SIGNAL_HELD ?
+			rssi_bars(signal->dbm) : 0;
+#else
+		uint8_t bars = rssi_bars(v->rssi_dbm);
+#endif
+		gfx_icon_bars(rx, ty + f->ascent - bh - 1, sw, bh + 1, 4, bars, sfg, filled ? ui_col.idle : ui_col.line);
 #if CONFIG_GPS
 		if (s->gps != UI_GPS_NONE) {
 			const gps_glyph_t *g = gps_glyph(bh + 1);
@@ -1309,7 +1317,9 @@ static void draw_chips(const radio_view_t *v, const ui_state_t *s)
 // RX signal meter: segments for -120 .. -60 dBm
 static void draw_meter(int x, int y, int w, int h, int16_t dbm)
 {
-	int seg = 10;
+	if (w < 6 || h < 1)
+		return;
+	int seg = w / 3 < 10 ? w / 3 : 10;
 	int pitch = w / seg;
 	int lit = (dbm + 120) * seg / 60;
 	if (lit < 0) lit = 0;
@@ -1325,6 +1335,103 @@ static void draw_meter(int x, int y, int w, int h, int16_t dbm)
 			gfx_fill(x + i * pitch, y, pitch - 1, h, ui_col.line);
 	}
 }
+
+#if CONFIG_RX_SIGNAL_MENU
+bool ui_signal_commit(radio_signal_t *shown, const radio_signal_t *next, uint32_t now_ms,
+	uint32_t *committed_ms, bool reset)
+{
+	bool shown_valid = shown->state == RADIO_SIGNAL_CURRENT || shown->state == RADIO_SIGNAL_HELD;
+	bool next_valid = next->state == RADIO_SIGNAL_CURRENT || next->state == RADIO_SIGNAL_HELD;
+	bool immediate = reset || shown_valid != next_valid ||
+		(!next_valid && shown->state != next->state) || shown->source != next->source ||
+		shown->rx_hz != next->rx_hz;
+	if (!immediate && now_ms - *committed_ms < 250u)
+		return false;
+	bool changed = immediate || shown->dbm != next->dbm || shown->state != next->state;
+	*shown = *next;
+	*committed_ms = now_ms;
+	return changed;
+}
+
+static const radio_signal_t *home_signal(const radio_view_t *v, const ui_state_t *s)
+{
+	return s->signal_ready ? &s->signal : &v->signal;
+}
+
+static bool signal_number(const radio_signal_t *signal, char *buf, size_t size)
+{
+	sbuf_t b;
+	sb_init(&b, buf, size);
+	bool valid = signal->state == RADIO_SIGNAL_CURRENT || signal->state == RADIO_SIGNAL_HELD;
+	if (valid) {
+		sb_i32(&b, signal->dbm);
+		if (signal->state == RADIO_SIGNAL_HELD)
+			sb_chr(&b, '~');
+	} else
+		sb_str(&b, "--");
+	sb_str(&b, " dBm");
+	return valid;
+}
+
+static const char *signal_status(const radio_signal_t *signal)
+{
+	switch (signal->state) {
+	case RADIO_SIGNAL_CURRENT: return TR(SIGNAL_STATE_CURRENT, "Current");
+	case RADIO_SIGNAL_HELD: return TR(SIGNAL_STATE_HELD, "Held");
+	case RADIO_SIGNAL_EXPIRED: return TR(SIGNAL_STATE_EXPIRED, "Expired");
+	default: return TR(SIGNAL_STATE_UNAVAILABLE, "Unavailable");
+	}
+}
+
+// Numeric strength keeps its measured width; the optional bar uses only the room left.
+static void signal_row(const radio_signal_t *signal, const font_t *f, int x, int y, int w)
+{
+	char text[24];
+	bool valid = signal_number(signal, text, sizeof text);
+	int tw = gfx_text_width(f, text);
+	gfx_text(f, x + w - tw, y, text, valid ? ui_col.fg : ui_col.dim);
+	if (valid)
+		draw_meter(x, y + f->h / 4, w - tw - f->w, f->h / 2, signal->dbm);
+}
+
+static bool caller_readable(const font_t *f, const char *text)
+{
+	for (const char *p = text; *p;) {
+		int bytes = 1, top, rows;
+		uint32_t cp = (uint8_t)*p;
+#if CONFIG_LANG_ZH
+		cp = gfx_utf8_next(p, &bytes);
+		if (cp > 0xFF) {
+			if (cjk_font_glyph(cp) == NULL)
+				return false;
+		} else
+#endif
+		if (cp >= 32 && cp != 0x80 && font_glyph(f, (uint8_t)cp, &top, &rows) == NULL)
+			return false;
+		p += bytes;
+	}
+	return true;
+}
+
+static void caller_signal(const char *caller, uint32_t fallback_id, const radio_signal_t *signal, const font_t *f,
+	int x, int y, int w, color_t color)
+{
+	char text[24], fit[64];
+	bool valid = signal_number(signal, text, sizeof text);
+	int tw = gfx_text_width(f, text);
+	gfx_text(f, x + w - tw, y, text, valid ? ui_col.fg : ui_col.dim);
+	char id[16];
+	sbuf_t b;
+	sb_init(&b, id, sizeof id);
+	sb_u32(&b, fallback_id, 1);
+	if (fallback_id && !caller_readable(f, caller))
+		caller = id;
+	gfx_text_fit(f, caller, w - tw - f->w, fit, sizeof fit);
+	if (fallback_id && (fit[0] == 0 || (uint8_t)fit[0] == 0x80))
+		gfx_text_fit(f, id, w - tw - f->w, fit, sizeof fit);
+	gfx_text(f, x, y, fit, color);
+}
+#endif
 
 // A hardware option the radio still needs from a person (board_hwopt_pending, hal_hwopt.h): what to do, on the home
 // screen and when PTT is refused
@@ -1635,9 +1742,19 @@ static void sb_talk_alts(sbuf_t *b, uint32_t id, bool private_call, const char *
 // The caller as the big line: the contact name, else the ID
 static void sb_caller(sbuf_t *b, const radio_dmr_call_t *c)
 {
+#if CONFIG_RX_SIGNAL_MENU
+	if (!c->src && !c->src_name[0]) {
+		sb_str(b, TR(STATE_RECEIVING, "Receiving"));
+		return;
+	}
+#endif
 	if (c->src_name[0] == '\0' && ui_sb_gw_caller(b, c->src))
 		return;
-	if (c->src_name[0] != '\0')
+	if (c->src_name[0] != '\0'
+#if CONFIG_RX_SIGNAL_MENU
+			&& caller_readable(ui_layout.medium, c->src_name)
+#endif
+			)
 		sb_str(b, c->src_name);
 	else
 		sb_u32(b, c->src, 1);
@@ -2051,11 +2168,36 @@ static void draw_dmr_call(const radio_view_t *v, const ui_state_t *s)
 	// Receiving: the caller large, then ID, alias, talkgroup, signal
 	sb_init(&b, buf, sizeof buf);
 	sb_caller(&b, &d->call);
+#if CONFIG_RX_SIGNAL_MENU
+	const radio_signal_t *signal = home_signal(v, s);
+	bool details = ui_svc_setting_get(UI_SET_RX_DETAILS) == 1;
+	bool compact = L->hint_y - y < L->medium->h + 3 * L->small->h;
+	const font_t *big = compact ? L->small : L->medium;
+#else
 	const font_t *big = gfx_text_width(L->large, buf) <= w ? L->large : L->medium;
+#endif
 	char fit[40];
 	gfx_text_fit(big, buf, w, fit, sizeof fit);
+#if CONFIG_RX_SIGNAL_MENU
+	if (compact)
+		caller_signal(buf, d->call.src, signal, big, 0, y, w, d->call.emergency ? ui_col.warn : ui_col.fg);
+	else
+#endif
 	gfx_text(big, 0, y, fit, d->call.emergency ? ui_col.warn : (d->state == RDMR_RX ? ui_col.fg : ui_col.dim));
 	y += big->h;
+#if CONFIG_RX_SIGNAL_MENU
+	if (!compact) {
+		signal_row(signal, L->small, 0, y, w);
+		y += L->small->h;
+	}
+	if (details && y + L->small->h <= L->hint_y) {
+		int x = gfx_text(L->small, 0, y, signal_status(signal), ui_col.dim) + L->small->w;
+		if (compact && (signal->state == RADIO_SIGNAL_CURRENT || signal->state == RADIO_SIGNAL_HELD))
+			draw_meter(x, y + L->small->h / 4, w - x, L->small->h / 2, signal->dbm);
+		y += L->small->h;
+	}
+	if (!details || d->call.emergency) {
+#endif
 	sb_init(&b, buf, sizeof buf);
 	if (d->call.src_name[0] != '\0') {
 		sb_u32(&b, d->call.src, 1);
@@ -2074,6 +2216,9 @@ static void draw_dmr_call(const radio_view_t *v, const ui_state_t *s)
 	if (d->call.emergency)
 		sb_str(&b, TR(CALL_CHIP_EMERGENCY, " EMERGENCY"));
 	y = call_line(L->small, y, buf, d->call.emergency ? ui_col.warn : ui_col.dim);
+#if CONFIG_RX_SIGNAL_MENU
+	if (!details) {
+#endif
 	if (d->alias[0] != '\0' && s->alias_show) {
 		// The talker alias in quotes, on two lines when it needs them and they fit above the signal line
 		char lines[2][64];
@@ -2097,6 +2242,12 @@ static void draw_dmr_call(const radio_view_t *v, const ui_state_t *s)
 		}
 		y = call_line(L->small, y, buf, ui_col.fg);
 	}
+#if CONFIG_RX_SIGNAL_MENU
+	}
+#endif
+#if CONFIG_RX_SIGNAL_MENU
+	}
+#endif
 	// Then why it isn't heard, or where the call goes ("TG 91 World")
 	const char *why = d->state == RDMR_RX_OTHER ? (d->call.encrypted ?
 		TR(CALL_WHY_ENCRYPTED, "Encrypted: not played") :
@@ -2109,6 +2260,7 @@ static void draw_dmr_call(const radio_view_t *v, const ui_state_t *s)
 		sb_call_dst(&b, &d->call);
 		y = call_line(L->small, y, buf, ui_col.fg);
 	}
+#if !CONFIG_RX_SIGNAL_MENU
 	if (y + L->small->h <= L->hint_y) {
 		int16_t dbm = d->rssi_dbm != 0 ? d->rssi_dbm : v->rssi_dbm;
 		sb_init(&b, buf, sizeof buf);
@@ -2118,6 +2270,7 @@ static void draw_dmr_call(const radio_view_t *v, const ui_state_t *s)
 		gfx_text(L->small, w - tw, y, buf, ui_col.fg);
 		draw_meter(0, y + L->small->h / 4, w - tw - L->small->w, L->small->h / 2, dbm);
 	}
+#endif
 	ui_draw_hint(d->state == RDMR_RX_OTHER ? TR(CALL_HINT_MON_DMON, "MON: digital monitor") :
 		TR(HINT_PTT_REPLIES, "PTT replies"), false);
 }
@@ -2196,6 +2349,44 @@ static void air_call_line(const air_call_t *c, const font_t *f, int y)
 }
 #endif
 
+#if CONFIG_AIR && CONFIG_RX_SIGNAL_MENU
+static void draw_air_call(const radio_view_t *v, const ui_state_t *s, const air_call_t *call)
+{
+	const ui_layout_t *L = &ui_layout;
+	char title[48], caller[32];
+	sbuf_t b;
+	sb_init(&b, title, sizeof title);
+	sb_str(&b, call->unit ? TR(CALL_VALUE_PRIVATE_TO, "Private to ") : "TG ");
+	sb_u32(&b, call->dst, 1);
+	gfx_clear(ui_col.bg);
+	int y = ui_draw_top(v, s, NULL, title) + 1;
+	sb_init(&b, caller, sizeof caller);
+	if (call->src) {
+		sb_str(&b, "ID ");
+		sb_u32(&b, call->src, 1);
+	} else
+		sb_str(&b, TR(STATE_RECEIVING, "Receiving"));
+	bool compact = L->hint_y - y < L->medium->h + 3 * L->small->h;
+	const font_t *f = compact ? L->small : L->medium;
+	if (compact)
+		caller_signal(caller, call->src, home_signal(v, s), f, 0, y, gfx_width(), ui_col.rx);
+	else
+		call_line(f, y, caller, ui_col.rx);
+	y += f->h;
+	if (!compact) {
+		signal_row(home_signal(v, s), L->small, 0, y, gfx_width());
+		y += L->small->h;
+	}
+	if (y + L->small->h <= L->hint_y) {
+		air_call_line(call, L->small, y);
+		y += L->small->h;
+	}
+	if (ui_svc_setting_get(UI_SET_RX_DETAILS) == 1 && y + L->small->h <= L->hint_y)
+		call_line(L->small, y, signal_status(home_signal(v, s)), ui_col.dim);
+	ui_draw_hint(TR(HINT_PTT_REPLIES, "PTT replies"), false);
+}
+#endif
+
 static void draw_activity(const radio_view_t *v, const ui_state_t *s)
 {
 	const ui_layout_t *L = &ui_layout;
@@ -2218,15 +2409,19 @@ static void draw_activity(const radio_view_t *v, const ui_state_t *s)
 		air_call_t ac;
 		bool air_rx = air_call(v, &ac);
 		if (!two && air_rx) {
-			air_call_line(&ac, sm, y);	// one line: who calls says more than the meter
+			air_call_line(&ac, sm, y);
 			break;
 		}
 #endif
+#if CONFIG_RX_SIGNAL_MENU
+		signal_row(home_signal(v, s), big, 0, y, w);
+#else
 		sb_i32(&b, v->rssi_dbm);
 		sb_str(&b, " dBm");
 		int tw = gfx_text_width(big, buf);
 		gfx_text(big, w - tw, y, buf, ui_col.fg);
 		draw_meter(0, y + big->h / 4, w - tw - big->w, big->h / 2, v->rssi_dbm);
+#endif
 		if (!two)
 			break;
 #if CONFIG_AIR
@@ -2460,9 +2655,20 @@ void ui_draw_home(const radio_view_t *v, const ui_state_t *s)
 		return;
 	}
 #endif
+#if CONFIG_AIR && CONFIG_RX_SIGNAL_MENU
+	air_call_t ac;
+	if (air_call(v, &ac)) {
+		draw_air_call(v, s, &ac);
+		ui_draw_banner(s);
+		if (s->toast != NULL)
+			ui_draw_hint(s->toast, true);
+		return;
+	}
+#endif
 	gfx_clear(ui_col.bg);
 	ui_draw_top(v, s, NULL, NULL);
 	if (s->large_text) {
+
 		draw_home_large(v, s);
 	} else {
 		draw_place(v, s);
@@ -2778,6 +2984,11 @@ static void dual_pane(const radio_view_t *v, const ui_state_t *s, int i, int y, 
 		rc = ui_col.rx;
 	}
 	int r2 = w;
+#if CONFIG_RX_SIGNAL_MENU
+	if (rx) {
+		caller_signal(buf, p->caller_id, &p->signal, sm, x0, y2, w - x0, c2);
+	} else {
+#endif
 	if (rx) {	// the RX pill at the right of the caller
 		r2 -= dual_pill_w("RX");
 		gfx_pill(sm, r2, y2 + (tf->h - pill_h + 1) / 2, pill_h, "RX", ui_col.pill_dark_fg, ui_col.rx);
@@ -2790,12 +3001,27 @@ static void dual_pane(const radio_view_t *v, const ui_state_t *s, int i, int y, 
 	}
 	gfx_text_fit(tf, buf, r2 - x0, fit, sizeof fit);
 	gfx_text(tf, x0, y2, fit, c2);
+#if CONFIG_RX_SIGNAL_MENU
+	}
+#endif
 
 	// Row 3: the frequency and the chips, the zone at the right (B may be in another zone than A)
 	if (ft->detail != NULL) {
 		const font_t *df = ft->detail;
 		int y3 = y2 + tf->h;
 		int r3 = w;
+#if CONFIG_RX_SIGNAL_MENU
+		if (rx && ui_svc_setting_get(UI_SET_RX_DETAILS) == 1) {
+			if (pill3) {
+				r3 -= dual_pill_w(word);
+				gfx_pill(sm, r3, y3 + (df->h - pill_h + 1) / 2, pill_h, word, ui_col.bg, ui_col.fg);
+				r3 -= sm->w / 2 + 1;
+			}
+			int sx = gfx_text(df, x0, y3, signal_status(&p->signal), ui_col.dim) + df->w;
+			signal_row(&p->signal, df, sx, y3, r3 - sx);
+			return;
+		}
+#endif
 		if (pill3) {
 			r3 -= dual_pill_w(word);
 			gfx_pill(sm, r3, y3 + (df->h - pill_h + 1) / 2, pill_h, word, tx ? ui_col.pill_fg : ui_col.bg,
@@ -2833,6 +3059,21 @@ static void dual_large(const radio_view_t *v, const ui_state_t *s)
 			sb_str(&b, name);
 		} else
 			sb_str(&b, p->name);
+#if CONFIG_RX_SIGNAL_MENU
+		if (p->rx && v->state != RS_TX) {
+			gfx_text(L->small, 0, y, i ? "B" : "A", ui_col.rx);
+			if (d->sel == i)
+				dual_arrow(L->small->w, y + L->small->h / 4, (L->small->h / 2) | 1,
+					L->small->w - 1, ui_col.rx);
+			caller_signal(p->caller[0] ? p->caller : TR(STATE_RECEIVING, "Receiving"), p->caller_id, &p->signal,
+				L->small, 2 * L->small->w, y, w - 2 * L->small->w, ui_col.rx);
+			if (room >= 2 * L->small->h && (p->signal.state == RADIO_SIGNAL_CURRENT ||
+					p->signal.state == RADIO_SIGNAL_HELD))
+				draw_meter(0, y + L->small->h + L->small->h / 4, w, L->small->h / 2, p->signal.dbm);
+			y += room;
+			continue;
+		}
+#endif
 		const font_t *f = large_font(buf, room, form, sizeof form);
 		if (gfx_text_width(f, form) + (d->sel == i ? f->w / 3 + 2 : 0) > w) {
 			const font_t *smaller[] = { L->large, L->medium, L->small };
@@ -2925,9 +3166,13 @@ static void dual_activity(const radio_view_t *v, const ui_state_t *s, int y, int
 			sb_str(&b, i ? "B" : "A");
 			if (k)
 				sb_str(&b, TR(DUAL_STATE_MUTED, ", muted"));
+#if CONFIG_RX_SIGNAL_MENU
+			gfx_text(sm, 0, y, buf, ui_col.rx);
+#else
 			int x = gfx_text(sm, 0, y, buf, ui_col.rx) + sm->w;
 			if (w - x >= 4 * sm->w)
 				draw_meter(x, y + sm->h / 4, w - x, sm->h / 2, d->pane[i].rssi_dbm);
+#endif
 			y += sm->h;
 			lines--;
 		}

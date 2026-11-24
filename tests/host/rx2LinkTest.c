@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The second receiver's link (core/rx2): frames, payloads, and both ends back to back over a lossy wire
 #include <stdio.h>
 #include <string.h>
@@ -56,6 +57,7 @@ static void b_do_status(rx2_status_t *st)
 	st->dmr = b_active;
 	st->group = true;
 	st->rssi_dbm = -90;
+	st->rssi_valid = true;
 	st->src = b_active ? 9990001u : 0;
 	st->dst = b_active ? 91u : 0;
 }
@@ -192,6 +194,12 @@ static void test_payloads(void)
 	CHECK(n == RX2_STATUS_LEN && rx2_unpack_status(p, n, &v));
 	CHECK(v.tuned && v.active && v.dmr && !v.group && v.heard && v.rssi_dbm == -121 && v.noise == 40 &&
 	      v.src == 9990001u && v.dst == 9990002u && !v.up);
+	CHECK(!v.rssi_valid); // An old peer has no validity flag: never guess from its dBm value.
+	s.rssi_valid = true;
+	s.rssi_dbm = -140;
+	rx2_pack_status(&s, p);
+	CHECK(rx2_unpack_status(p, n, &v) && v.rssi_valid && v.rssi_dbm == -140);
+
 }
 
 static void test_link(void)
@@ -215,6 +223,10 @@ static void test_link(void)
 	now = run(now, 100, true);
 	rx2_main_status(&m, &st);
 	CHECK(b_tunes == 1 && b_tune.rx_hz == 145500000u && st.tuned && !st.active);
+	CHECK(st.rssi_valid && st.rssi_sample_ms != 0);
+	uint32_t sampled = st.rssi_sample_ms;
+	rx2_main_status(&m, &st);
+	CHECK(st.rssi_sample_ms == sampled); // Reading a retained STATUS must not make it fresh.
 	// The same settings again: nothing sent
 	CHECK(rx2_main_tune(&m, &t, now) && m.tunes == 1);
 	now = run(now, 100, true);
@@ -235,6 +247,8 @@ static void test_link(void)
 	t.rx_hz = 145600000u;
 	drop_to_recv = true;
 	CHECK(rx2_main_tune(&m, &t, now));
+	rx2_main_status(&m, &st);
+	CHECK(!st.rssi_valid); // Old-channel measurement cleared before a tune ACK.
 	now = run(now, 40, true);
 	drop_to_recv = false;
 	rx2_main_status(&m, &st);
@@ -303,11 +317,47 @@ static void test_link(void)
 	(void)now;
 }
 
+static void main_frame(uint8_t type, const uint8_t *payload, uint8_t len, uint32_t now_ms)
+{
+	uint8_t frame[RX2_FRAME_MAX];
+	uint16_t n = rx2_frame(frame, type, 0, payload, len);
+	for (uint16_t i = 0; i < n; i++)
+		rx2_main_rx(&m, frame[i], now_ms);
+}
+
+static void test_measurement_ownership(void)
+{
+	n_to_recv = n_to_main = 0;
+	drop_to_recv = false;
+	rx2_main_init(&m, send_main);
+	uint8_t hello[] = { RX2_PROTO_VERSION, RX2_HELLO_DMR };
+	main_frame(RX2_HELLO, hello, sizeof hello, 100);
+	rx2_tune_t t = { .rx_hz = 145500000u, .mode = RADIO_MODE_FM };
+	CHECK(rx2_main_tune(&m, &t, 110));
+	rx2_status_t st = { .tuned = true, .active = true, .rssi_valid = true, .rssi_dbm = -140 };
+	uint8_t payload[RX2_STATUS_LEN];
+	rx2_pack_status(&st, payload);
+	main_frame(RX2_STATUS, payload, sizeof payload, 120); // Queued under the previous tune.
+	rx2_main_status(&m, &st);
+	CHECK(!st.rssi_valid);
+	uint8_t ack[] = { m.tune_seq, 0 };
+	main_frame(RX2_ACK, ack, sizeof ack, 130);
+	rx2_main_status(&m, &st);
+	CHECK(st.tuned && !st.rssi_valid); // ACK must not promote a pre-ACK measurement.
+	main_frame(RX2_STATUS, payload, sizeof payload, 140);
+	rx2_main_status(&m, &st);
+	CHECK(st.rssi_valid && st.rssi_sample_ms == 140 && st.rssi_dbm == -140);
+	main_frame(RX2_ACK, ack, sizeof ack, 150); // Duplicate ACK keeps the real measurement.
+	rx2_main_status(&m, &st);
+	CHECK(st.rssi_valid && st.rssi_sample_ms == 140);
+}
+
 int main(void)
 {
 	test_frames();
 	test_payloads();
 	test_link();
+	test_measurement_ownership();
 	printf("rx2LinkTest: %s (%d failures)\n", failures ? "FAILED" : "passed", failures);
 	return failures ? 1 : 0;
 }

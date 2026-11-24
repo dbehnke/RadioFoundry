@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The list screens and the screen table (information-architecture.md 4, 6, 8): the Hub with its six destinations,
 // actions on a station, Contacts, Messages, Recent, Channels, Tools, Settings grouped by intent, the talk target
 // picker, information pages and the one confirmation (factory reset, P7).
@@ -6809,6 +6810,11 @@ static const set_item_t s_sigtones[] = {
 	ACTION(TRN(SIG_ROW_IDLE_STEPS, "Idle steps"), "signaling chain frequency length pitch channel free", SA_SIG_IDLE),
 };
 #endif
+#if CONFIG_RX_SIGNAL_MENU
+static const int16_t v_rx_details[] = { 0, 1 };
+static const tr_id_t n_rx_details[] = { TRN(SET_VALUE_RX_CALLER, "Caller"),
+	TRN(SET_VALUE_RX_SIGNAL, "Signal") };
+#endif
 static const set_item_t s_display[] = {
 	NUMBER(TRN(SET_LABEL_BRIGHTNESS, "Brightness"), "backlight", UI_SET_BRIGHTNESS, 10, 100, 10, "%"),
 	LIST(TRN(SET_LABEL_BACKLIGHT_DIM_OFF, "Backlight Dim/Off"), "timeout", UI_SET_BACKLIGHT_S, v_backlight,
@@ -6823,6 +6829,10 @@ static const set_item_t s_display[] = {
 #if CONFIG_DMR
 	TOGGLE(TRN(SET_LABEL_TG_NAME_FIRST, "Talkgroup name first"), "talk line label TG number Home",
 		UI_SET_LABEL_FIRST),
+#endif
+#if CONFIG_RX_SIGNAL_MENU
+	LIST(TRN(SET_LABEL_RX_DETAILS, "RX details"), "RSSI dBm caller signal", UI_SET_RX_DETAILS,
+		v_rx_details, n_rx_details),
 #endif
 	// Last, so the rows above keep their places; its search words are "language" in other languages, for a user who
 	// can't read the English

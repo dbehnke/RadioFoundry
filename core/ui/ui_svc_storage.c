@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The ui_svc.h calls storage-cps answers (docs/spec/settings-store.md, core/codeplug editing):
 //   - settings: each UI setting is read from where it is kept across power cycles. The radio core's own settings
 //     (key tones, tone volume, TX timeout, backlight time, battery saver) from radio_get_settings, which the radio
@@ -243,6 +244,8 @@ static __attribute__((noinline)) int32_t setting_get_radio(uint8_t id)
 static __attribute__((noinline)) int32_t setting_get_flash(uint8_t id)
 {
 	switch (id) {
+	case UI_SET_RX_DETAILS:
+		return (SETTINGS_FIELD(sound_flags) & SETTINGS_RX_SIGNAL_DETAILS) != 0;
 	case UI_SET_VOLUME:
 		return radio_volume_step(SETTINGS_FIELD(volume));
 	case UI_SET_KNOB_WHEN_LOCKED:
@@ -473,6 +476,14 @@ bool ui_svc_setting_set(uint8_t id, int32_t value)
 #endif
 		st = settings_begin();
 		st->ui_flags = (uint8_t)(value != 0 ? st->ui_flags | ui_flag(id) : st->ui_flags & ~ui_flag(id));
+		settings_end(hal_millis());
+		return true;
+	case UI_SET_RX_DETAILS:
+		if (value < 0 || value > 1)
+			return false;
+		st = settings_begin();
+		st->sound_flags = (uint8_t)(value ? st->sound_flags | SETTINGS_RX_SIGNAL_DETAILS :
+					st->sound_flags & ~SETTINGS_RX_SIGNAL_DETAILS);
 		settings_end(hal_millis());
 		return true;
 	case UI_SET_LABEL_FIRST:

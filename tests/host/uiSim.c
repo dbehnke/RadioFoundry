@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The UI host simulator's command line (docs/spec/ui.md 7):
 //
 //   uiSim [--geom 160x120i5|160x128|128x64|240x320|WxH[iN|m]] [--map K|M|V|F|P] [--scale N] [--out FILE.png]
@@ -53,6 +54,13 @@ static const struct { const char *name, *script; } gallery[] = {
 	{ "home_locked", "long:quick 5" },
 	{ "home_usb_ip", "usbnet:on" },
 	{ "home_usb_ip_up", "usbnet:up" },
+#if CONFIG_RX_SIGNAL_MENU
+	{ "home_dual_signal", "rxdetails:1 receivers:2 quick 7 ctx 3 5 ok wait:3000 rxa:9991234,3100,g rxb:9997777,91,g" },
+	{ "rx_signal", "rxdetails:1 rx:9991234,91,g signal:-84" },
+	{ "rx_signal_held", "rxdetails:1 rx:9991234,91,g signal:-84,2" },
+	{ "rx_signal_unavailable", "rxdetails:1 rx:9991234,91,g signal:0,0" },
+	{ "settings_rx_details", "ok 7 2 up up" },
+#endif
 	{ "rx_group", "rx:9991234,91,g,Q1ABC_Joe_-_Boston,_MA" },
 	{ "rx_private", "rx:9995678,0,p" },
 	{ "tx", "pttdown" },

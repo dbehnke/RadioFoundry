@@ -265,3 +265,7 @@ most boards are `CONFIG_AUDIO_PROBE` (a bench diagnostic) and the ones that need
    RAM), and any shared addition would then fail CI on unrelated pull requests.
    A switch that needs a left-out one is off too: `tools/ci.sh` drops each switch the checks in `config/features.mk`
    name until the set passes them (DMR not written takes all of DMR's family with it).
+
+`CONFIG_RX_SIGNAL_MENU` enables the digital receive signal presentation and the remembered
+Settings > Display > RX details choice. Off keeps the legacy activity layout. It does not change
+RF sampling, squelch, scan decisions or audio gain. The added flash cost has not been measured.

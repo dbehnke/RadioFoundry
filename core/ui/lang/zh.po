@@ -3925,6 +3925,16 @@ msgid "Idle steps"
 msgstr "空闲步骤"
 
 #: core/ui/ui_menus.c
+msgctxt "SET_VALUE_RX_CALLER"
+msgid "Caller"
+msgstr "呼叫者"
+
+#: core/ui/ui_menus.c
+msgctxt "SET_VALUE_RX_SIGNAL"
+msgid "Signal"
+msgstr "信号"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_LABEL_BRIGHTNESS"
 msgid "Brightness"
 msgstr "亮度"
@@ -3958,6 +3968,11 @@ msgstr "大字体"
 msgctxt "SET_LABEL_HINT_ROW"
 msgid "Hint row"
 msgstr "提示行"
+
+#: core/ui/ui_menus.c
+msgctxt "SET_LABEL_RX_DETAILS"
+msgid "RX details"
+msgstr "接收详情"
 
 #: core/ui/ui_menus.c
 msgctxt "SET_LABEL_LANGUAGE"
@@ -4820,6 +4835,26 @@ msgid "Broadcast FM"
 msgstr "调频广播"
 
 #: core/ui/ui_screens.c
+msgctxt "SIGNAL_STATE_CURRENT"
+msgid "Current"
+msgstr "当前"
+
+#: core/ui/ui_screens.c
+msgctxt "SIGNAL_STATE_HELD"
+msgid "Held"
+msgstr "保持"
+
+#: core/ui/ui_screens.c
+msgctxt "SIGNAL_STATE_EXPIRED"
+msgid "Expired"
+msgstr "过期"
+
+#: core/ui/ui_screens.c
+msgctxt "SIGNAL_STATE_UNAVAILABLE"
+msgid "Unavailable"
+msgstr "不可用"
+
+#: core/ui/ui_screens.c
 msgctxt "HW_BODY_RESTART_TO_APPLY"
 msgid "Restart to apply"
 msgstr "请重启电台"
@@ -5063,6 +5098,11 @@ msgstr "请添加你的 ID"
 msgctxt "TRUNK_WORD_PHONE_LINE"
 msgid "Phone line"
 msgstr "电话"
+
+#: core/ui/ui_screens.c
+msgctxt "STATE_RECEIVING"
+msgid "Receiving"
+msgstr "接收中"
 
 #: core/ui/ui_screens.c
 msgctxt "CALL_VALUE_PRIVATE_TO_YOU"
@@ -5313,11 +5353,6 @@ msgstr "MON：数字监听"
 msgctxt "ACTIVITY_STATE_SQUELCH_OPEN"
 msgid "Squelch open"
 msgstr "静噪打开"
-
-#: core/ui/ui_screens.c
-msgctxt "STATE_RECEIVING"
-msgid "Receiving"
-msgstr "接收中"
 
 #: core/ui/ui_screens.c
 msgctxt "STATE_SENDING"

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 The RadioFoundry Authors
+# Copyright (c) 2026 David Behnke
 #
 # The feature checklist (tests/hil/README.md, "Bring-up mode"): one table per feature, never a column per radio. The
 # tests say which feature they check (@pytest.mark.feature("<id>")), so this file lists no tests. A radio's state for
@@ -602,3 +603,8 @@ source = ["core/debuglink/debuglink_air.c", "core/debuglink/debuglink_air.h"]
 [feature.audio_probe]
 switch = "AUDIO_PROBE"
 spec = "docs/spec/usb-audio.md"
+
+[feature.rx_signal_menu]
+switch = "RX_SIGNAL_MENU"
+spec = "docs/spec/ui.md"
+source = ["core/ui", "core/radio", "hal"]
