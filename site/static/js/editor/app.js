@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The Codeplug Editor page: a codeplug from a file or a radio, edited in tables and forms, saved to a file or
 // written back to the radio. Everything runs in the page; the codeplug never leaves it unless the user puts it in a
 // bug report (report.js). The working codeplug is kept in this browser (IndexedDB) so a reload doesn't lose edits.
@@ -191,7 +192,7 @@ function renderView(p) {
 		return;
 	}
 	const g = new Grid({
-		columns: columns(tab, S.model, t, { features: features() }), rows: S.model[tab], t, empty: t(`editor.empty.${tab}`),
+		columns: columns(tab, S.model, t, { features: features(), power: S.conn?.transport?.power ?? null }), rows: S.model[tab], t, empty: t(`editor.empty.${tab}`),
 		onChange: (row, col, value) => {
 			let err = null;
 			change(t("editor.undo.edit"), () => {
@@ -223,7 +224,7 @@ function tableActions(tab, g) {
 	const numbered = tab !== "zones";
 	const out = [
 		// first, so it sits above the row checkboxes it acts on; not on a table with nothing it can set (zones, RX lists)
-		bulkColumns(tab, S.model, t, { features: features() }).length ? button(sel.length ? t("editor.bulk_edit_n", { n: sel.length }) : t("editor.bulk_edit"), () => bulkSet(tab, g), { disabled: sel.length < 2 }) : null,
+		bulkColumns(tab, S.model, t, { features: features(), power: S.conn?.transport?.power ?? null }).length ? button(sel.length ? t("editor.bulk_edit_n", { n: sel.length }) : t("editor.bulk_edit"), () => bulkSet(tab, g), { disabled: sel.length < 2 }) : null,
 		button(t("editor.add"), () => addRecord(tab, g), { disabled: full }),
 		button(t("editor.duplicate"), () => duplicate(tab, g), { disabled: full || !g.targets().length }),
 		button(t("editor.delete"), () => del(tab, g), { disabled: !g.targets().length, danger: true }),
@@ -323,7 +324,7 @@ function renumber(tab) {
 
 function bulkSet(tab, g) {
 	const rows = g.selection();
-	const cols = bulkColumns(tab, S.model, t, { features: features() });
+	const cols = bulkColumns(tab, S.model, t, { features: features(), power: S.conn?.transport?.power ?? null });
 	if (!cols.length) return;
 	const pickCol = h("select", {}, ...cols.map((c, i) => h("option", { value: String(i) }, c.label)));
 	const slot = h("div");
@@ -332,7 +333,7 @@ function bulkSet(tab, g) {
 	const fill = () => {
 		const c = cols[pickCol.selectedIndex];
 		if (c.type === "select") {
-			const opts = c.options(rows[0]);
+			const opts = c.bulkOptions ? c.bulkOptions(rows) : c.options(rows[0]);
 			input = h("select", {}, ...opts.map(([, label], i) => h("option", { value: String(i) }, label)));
 			input._opts = opts;
 		} else if (c.type === "bool") {
@@ -364,7 +365,7 @@ function bulkSet(tab, g) {
 function openRecord(tab, r) {
 	if (tab === "channels") {
 		// a channel of a kind keeps its stand-in record (channelmodes.js syncModes), whatever the form's hidden fields hold
-		formDialog(t("editor.channel_title", { name: r.name }), channelForm(S.model, t, { features: features() }), r, t, (work) => change(t("editor.undo.edit"), () => {
+		formDialog(t("editor.channel_title", { name: r.name }), channelForm(S.model, t, { features: features(), power: S.conn?.transport?.power ?? null }), r, t, (work) => change(t("editor.undo.edit"), () => {
 			Object.assign(r, work);
 			syncModes(S.model);
 		}));

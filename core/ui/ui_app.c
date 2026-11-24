@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The UI's behavior (docs/ux/information-architecture.md, docs/spec/ui.md): the navigation stack, the keys with
 // one meaning everywhere (P3), Home, quick settings, banners and interruptions, key lock, Recent. No RTOS: ui.c
 // runs it in the UI task and the host simulator runs it on a PC.
@@ -1548,6 +1549,11 @@ static void quick_activate(int tile)
 		ui_push(SCR_PICKER, 0);
 		break;
 #endif
+#if CONFIG_TX_POWER_MENU
+	case QT_POWER:
+		ui_push(SCR_POWER, 0);
+		break;
+#else
 	case QT_POWER: {
 		// A cycle tile over three steps, low / the board's default / high, each press the next one up, wrapping
 		// (information-architecture.md 5). Other levels come from the channel
@@ -1563,6 +1569,7 @@ static void quick_activate(int tile)
 		ui_toast(msg);
 		break;
 	}
+#endif
 	default:	// value tiles: squelch, brightness
 		ui_st.quick_edit = true;
 		break;

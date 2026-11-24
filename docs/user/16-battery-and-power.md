@@ -34,14 +34,21 @@ the threshold. A radio without voltage thresholds has the percentage warning onl
 ## Transmit power
 
 Each radio has its own set of power levels. Each channel's power comes from the codeplug. A channel without one uses
-the radio's default level.
+the radio's default level. Set it in **Settings > Talk & listen > Default TX power**: choose
+**Factory default**, or any of the radio's supported levels. A channel with an explicit power keeps its own
+level. Changing the default reloads the current channel and clears temporary changes.
+
+In the channel editor, **Power** offers every supported level and **Radio's (level)** to inherit the
+current radio default. Names follow the transmit band where the board provides different labels.
 
 | Way to change it | Levels |
 |---|---|
-| **\***, **1** | Three steps: the radio's lowest level, its default, its highest |
+| **\***, **1** | Opens a picker with every supported level; **OK** applies the selected level, **Back** cancels |
 | **Power level** key on Home | All of the radio's levels, one per press (radios with that key only) |
 
-Both changes are temporary. Hold **OK** to save the level to the channel.
+Both changes are temporary on a saved channel. Hold **OK** on Home to save the level to the channel.
+The VFO keeps its own power across restarts. Builds without `CONFIG_TX_POWER_MENU` keep the older
+three-step Quick cycle and omit the default-power menu; the channel editor still offers every level.
 
 Power levels use the radio's factory calibration. Use the lowest power that reaches the other station.
 

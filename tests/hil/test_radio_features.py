@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 The RadioFoundry Authors
+# Copyright (c) 2026 David Behnke
 """The everyday radio features (docs/spec/radio-features.md): scan, beeps, battery, settings, and the FM transmit
 extras. Radio-only tests never transmit; the radio_tx ones key the radio on its FM VFO at its lowest power (opt-in
 --allow-rf); the rf one uses the SDR bench's transmitter (--allow-rf --allow-service-stop).
@@ -1296,3 +1297,21 @@ def test_vox_quiet(fm_tx):
         finally:
             fm_tx.link.setting("vox", 0)
             fm_tx.wait_for(lambda x: x.get("state") != "tx", 3.0, what="VOX off, not transmitting")
+
+
+@pytest.mark.feature("tx_power_menu")
+def test_power_level_metadata(radio):
+    """Power labels describe every supported step and optional band, without keying the transmitter."""
+    core = radio.link.view(sections=["power"])
+    if "power_base_names" not in core:
+        skip("not_built", "firmware without complete power-level metadata")
+    count = int(core["power_count"])
+    if not count:
+        skip("no_hw", "the board exposes no transmit power levels")
+    assert len(core["power_base_names"].split("/")) == count, core
+    assert 0 <= int(core["power_default"]) < count, core
+    assert 0 <= int(core["power_factory"]) < count, core
+    for band in filter(None, core["power_bands"].split(",")):
+        frequencies, names = band.split(":", 1)
+        low, high = map(int, frequencies.split("-", 1))
+        assert low <= high and len(names.split("/")) == count, band

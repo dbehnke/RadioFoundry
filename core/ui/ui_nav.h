@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // Inside the UI: the navigation stack, the screen table and the helpers the screens share (ui_app.c, ui_menus.c,
 // ui_find.c). Not for other packages.
 #ifndef UI_NAV_H
@@ -54,6 +55,9 @@ typedef enum {
 #endif
 #if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
 	SCR_AES_RECOVERY,		// Settings > Advanced > AES recovery
+#endif
+#if CONFIG_TX_POWER_MENU
+	SCR_POWER,			// all power levels: arg 0 temporary, 1 radio default
 #endif
 	SCR_COUNT
 } ui_scr_t;

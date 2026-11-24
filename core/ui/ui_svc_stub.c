@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // Weak stand-ins for everything in ui_svc.h that another package owns. Each reports "not available", except the
 // settings store, which keeps values in RAM so the Settings screens work before storage-cps lands. A package that
 // owns one of these defines it without the weak attribute and the linker takes that one.
@@ -268,8 +269,16 @@ bool ui_svc_ram_set(uint8_t id, int32_t value)
 	return true;
 }
 
-WEAK int32_t ui_svc_setting_get(uint8_t id) { return ui_svc_ram_get(id); }
-WEAK bool ui_svc_setting_set(uint8_t id, int32_t value) { return ui_svc_ram_set(id, value); }
+static int32_t master_power = -1;
+WEAK int32_t ui_svc_setting_get(uint8_t id) { return id == UI_SET_MASTER_POWER ? master_power : ui_svc_ram_get(id); }
+WEAK bool ui_svc_setting_set(uint8_t id, int32_t value)
+{
+	if (id == UI_SET_MASTER_POWER) {
+		master_power = value;
+		return true;
+	}
+	return ui_svc_ram_set(id, value);
+}
 
 #if CONFIG_P25_PARROT
 __attribute__((weak)) bool ui_svc_p25_parrot(uint8_t command, bool agc, int8_t target) { return false; }

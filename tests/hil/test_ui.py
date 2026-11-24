@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 The RadioFoundry Authors
+# Copyright (c) 2026 David Behnke
 """The UI driven by injected keys over the debug link (docs/spec/ui.md): channel up / down on Home, the Hub and its
 destinations, Quick settings, type-to-find, the key lock, long BACK = Home from anywhere, the diagnostics page,
 screenshots that change with the screen.
@@ -108,6 +109,26 @@ def test_quick_settings_open_and_close(home, shots):
     wait_screen(r, "quick", "Quick settings again")
     r.press("quick")
     wait_screen(r, "home", "QUICK closes Quick settings")
+
+
+@pytest.mark.feature("tx_power_menu")
+@pytest.mark.needs_switch("TX_POWER_MENU")
+def test_full_power_picker_cancel(home):
+    """The full picker opens without changing the current power; backing out preserves it."""
+    r = home
+    before = r.core()
+    if int(before.get("power_count") or 0) < 1:
+        skip("no_hw", "the board exposes no transmit power levels")
+    r.press("quick")
+    wait_screen(r, "quick")
+    r.press("1")
+    wait_screen(r, "power")
+    assert r.core()["power"] == before["power"]
+    r.press("down")
+    assert r.core()["power"] == before["power"]
+    r.press("back")
+    wait_screen(r, "quick")
+    assert r.core()["power"] == before["power"]
 
 
 @pytest.mark.feature("ui_navigation")

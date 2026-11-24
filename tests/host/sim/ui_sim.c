@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The UI host simulator (ui_sim.h). Everything core/ui needs from the firmware is simulated here: the board
 // descriptor, hal_millis, the radio core (radio_get_view / radio_req_*), the codeplug, the host link and the
 // services other packages own (ui_svc.h; the settings store is the weak one from ui_svc_stub.c).
@@ -1451,7 +1452,7 @@ static void load_channel(void)
 	view.channel_number = z.channels[view.zone_pos];
 	codeplug_channel(view.channel_number, &ch_saved);
 	view.ch = ch_saved;
-	view.power = board.power_default;
+	view.power = ui_default_power();
 	view.temp = 0;
 	view.temporary = false;
 	view.squelch = 5;
@@ -1647,7 +1648,7 @@ void radio_req_clear_temporary(void)
 	if (view.vfo)
 		return;
 	view.ch = ch_saved;
-	view.power = board.power_default;
+	view.power = ui_default_power();
 	view.squelch = 5;
 	view.temp = 0;
 	view.temporary = false;
@@ -2103,6 +2104,12 @@ void ui_svc_apply(uint8_t id, int32_t value)
 		sim_rec.tot_s = (uint32_t)value;
 	else if (id == UI_SET_BACKLIGHT_S)
 		sim_rec.backlight_s = value;
+	else if (id == UI_SET_MASTER_POWER) {
+		if (view.ch.power == CODEPLUG_POWER_DEFAULT) {
+			view.power = ui_default_power();
+			changed();
+		}
+	}
 	else if (id == UI_SET_VFO_STEP) {
 		sim_step = value;
 		changed();
@@ -2785,6 +2792,7 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	ptt_up_at = 0;
 	battery = 84;
 	now_ms = 1000;
+	ui_svc_setting_set(UI_SET_MASTER_POWER, -1);
 	load_channel();
 	soft_volume = false;
 	view.volume = -1;	// no level passed on yet (power-up)
@@ -3029,6 +3037,13 @@ static bool check(const char *kv, char *err, size_t len)
 	else if (strcmp(key, "query") == 0) snprintf(got, sizeof got, "%s", s.query);
 	else if (strcmp(key, "banner") == 0) { snprintf(got, sizeof got, "%s", s.banner[0] ? s.banner : "none"); prefix = true; }
 	else if (strcmp(key, "toast") == 0) { snprintf(got, sizeof got, "%s", s.toast[0] ? s.toast : "none"); prefix = true; }
+	else if (strcmp(key, "powerdot") == 0) {
+		ui_state_t state = { 0 };
+		char label[32], value[32];
+		ui_quick_tile(0, &view, &state, label, sizeof label, value, sizeof value);
+		snprintf(got, sizeof got, "%u", (unsigned char)value[0] == 0x81);
+	}
+	else if (strcmp(key, "masterpower") == 0) snprintf(got, sizeof got, "%d", (int)ui_svc_setting_get(UI_SET_MASTER_POWER));
 	else if (strcmp(key, "power") == 0) snprintf(got, sizeof got, "%u", view.power);
 	else if (strcmp(key, "sq") == 0) snprintf(got, sizeof got, "%u", view.squelch);
 	else if (strcmp(key, "ts") == 0) snprintf(got, sizeof got, "%u", view.dmr.ts);

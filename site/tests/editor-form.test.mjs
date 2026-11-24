@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The Codeplug Editor's record form (views.js formDialog) against a small stand-in for the DOM: what the user picks in
 // one field changes the choices another field offers before the form is saved. Run with site/tests/run.sh.
 
@@ -131,4 +132,26 @@ test("channel form: the AES key list follows a change of system and keeps a key 
 	form.save();
 	assert.equal(saved.system, b);
 	assert.equal(saved.params.id, 2);
+});
+
+
+test("channel power follows edited TX frequency and preserves an equivalent imported power byte", () => {
+	const m = empty();
+	const c = newChannel({ name: "Power", mode: "fm", rxHz: 435000000, txHz: 435000000 });
+	c.power = 2;
+	const power = { names: ["100mW", "1W", "5W", "25W", "45W"], defaultLevel: 2,
+		bands: [{ lo: 136000000, hi: 174000000, names: ["250mW", "1W", "5W", "25W", "50W"] }] };
+	let saved;
+	const form = openForm(channelForm(m, t, { power }), c, (work) => (saved = work));
+	assert.equal(form.input("power")._opts[form.input("power").selectedIndex][0], 2);
+	assert.equal(form.choices("power").at(-1), "45W");
+	form.input("txHz").value = "145.000";
+	form.input("txHz").dispatch("input");
+	// The stand-in DOM does not bubble events: notify the same form listener as a browser input event.
+	form.dlg.find((e) => e.tagName === "DIV" && String(e.className).startsWith("form-grid")).dispatch("input");
+	assert.equal(form.choices("power").at(-1), "50W");
+	assert.equal(form.choices("power")[1], "250mW");
+	form.save();
+	assert.equal(saved.power, 2);
+	assert.equal(saved.txHz, 145000000);
 });

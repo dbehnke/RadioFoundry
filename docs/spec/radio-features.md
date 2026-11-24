@@ -756,6 +756,21 @@ a low fixed value or refuses to transmit; the board's hardware page says which. 
 due. When the board's `tx` refuses a frequency inside its bands, the reason is `tx_deny=hwopt` while an option is
 pending, else `tx_deny=refused` ("Radio refused to send"); never `band`.
 
+The board defines the available steps (`power_count`, `power_names`, optional band-specific labels) and its factory
+default (`power_default`). No UI choice adds an uncalibrated step. Channel power is either an explicit board index
+or `CODEPLUG_POWER_DEFAULT`; the latter resolves `settings_t.master_power`, then the factory default. Invalid
+indexes fall back to that default. The VFO stores its own explicit power.
+
+With `CONFIG_TX_POWER_MENU`, Settings > Talk & listen > Default TX power exposes Factory default (-1 in the UI,
+`SETTINGS_UNSET8` in storage) and every board step. The setter rejects values outside -1 through
+`power_count - 1`, persists the existing field, and queues a preference reload. The reload clears temporary channel
+changes; explicit saved channel power and the VFO's power keep their values. The existing settings level-count
+migration still resets stored power preferences when a board changes its number of steps.
+
+Quick settings opens every supported step in a picker, initially focused on the current power. OK applies a temporary
+channel override; Back cancels without changing it. Without this switch, Quick retains its three-step cycle and the
+new default setting is omitted. The channel editor always retains its full picker and an inherited-default choice.
+
 ### 6.1 Reference trim
 
 Settings > Advanced > Freq trim: a fraction of the reference, -10.0 to +10.0 ppm in 0.1 ppm steps, 0 by default

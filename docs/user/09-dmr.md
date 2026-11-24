@@ -205,7 +205,7 @@ On a DMR channel, **\*** opens these tiles:
 
 | Key | Tile | What it does |
 |---|---|---|
-| **1** | Power | Steps through the radio's lowest level, its default and its highest ([power levels](16-battery-and-power.md#transmit-power)) |
+| **1** | Power | Opens a picker with every supported level ([power levels](16-battery-and-power.md#transmit-power)) |
 | **2** | Slot | Switches between timeslot 1 and 2, for now |
 | **3** | Color | Opens the color code editor |
 | **4** | Mode | Shows DMR. Press it to listen and talk in FM on the same frequencies, for now |

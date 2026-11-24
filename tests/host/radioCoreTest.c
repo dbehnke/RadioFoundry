@@ -5085,6 +5085,37 @@ static void test_ui_glue(void)
 	CHECK(ui_svc_privacy(true) && d->privacy);
 	CHECK(ui_svc_privacy(false) && !d->privacy);
 
+	// Default power follows the saved preference; reloading clears temporary choices but keeps explicit channels.
+	req(RREQ_ZONE_POS, 0);
+	CHECK(sm.view.ch.power == CODEPLUG_POWER_DEFAULT);
+	CHECK(ui_svc_setting_set(UI_SET_MASTER_POWER, 0));
+	CHECK(ui_svc_setting_get(UI_SET_MASTER_POWER) == 0 && sm.view.power == 0);
+	req(RREQ_POWER, 1);
+	CHECK(sm.view.power == 1 && sm.view.temporary);
+	CHECK(ui_svc_setting_set(UI_SET_MASTER_POWER, 2));
+	CHECK(sm.view.power == 2 && !sm.view.temporary);
+	req(RREQ_CLEAR_TEMP, 0);
+	CHECK(sm.view.power == 2 && !sm.view.temporary);
+	CHECK(!ui_svc_setting_set(UI_SET_MASTER_POWER, -2));
+	CHECK(!ui_svc_setting_set(UI_SET_MASTER_POWER, board.power_count));
+	CHECK(ui_svc_setting_get(UI_SET_MASTER_POWER) == 2);
+	boot();
+	CHECK(sm.view.power == 2 && ui_svc_setting_get(UI_SET_MASTER_POWER) == 2);
+	uint16_t power_channel = sm.view.channel_number;
+	uint8_t old_channel_power = chans[power_channel].power;
+	chans[power_channel].power = 1;
+	req(RREQ_RELOAD, 0);
+	CHECK(sm.view.ch.power == 1);
+	uint8_t explicit_power = sm.view.power;
+	CHECK(ui_svc_setting_set(UI_SET_MASTER_POWER, 0));
+	CHECK(sm.view.power == explicit_power);
+	CHECK(ui_svc_setting_set(UI_SET_MASTER_POWER, -1));
+	CHECK(ui_svc_setting_get(UI_SET_MASTER_POWER) == -1);
+	chans[power_channel].power = old_channel_power;
+	req(RREQ_RELOAD, 0);
+	req(RREQ_ZONE_POS, 0);
+	CHECK(sm.view.power == board.power_default);
+
 	// Settings with a store field now: kept across "power cycles" (settings_t), the reply window in the radio core
 	CHECK(ui_svc_setting_set(UI_SET_AUTO_LOCK_S, 60) && ui_svc_setting_get(UI_SET_AUTO_LOCK_S) == 60);
 	CHECK(ui_svc_setting_set(UI_SET_MIC_GAIN, 8) && ui_svc_setting_get(UI_SET_MIC_GAIN) == 8);

@@ -874,62 +874,11 @@
    "group": "settings",
    "needs": []
   },
-  "aes_recovery": {
-   "group": "settings",
-   "needs": [
-    "UI_SETTINGS",
-    "DMR_AES"
-   ]
-  },
-  "aes_recovery_keep": {
-   "group": "settings",
-   "needs": [
-    "UI_SETTINGS",
-    "DMR_AES"
-   ]
-  },
-  "aes_recovery_rekey": {
-   "group": "settings",
-   "needs": [
-    "UI_SETTINGS",
-    "DMR_AES"
-   ]
-  },
   "settings_freq_trim": {
    "group": "settings",
    "needs": [
     "UI_SETTINGS",
     "REF_TRIM"
-   ]
-  },
-  "p25_parrot": {
-   "group": "settings",
-   "needs": [
-    "P25_PARROT"
-   ]
-  },
-  "p25_parrot_levels": {
-   "group": "settings",
-   "needs": [
-    "P25_PARROT"
-   ]
-  },
-  "p25_parrot_report": {
-   "group": "settings",
-   "needs": [
-    "P25_PARROT"
-   ]
-  },
-  "p25_parrot_speech": {
-   "group": "settings",
-   "needs": [
-    "P25_PARROT"
-   ]
-  },
-  "p25_parrot_gain": {
-   "group": "settings",
-   "needs": [
-    "P25_PARROT"
    ]
   },
   "freq_trim": {
@@ -984,6 +933,57 @@
     "UI_SETTINGS"
    ]
   },
+  "aes_recovery": {
+   "group": "settings",
+   "needs": [
+    "UI_SETTINGS",
+    "DMR_AES"
+   ]
+  },
+  "aes_recovery_keep": {
+   "group": "settings",
+   "needs": [
+    "UI_SETTINGS",
+    "DMR_AES"
+   ]
+  },
+  "aes_recovery_rekey": {
+   "group": "settings",
+   "needs": [
+    "UI_SETTINGS",
+    "DMR_AES"
+   ]
+  },
+  "p25_parrot": {
+   "group": "settings",
+   "needs": [
+    "P25_PARROT"
+   ]
+  },
+  "p25_parrot_levels": {
+   "group": "settings",
+   "needs": [
+    "P25_PARROT"
+   ]
+  },
+  "p25_parrot_report": {
+   "group": "settings",
+   "needs": [
+    "P25_PARROT"
+   ]
+  },
+  "p25_parrot_speech": {
+   "group": "settings",
+   "needs": [
+    "P25_PARROT"
+   ]
+  },
+  "p25_parrot_gain": {
+   "group": "settings",
+   "needs": [
+    "P25_PARROT"
+   ]
+  },
   "rx_agc": {
    "group": "calls",
    "needs": [
@@ -1029,6 +1029,26 @@
     "CALLER_DETAILS",
     "P25",
     "P25_ID_LOOKUP"
+   ]
+  },
+  "channel_power_default": {
+   "group": "channels",
+   "needs": [
+    "CHANNEL_LIST",
+    "CHANNEL_EDIT"
+   ]
+  },
+  "power_default": {
+   "group": "settings",
+   "needs": [
+    "TX_POWER_MENU",
+    "UI_SETTINGS"
+   ]
+  },
+  "power_quick": {
+   "group": "home",
+   "needs": [
+    "TX_POWER_MENU"
    ]
   }
  }

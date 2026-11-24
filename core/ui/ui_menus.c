@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The list screens and the screen table (information-architecture.md 4, 6, 8): the Hub with its six destinations,
 // actions on a station, Contacts, Messages, Recent, Channels, Tools, Settings grouped by intent, the talk target
 // picker, information pages and the one confirmation (factory reset, P7).
@@ -3045,8 +3046,14 @@ static void sb_onoff(sbuf_t *b, bool on)
 
 static void sb_ced_power(sbuf_t *b, int32_t level, uint32_t tx_hz)
 {
-	sb_str(b, level < 0 || level >= board.power_count ? TR(CHAN_VALUE_RADIO_DEFAULT, "Radio's") :
-		ui_power_name((uint8_t)level, tx_hz));
+	if (level < 0 || level >= board.power_count) {
+		sb_str(b, TR(CHAN_VALUE_RADIO_DEFAULT, "Radio's"));
+		sb_str(b, " (");
+		sb_str(b, ui_power_name(ui_default_power(), tx_hz));
+		sb_chr(b, ')');
+	} else {
+		sb_str(b, ui_power_name((uint8_t)level, tx_hz));
+	}
 }
 
 static void sb_ced_tot(sbuf_t *b, int32_t s)
@@ -6549,6 +6556,64 @@ void ui_crash_tick(uint32_t now_ms)
 }
 #endif
 
+#if CONFIG_TX_POWER_MENU
+// The same board-defined levels serve quick power and the persistent default.
+static uint16_t power_count(void)
+{
+	return (uint16_t)(board.power_count + (ui_frame()->arg != 0));
+}
+
+static void power_item(uint16_t i, ui_item_t *it)
+{
+	bool master = ui_frame()->arg != 0;
+	if (master && i == 0) {
+		str_copy(it->label, sizeof it->label, TR(POWER_VALUE_FACTORY_DEFAULT, "Factory default"));
+		uint8_t p = board.power_default < board.power_count ? board.power_default : board.power_count ? board.power_count - 1u : 0;
+		str_copy(it->value, sizeof it->value, ui_power_name(p, ui_view()->ch.tx_hz));
+	} else {
+		str_copy(it->label, sizeof it->label, ui_power_name((uint8_t)(i - master), ui_view()->ch.tx_hz));
+	}
+}
+
+static void power_enter(void)
+{
+	int32_t p = ui_frame()->arg ? ui_svc_setting_get(UI_SET_MASTER_POWER) : ui_view()->power;
+	ui_frame()->focus = ui_frame()->arg ? (uint16_t)(p >= 0 && p < board.power_count ? p + 1 : 0) :
+		(p < board.power_count ? (uint16_t)p : 0);
+}
+
+static void power_select(uint16_t i, bool hold)
+{
+	(void)hold;
+	if (ui_frame()->arg) {
+		int32_t p = (int32_t)i - 1;
+		if (!ui_svc_setting_set(UI_SET_MASTER_POWER, p)) {
+			ui_toast(TR(TOAST_SAVE_FAILED, "Couldn't save: try again"));
+			return;
+		}
+		ui_svc_apply(UI_SET_MASTER_POWER, p);
+	} else if (i < board.power_count) {
+		int d = (int)i - ui_view()->power;
+		if (d != 0)
+			radio_req_power(d);
+	}
+	ui_pop();
+}
+
+static const char *power_title(void)
+{
+	return ui_frame()->arg ? TR(SET_LABEL_DEFAULT_TX_POWER, "Default TX power") :
+		TR(POWER_TITLE_TX_POWER, "TX Power");
+}
+
+static const ui_scr_def_t power_screen = {
+	.name = "power", .flags = SF_LIST, .title = power_title,
+	.hint = TRN(HINT_OK_PICK_BACK, "OK pick  Back"),
+	.count = power_count, .item = power_item, .enter = power_enter, .select = power_select,
+};
+
+#endif
+
 // ======================= Tools =======================
 
 // Every tool keeps its number on every radio and build, so a key path (OK 6 7: Diagnostics; tests/hil/test_ui.py and the
@@ -7059,6 +7124,9 @@ static const set_item_t s_talk[] = {
 #if CONFIG_P25_ID_LOOKUP
 	TOGGLE(TRN(SET_LABEL_P25_CONTACT_LOOKUP, "P25 contact lookup"), "DMR caller callsign name database",
 		UI_SET_P25_ID_LOOKUP),
+#endif
+#if CONFIG_TX_POWER_MENU
+	NUMBER(TRN(SET_LABEL_DEFAULT_TX_POWER, "Default TX power"), "transmit watt level", UI_SET_MASTER_POWER, -1, 0, 1, NULL),
 #endif
 };
 #if CONFIG_DMR && CONFIG_DMR_PRIVACY
@@ -7604,6 +7672,11 @@ static void set_value_text(const set_item_t *s, int32_t v, char *out, size_t len
 {
 	sbuf_t b;
 	sb_init(&b, out, len);
+	if (s->id == UI_SET_MASTER_POWER) {
+		uint8_t p = v >= 0 && v < board.power_count ? (uint8_t)v : ui_default_power();
+		sb_str(&b, ui_power_name(p, ui_view()->ch.tx_hz));
+		return;
+	}
 	switch (s->type) {
 	case ST_TOGGLE:
 		// GPS reads Off on a radio without one (#349). Only shown so: the stored value stays, as the module is
@@ -7804,6 +7877,12 @@ static void group_select(uint16_t i, bool hold)
 #if CONFIG_REF_TRIM
 	if (s->id == UI_SET_REF_TRIM && s->type == ST_NUMBER) {
 		ui_push(SCR_REF_TRIM, 0);
+		return;
+	}
+#endif
+#if CONFIG_TX_POWER_MENU
+	if (s->id == UI_SET_MASTER_POWER) {
+		ui_push(SCR_POWER, 1);
 		return;
 	}
 #endif
@@ -8475,6 +8554,9 @@ const ui_scr_def_t *const ui_scr[SCR_COUNT] = {
 	[SCR_MESSAGE_READ] = &message_read_screen,
 	[SCR_RECENT] = &recent_screen, [SCR_ZONES] = &channels_screen, [SCR_ZONE] = &zone_screen,
 	[SCR_TOOLS] = &tools_screen, [SCR_SETTINGS] = &settings_screen, [SCR_GROUP] = &group_screen,
+#if CONFIG_TX_POWER_MENU
+	[SCR_POWER] = &power_screen,
+#endif
 	[SCR_PICKER] = &picker_screen, [SCR_INFO] = &info_screen, [SCR_CONFIRM] = &confirm_screen,
 #if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
 	[SCR_AES_RECOVERY] = &aes_recovery_screen,

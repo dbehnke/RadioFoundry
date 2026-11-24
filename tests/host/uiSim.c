@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The UI host simulator's command line (docs/spec/ui.md 7):
 //
 //   uiSim [--geom 160x120i5|160x128|128x64|240x320|WxH[iN|m]] [--map K|M|V|F|P] [--scale N] [--out FILE.png]
@@ -52,7 +53,11 @@ static const struct { const char *name, *script; } gallery[] = {
 	{ "home_dmr_lastheard", "call:9991234,91,g wait:11000" },
 	{ "home_reply", "call:9991234,91,g" },
 	{ "home_fm", "down" },
+#if CONFIG_TX_POWER_MENU
+	{ "home_temporary", "down quick 1 down ok 2 up back" },
+#else
 	{ "home_temporary", "down quick 1 2 up back" },
+#endif
 	{ "home_vfo", "ok 4 up ok" },
 	{ "home_vfo_entry", "ok 4 up ok 4 4 6" },
 	{ "home_vfo_dmr", "ok 4 up ok quick 4 back" },
@@ -81,6 +86,11 @@ static const struct { const char *name, *script; } gallery[] = {
 	{ "message_read", "msg:9991234," LONG_SMS " ctx ok" },
 	{ "quick_dmr", "quick" },
 	{ "quick_fm", "down quick" },
+#if CONFIG_TX_POWER_MENU
+	{ "power_quick", "quick 1" },
+	{ "power_default", "ok 7 3 up ok" },
+	{ "channel_power_default", "ok 5 ok down down down down down" },
+#endif
 	{ "quick_fm_squelch", "down quick 2 up" },
 	{ "quick_cc_editor", "quick 3 7" },
 	{ "quick_vfo_fm", "ok 4 up ok quick" },

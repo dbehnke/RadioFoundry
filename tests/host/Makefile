@@ -740,7 +740,11 @@ UIFLAGS := -std=gnu99 -Wall -Wextra -Wno-unused-parameter -Wshadow -g $(COVFLAGS
            '-DGFX_FB_BYTES=(320u*320u*2u)' -DGFX_MAX_ROWS=320 -DCONFIG_FONT_XL=1 -DFONT_BOTH -DGFX_INDEXED=1 -DGFX_FIT_TRACE
 UIDEPS  := $(UIAPP) $(ABOUT_H) $(LANG_H) $(CORE)/dsp/speech_meter.h $(wildcard $(CORE)/ui/*.h $(CORE)/ui/fonts/*.inc sim/ui_sim.h)
 TESTS   += uiFlowTest uiFlowTestNoColor uiSim
-TESTS   += uiFlowTestSatellite
+TESTS   += uiFlowTestSatellite uiFlowTestNoPowerMenu
+
+uiFlowTestNoPowerMenu: uiFlowTest.c $(UIDEPS)
+	$(CC) $(UIFLAGS) -DCONFIG_TX_POWER_MENU=0 -o $@ uiFlowTest.c $(UIAPP) -lz
+
 
 uiFlowTest: uiFlowTest.c $(UIDEPS) $(CORE)/p25/p25_parrot.h $(CORE)/dsp/tx_level.h
 	$(CC) $(UIFLAGS) -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=1 -DCONFIG_TX_DC_BLOCK=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -DCONFIG_P25_TRUNK=1 -DCONFIG_NXDN=1 -o $@ uiFlowTest.c $(UIAPP) -lz
@@ -809,7 +813,7 @@ ui-sheets: uiSim
 	UI_GALLERY_COLORS="$(UI_GALLERY_COLORS)" ./uiSim --sheets out/sheets $(GEOM)
 
 run: run-ui
-run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault uiFlowTest uiFlowTestNoCallerLookup uiFlowTestP25NoAgc uiFlowTestNoColor uiFlowTestSatellite uiSim beepReel
+run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault uiFlowTest uiFlowTestNoCallerLookup uiFlowTestP25NoAgc uiFlowTestNoColor uiFlowTestSatellite uiFlowTestNoPowerMenu uiSim beepReel
 	./gfxTest
 	./gfxTestZh
 	./gfxFbEdgeTest
@@ -820,6 +824,7 @@ run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault 
 	./uiFlowTestNoCallerLookup
 	./uiFlowTestP25NoAgc
 	./uiFlowTestNoColor
+	./uiFlowTestNoPowerMenu
 	./uiFlowTestSatellite
 	./uiSim --layout
 	./beepReel --out out/beep-reel --no-frames > /dev/null	# checks every beep has a scene and the scenes still run
@@ -2013,3 +2018,13 @@ run-caller-name: callerNameTest
 
 p25VoiceCodecTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h $(CORE)/dsp/mic_gain.h $(CORE)/p25/p25_parrot.h $(CORE)/dsp/dc_block.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(CORE)/dsp/tx_level.h $(MBE)
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=1 -DCONFIG_TX_DC_BLOCK=1 -DCONFIG_TX_MIC_LIMITER=0 -DCONFIG_P25_PARROT=1 -o $@ $(CORE)/audio/rx_agc.c p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm
+
+# Runtime power metadata has its own bounded GET_VIEW section.
+TESTS   += powerViewTest
+POWERVIEW := powerViewTest.c $(CORE)/debuglink/debuglink_view_power.c $(CORE)/debuglink/dl_fmt.c
+powerViewTest: $(POWERVIEW) $(ROOT)/hal/board.h $(CORE)/settings/settings.h $(wildcard $(CORE)/debuglink/*.h)
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -o $@ $(POWERVIEW)
+run: run-powerview
+run-powerview: powerViewTest
+	./powerViewTest
+.PHONY: run-powerview
