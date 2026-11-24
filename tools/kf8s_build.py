@@ -7,6 +7,7 @@ import argparse
 from datetime import datetime
 import fcntl
 import hashlib
+import io
 import itertools
 import json
 import os
@@ -15,13 +16,32 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
+from urllib.request import urlopen
 import zipfile
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools' / 'rfoundry'))
 from rfoundry import boards, manifest as release_manifest  # noqa: E402
+
+# These notices match the project's pinned toolchains. Keep the notice pins in sync when changing toolchains.
+# ARM 13.3.Rel1 pins Newlib/Nano to this commit. The C-SKY toolchain pins the 4.5.0.20241231 tarball.
+NEWLIB_NOTICES = {
+    'stm32f4': (
+        'https://sourceware.org/git/?p=newlib-cygwin.git;a=blob_plain;f=COPYING.NEWLIB;'
+        'hb=1ed15161362b2eb5649b049b7ab0aaf8097bd43a',
+        '9a59b4ee3af067045fe0ea78786201c42d54756fe48cbccf44f3dfc398474717',
+        None, '9a59b4ee3af067045fe0ea78786201c42d54756fe48cbccf44f3dfc398474717',
+    ),
+    'hrc7000': (
+        'https://sourceware.org/pub/newlib/newlib-4.5.0.20241231.tar.gz',
+        '33f12605e0054965996c25c1382b3e463b0af91799001f5bb8c0630f2ec8c852',
+        'newlib-4.5.0.20241231/COPYING.NEWLIB',
+        'fcfb5ec69b6ab52676dcc4dab7cf4338c8000ef97812dadd35b8592a640a8419',
+    ),
+}
 
 
 def git(*args):
@@ -121,11 +141,117 @@ def check_archive_images(archive, images):
         raise ValueError(f'archive is missing image or manifest files: {sorted(missing)}')
 
 
+def copy_component_notices(source, destination):
+    notices = sorted(path for path in source.iterdir() if re.fullmatch(
+        r'(?:LICENSES?|NOTICES?|COPYING|COPYRIGHT)(?:[._-].+)?', path.name, flags=re.IGNORECASE))
+    if notices:
+        destination.mkdir(parents=True, exist_ok=True)
+    for path in notices:
+        target = destination / path.name
+        if path.is_dir():
+            shutil.copytree(path, target, dirs_exist_ok=True)
+        else:
+            shutil.copy2(path, target)
+    return bool(notices)
+
+
+def newlib_notice(platform):
+    url, payload_digest, member, notice_digest = NEWLIB_NOTICES[platform]
+    with urlopen(url, timeout=30) as response:
+        payload = response.read()
+    if hashlib.sha256(payload).hexdigest() != payload_digest:
+        raise ValueError(f'{platform} Newlib notice download digest mismatch')
+    if member is not None:
+        with tarfile.open(fileobj=io.BytesIO(payload), mode='r:gz') as archive:
+            with archive.extractfile(member) as stream:
+                payload = stream.read()
+    if hashlib.sha256(payload).hexdigest() != notice_digest:
+        raise ValueError(f'{platform} Newlib notice digest mismatch')
+    return payload
+
+
+def copy_firmware_notices(package, images, env):
+    platforms = set()
+    modules = {}
+    imbe = False
+    for entry in images:
+        board = boards.get(entry['board'])
+        platforms.add(board.platform)
+        flags = [*entry['build_overrides'], *(f'{key}={value}' for key, value in entry['options'].items())]
+        config = subprocess.check_output(['make', '-s', f'BOARD={board.id}', *flags,
+                                         'VARS=PLATFORM_3P_SRC INCLUDES CONFIG_IMBE', 'print-vars'],
+                                         cwd=ROOT, env=env, text=True)
+        values = dict(line.split('=', 1) for line in config.splitlines() if '=' in line)
+        imbe |= values['CONFIG_IMBE'] == 'y'
+        for name in re.findall(r'third_party/([\w.-]+)(?:/|\s|$)', values['INCLUDES']):
+            modules.setdefault(name, set())
+        for source in values['PLATFORM_3P_SRC'].split():
+            match = re.match(r'third_party/([\w.-]+)/(.+)', source)
+            if match:
+                modules.setdefault(match[1], set()).add(match[2])
+
+    notices = package / 'notices'
+    shared = env.get('RFOUNDRY_THIRD_PARTY')
+    for name, sources in sorted(modules.items()):
+        source = ROOT / 'third_party' / name
+        if shared and (not source.is_dir() or not any(not path.name.startswith('.') for path in source.iterdir())):
+            source = Path(shared) / name
+        destination = notices / name
+        if not source.is_dir() or not copy_component_notices(source, destination):
+            raise ValueError(f'compiled component {name} is missing its license files')
+        # The FreeRTOS MIT license points to the copyright notices in its source headers.
+        if name == 'FreeRTOS-Kernel':
+            copyright_lines = set()
+            for compiled in sources:
+                with (source / compiled).open(encoding='utf-8', errors='replace') as stream:
+                    for line in itertools.islice(stream, 16):
+                        match = re.match(r'^\s*\*\s+(Copyright (?!notice\b).+)', line)
+                        if match:
+                            copyright_lines.add(match[1].strip())
+            if not copyright_lines:
+                raise ValueError('FreeRTOS source copyright notices were not found')
+            (destination / 'COPYRIGHT').write_text('\n'.join(sorted(copyright_lines)) + '\n', encoding='utf-8')
+
+    for platform in sorted(platforms):
+        source = ROOT / 'platform' / platform
+        destination = notices / platform
+        destination.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / 'THIRD_PARTY', destination / 'THIRD_PARTY')
+        copy_component_notices(source, destination)
+        if platform in NEWLIB_NOTICES:
+            (destination / 'COPYING.NEWLIB').write_bytes(newlib_notice(platform))
+    if imbe:
+        destination = notices / 'mbelib'
+        destination.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / 'core' / 'mbe' / 'THIRD_PARTY', destination / 'THIRD_PARTY')
+        shutil.copy2(ROOT / 'LICENSES' / 'ISC.txt', destination / 'ISC.txt')
+
+
+def write_archive(package, archive, images):
+    sidecar = archive.with_suffix('.zip.sha256')
+    with tempfile.TemporaryDirectory(prefix=f'.{archive.stem}-', dir=archive.parent) as directory:
+        temporary = Path(directory) / archive.name
+        with zipfile.ZipFile(temporary, 'w', zipfile.ZIP_DEFLATED) as zipped:
+            for path in sorted(package.rglob('*')):
+                if path.is_file():
+                    zipped.write(path, path.relative_to(package))
+            check_archive_images(zipped, images)
+        digest = hashlib.sha256(temporary.read_bytes()).hexdigest()
+        checksum = Path(directory) / sidecar.name
+        checksum.write_text(f'{digest}  {archive.name}\n', encoding='ascii')
+        os.replace(temporary, archive)
+        os.replace(checksum, sidecar)
+    return digest
+
+
 def package_readme(version, parrot, without_aes):
     aes = ('DMR AES is disabled in this package. AES channels are unavailable and PTT is rejected.\n'
            if without_aes else "DMR AES follows each board's default. See the image manifest.\n")
     diagnostic = ('Codec diagnostic enabled wherever P25 is built. See build.json for each image configuration.\n'
                   'Images that exceed RAM with the diagnostic disable the DMR IP gateway.\n'
+                  'Open Settings > Advanced > Codec diagnostic and press OK on Record to capture up to 10 seconds.\n'
+                  'Wait for playback to show Done, then report the mode, duration, Test AGC and its target or mic step,\n'
+                  'the mic, encoder and decoded RMS and peaks, Last PCM gain, and Limited blocks.\n'
                   if parrot else 'The codec diagnostic is off. The DMR IP gateway retains its board defaults.\n')
     return (
         f'{version}\nPrivate KF8S test build based on RadioFoundry. Contact: dbehnke (KF8S).\n'
@@ -143,7 +269,49 @@ def package_readme(version, parrot, without_aes):
         'Use each image with its JSON manifest in the RadioFoundry web flasher.\n'
         'Images contain no AMBE codec. Follow the flasher instructions to preserve or supply your codec.\n'
         'P25 remains unavailable where upstream has not implemented it. See the feature matrix.\n'
-        'Keep LICENSE, AUTHORS, CONTRIBUTORS and third-party notices with redistributed downloads.\n')
+        'Keep LICENSE, AUTHORS, CONTRIBUTORS, LICENSES/ and notices/ with redistributed downloads.\n')
+
+
+def test_release_notices():
+    from unittest.mock import patch
+
+    payload = b'complete notice\n'
+    member = 'newlib-fixture/COPYING.NEWLIB'
+    with io.BytesIO() as stream:
+        with tarfile.open(fileobj=stream, mode='w:gz') as archive:
+            entry = tarfile.TarInfo(member)
+            entry.size = len(payload)
+            archive.addfile(entry, io.BytesIO(payload))
+        packed = stream.getvalue()
+    notice_digest = hashlib.sha256(payload).hexdigest()
+    pin = ('https://example.invalid/newlib.tar.gz', hashlib.sha256(packed).hexdigest(), member, notice_digest)
+    with patch.dict(NEWLIB_NOTICES, {'fixture': pin}):
+        with patch(__name__ + '.urlopen', return_value=io.BytesIO(packed)):
+            assert newlib_notice('fixture') == payload
+        with patch(__name__ + '.urlopen', return_value=io.BytesIO(b'bad notice')):
+            try:
+                newlib_notice('fixture')
+            except ValueError:
+                pass
+            else:
+                raise AssertionError('a Newlib download with the wrong digest was accepted')
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        source = root / 'component'
+        package = root / 'package'
+        destination = package / 'notices' / 'component'
+        (source / 'LICENSES').mkdir(parents=True)
+        for name in ('LICENSE', 'NOTICE.txt', 'LICENSES/MIT.txt', 'unrelated.txt'):
+            (source / name).write_text(name + '\n')
+        assert copy_component_notices(source, destination)
+        archive = root / 'fixture.zip'
+        digest = write_archive(package, archive, [])
+        with zipfile.ZipFile(archive) as zipped:
+            assert set(zipped.namelist()) == {f'notices/component/{name}'
+                                           for name in ('LICENSE', 'NOTICE.txt', 'LICENSES/MIT.txt')}
+            assert zipped.read('notices/component/LICENSE') == b'LICENSE\n'
+        assert hashlib.sha256(archive.read_bytes()).hexdigest() == digest
+        assert archive.with_suffix('.zip.sha256').read_text() == f'{digest}  {archive.name}\n'
 
 
 def self_test():
@@ -239,7 +407,9 @@ def self_test():
     assert "DMR AES follows each board's default" in default_readme and 'diagnostic is off' in default_readme
     assert 'DMR AES is disabled' in diagnostic_readme and 'disable the DMR IP gateway' in diagnostic_readme
     assert all('Settings > Advanced > AES recovery' in readme for readme in (default_readme, diagnostic_readme))
-    print('kf8s build: branch guards, daily sequence, provenance, archive and README checks passed')
+    assert 'Settings > Advanced > Codec diagnostic' in diagnostic_readme and 'Limited blocks' in diagnostic_readme
+    test_release_notices()
+    print('kf8s build: branch guards, daily sequence, provenance, archive, notice and README checks passed')
 
 
 def main():
@@ -347,14 +517,9 @@ def main():
     for name in ('LICENSE', 'AUTHORS', 'CONTRIBUTORS'):
         shutil.copy2(ROOT / name, package / name)
     shutil.copytree(ROOT / 'LICENSES', package / 'LICENSES')
+    copy_firmware_notices(package, images, build_env)
     archive = out / f'radiofoundry-{version}.zip'
-    with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as zipped:
-        for path in sorted(package.rglob('*')):
-            if path.is_file():
-                zipped.write(path, path.relative_to(package))
-        check_archive_images(zipped, images)
-    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-    archive.with_suffix('.zip.sha256').write_text(f'{digest}  {archive.name}\n')
+    digest = write_archive(package, archive, images)
     print(f'ZIP: {archive}\nSHA256: {digest}')
 
 
