@@ -2399,5 +2399,8 @@
  "editor.sig.no_audio": "No audio here",
  "editor.sig.empty": "No steps: the standard sound",
  "screen.p25_caller_names": "P25 caller name from contacts or the DMR ID database",
- "screen.p25_caller_numeric": "P25 caller with numeric ID"
+ "screen.p25_caller_numeric": "P25 caller with numeric ID",
+ "screen.caller_database_dmr": "DMR caller with callsign, name, and ID",
+ "screen.caller_database_dual": "DMR caller identity in dual watch",
+ "screen.caller_database_dual_p25": "P25 caller identity in dual watch"
 }

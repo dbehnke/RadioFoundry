@@ -535,9 +535,15 @@ void ui_svc_poll(void);
 // Every UI pass: the side key assignment follows a codeplug a CPS wrote, and a change made in Settings goes to the
 // codeplug (CONFIG_KEY_ASSIGN)
 void ui_svc_keys_poll(void);
-// UI task only: poll deferred P25 name lookups; true when cached presentation changed. The getter never reads flash.
-bool ui_svc_p25_names_poll(const radio_view_t *v);
+// UI task only: poll deferred caller name lookups; true when cached presentation changed. The getter never reads flash.
+bool ui_svc_caller_poll(const radio_view_t *v);
+// UI task only, after poll: queue an uncached identity from a pane owned by another receiver.
+void ui_svc_caller_request(uint8_t mode, uint32_t id);
 const char *ui_svc_p25_name(uint32_t id);
+// Cached full database text, or a private contact name; database identifies the callsign-first database format.
+const char *ui_svc_caller_text(uint8_t mode, uint32_t id, bool *database);
+// Optional played-audio input/output annotation. False: omit it (including when AGC is off).
+bool ui_svc_rx_audio_text(uint8_t mode, char *out, size_t len);
 // A home key's event (ACT_HOME_KEY_n, board.home_keys): the action it does now, its function on Home (home true) or
 // the key's own action elsewhere; ACT_NONE for nothing. Any other action comes back as it is (CONFIG_KEY_ASSIGN)
 uint8_t ui_svc_home_key(uint8_t action, uint8_t gesture, bool home);

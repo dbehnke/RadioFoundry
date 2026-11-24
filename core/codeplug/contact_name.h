@@ -9,21 +9,26 @@
 #include "dmr_iddb.h"
 
 #if CONFIG_DMR
-static inline void contact_name_lookup(uint32_t id, bool group, char out[CODEPLUG_NAME_LEN + 1])
+static inline bool contact_text_lookup(uint32_t id, bool group, char *out, size_t len)
 {
 	contact_t c;
+	if (!len)
+		return false;
 	out[0] = '\0';
 	if (id == 0 || id > 0xFFFFFFu)
-		return;
+		return false;
 	if (codeplug_contact_find(id, group, &c)) {
-		memcpy(out, c.name, CODEPLUG_NAME_LEN + 1);
-	} else if (!group) {
-		char text[DMR_IDDB_TEXT_MAX + 1];
-		if (dmr_iddb_lookup(id, text, sizeof(text))) {
-			strncpy(out, text, CODEPLUG_NAME_LEN);
-			out[CODEPLUG_NAME_LEN] = '\0';
-		}
+		strncpy(out, c.name, len - 1);
+		out[len - 1] = '\0';
+	} else if (!group && dmr_iddb_lookup(id, out, len)) {
+		return true;
 	}
+	return false;
+}
+
+static inline void contact_name_lookup(uint32_t id, bool group, char out[CODEPLUG_NAME_LEN + 1])
+{
+	(void)contact_text_lookup(id, group, out, CODEPLUG_NAME_LEN + 1);
 }
 #endif
 #endif

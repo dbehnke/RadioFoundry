@@ -351,6 +351,9 @@
 #endif
 // P25 trunked: the codec of its systems and channels (docs/spec/p25-codeplug.md 3), the control channel decoded, voice
 // channel grants followed and, where the system allows it, registration and transmit on a grant (core/p25/p25_follow.c)
+#ifndef CONFIG_CALLER_DETAILS
+#define CONFIG_CALLER_DETAILS		CONFIG_DMR
+#endif
 #ifndef CONFIG_P25_ID_LOOKUP
 #define CONFIG_P25_ID_LOOKUP		CONFIG_P25
 #endif
@@ -568,6 +571,9 @@
 #endif
 #if CONFIG_GPS_SKY && !CONFIG_GPS
 #error "CONFIG_GPS_SKY needs CONFIG_GPS"
+#endif
+#if CONFIG_CALLER_DETAILS && !CONFIG_DMR
+#error "CONFIG_CALLER_DETAILS needs CONFIG_DMR"
 #endif
 #if CONFIG_P25_TRUNK && !CONFIG_P25
 #error "CONFIG_P25_TRUNK needs CONFIG_P25"

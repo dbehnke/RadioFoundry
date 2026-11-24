@@ -740,6 +740,7 @@ bool ui_svc_codeplug_answer(uint8_t answer)
 
 // The settings past the stub's RAM table (UI_SET_RAM_COUNT): the firmware keeps them in the codeplug
 // (ui_svc_storage.c); here they are plain values
+static bool sim_caller_database;
 static int32_t sim_late[UI_SET_COUNT - UI_SET_RAM_COUNT];
 
 int32_t ui_svc_setting_get(uint8_t id)
@@ -763,15 +764,27 @@ bool ui_svc_setting_set(uint8_t id, int32_t value)
 	return true;
 }
 
-#if CONFIG_P25_ID_LOOKUP
-const char *ui_svc_p25_name(uint32_t id)
+#if CONFIG_CALLER_DETAILS || CONFIG_P25_ID_LOOKUP
+const char *ui_svc_caller_text(uint8_t mode, uint32_t id, bool *database)
 {
 	static char name[CODEPLUG_NAME_LEN + 1];
 	contact_t c;
-	name[0] = '\0';
-	if (ui_svc_setting_get(UI_SET_P25_ID_LOOKUP) && codeplug_contact_find(id, false, &c))
+	*database = false;
+	name[0] = 0;
+	if (mode == RADIO_MODE_P25 && (!CONFIG_P25_ID_LOOKUP || !ui_svc_setting_get(UI_SET_P25_ID_LOOKUP)))
+		return "";
+	if (sim_caller_database && id == 9991234) {
+		*database = true;
+		return "Q1ABC Joe Smith";
+	}
+	if (codeplug_contact_find(id, false, &c))
 		memcpy(name, c.name, sizeof name);
 	return name;
+}
+const char *ui_svc_p25_name(uint32_t id)
+{
+	bool database;
+	return ui_svc_caller_text(RADIO_MODE_P25, id, &database);
 }
 #endif
 
@@ -2645,6 +2658,7 @@ void ui_svc_next_aes_key(channel_t *c)
 
 void sim_reset(const sim_geom_t *g, sim_map_t map)
 {
+	sim_caller_database = false;
 	emergency_on = false;
 	sim_foreign = sim_held = false;
 	disp.width = g->w;
@@ -3238,6 +3252,16 @@ static bool run_token(char *t, char *err, size_t len)
 		advance(arg != NULL ? (uint32_t)atoi(arg) : 1000u);
 		return true;
 	}
+	if (strcmp(t, "rxcodec") == 0 && arg != NULL) {
+		view.dmr.codec = strcmp(arg, "on") == 0;
+		changed(); advance(200);
+		return true;
+	}
+	if (strcmp(t, "rxfiltered") == 0) {
+		view.dmr.state = RDMR_RX_OTHER;
+		changed(); advance(200);
+		return true;
+	}
 	if (strcmp(t, "rx") == 0 || strcmp(t, "call") == 0) {
 		unsigned src = 0, dst = 0;
 		char kind = 'g', alias[32] = "";
@@ -3522,6 +3546,12 @@ static bool run_token(char *t, char *err, size_t len)
 		return true;
 	}
 #endif
+	if (strcmp(t, "callerdb") == 0) {
+		sim_caller_database = arg != NULL && strcmp(arg, "on") == 0;
+		changed();
+		advance(200);
+		return true;
+	}
 #if CONFIG_P25
 	if (strcmp(t, "p25names") == 0 && arg != NULL) {
 		ui_svc_setting_set(UI_SET_P25_ID_LOOKUP, strcmp(arg, "on") == 0);
@@ -3536,6 +3566,7 @@ static bool run_token(char *t, char *err, size_t len)
 			snprintf(err, len, "bad %s", t);
 			return false;
 		}
+		view.p25.nac = view.p25.rx_nac;
 		view.p25.flags = (uint8_t)((view.p25.flags & RADIO_P25_TALK_UNIT) | RADIO_P25_ON | RADIO_P25_RX |
 			(kind == 'u' ? RADIO_P25_UNIT : 0) | (kind == 'e' ? RADIO_P25_ENC : 0) |
 			(kind == 'e' || kind == 'o' ? 0 : RADIO_P25_PLAYED));

@@ -87,7 +87,12 @@ WEAK void ui_svc_poll(void)
 #endif
 }
 WEAK void ui_svc_keys_poll(void) { }
-WEAK bool ui_svc_p25_names_poll(const radio_view_t *v) { (void)v; return false; }
+WEAK void ui_svc_caller_request(uint8_t mode, uint32_t id) { (void)mode; (void)id; }
+WEAK bool ui_svc_caller_poll(const radio_view_t *v) { (void)v; return false; }
+WEAK bool ui_svc_rx_audio_text(uint8_t mode, char *out, size_t len)
+{ (void)mode; if (len) out[0] = 0; return false; }
+WEAK const char *ui_svc_caller_text(uint8_t mode, uint32_t id, bool *database)
+{ (void)mode; (void)id; *database = false; return ""; }
 WEAK const char *ui_svc_p25_name(uint32_t id) { (void)id; return ""; }
 // Without key assignment no home key sends ACT_HOME_KEY_n: every action is the key map's
 WEAK uint8_t ui_svc_home_key(uint8_t action, uint8_t gesture, bool home) { (void)gesture; (void)home; return action; }
