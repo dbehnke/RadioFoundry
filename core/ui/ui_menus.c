@@ -3313,6 +3313,7 @@ static void chinfo_item(uint16_t i, ui_item_t *it)
 #if CONFIG_CHANNEL_EDIT
 static void ui_text_open(char *target, uint8_t max);
 static bool discard_contact;	// Unsaved Changes asks about the contact editor's new contact (else a channel)
+static bool discard_home;	// a Home request waits for the same discard confirmation
 static bool discard_kind;	// ... or before a save that takes a stored channel's own mode away (its tag)
 static bool ced_drop_ok;	// the answer was yes
 
@@ -3388,6 +3389,7 @@ static void ced_save(bool as_new)
 	if (!as_new && !ced_new && ced_orig.kind != CODEPLUG_KIND_NONE && ced_ch.kind != ced_orig.kind && !ced_drop_ok) {
 		discard_contact = false;
 		discard_kind = true;
+		discard_home = false;
 		ui_push(SCR_DISCARD, 0);
 		return;
 	}
@@ -3637,6 +3639,7 @@ static bool chinfo_key(const input_event_t *ev)
 				(ced_new || ced_changed(CE_COUNT))) {
 			discard_contact = false;
 			discard_kind = false;
+			discard_home = false;
 			ui_push(SCR_DISCARD, 0);
 			return true;
 		}
@@ -3847,8 +3850,13 @@ static void discard_select(uint16_t i, bool hold)
 		}
 		return;
 	}
-	if (i == 1)
-		ui_pop();	// and the channel
+	if (i == 1) {
+		if (discard_home)
+			ui_go_home();
+		else
+			ui_pop();	// and the channel
+	}
+	discard_home = false;
 }
 
 static const char *discard_body(void)
@@ -4072,6 +4080,7 @@ static bool ct_key(const input_event_t *ev)
 		if (ev->action == ACT_BACK && ev->gesture == GESTURE_PRESS) {
 			discard_contact = true;
 			discard_kind = false;
+			discard_home = false;
 			ui_push(SCR_DISCARD, 0);
 			return true;
 		}
@@ -6534,6 +6543,29 @@ static const ui_scr_def_t tools_screen = {
 	.count = tools_count, .item = tools_item, .select = tools_select,
 };
 
+// Home can be requested over a nested field editor; ask about the stored editor's changes first.
+bool ui_menus_home_leave(ui_scr_t scr, bool text_open)
+{
+#if CONFIG_CHANNEL_EDIT
+	bool contact = false;
+#if CONFIG_CONTACT_EDIT
+	contact = scr == SCR_CONTACT_EDIT;
+#endif
+	bool pending_name = text_open && text_target == ced_ch.name && strcmp(text_buf, text_target) != 0;
+	if (contact || (scr == SCR_CHANNEL && ced_num != 0 &&
+	    (ced_new || ced_changed(CE_COUNT) || pending_name || ced_edit != CE_NONE))) {
+		discard_contact = contact;
+		discard_kind = false;
+		discard_home = true;
+		return true;
+	}
+#else
+	(void)scr;
+	(void)text_open;
+#endif
+	return false;
+}
+
 // ======================= Settings by intent (information-architecture.md 6) =======================
 // CONFIG_UI_SETTINGS=n leaves the whole menu out (the settings keep their stored values; qdmr sets them)
 #if CONFIG_UI_SETTINGS
@@ -6630,6 +6662,7 @@ static const int16_t v_keyfn_press[] = { KEYFN_DEFAULT, KEYFN_NONE, KEYFN_MONITO
 #if CONFIG_DUAL_WATCH
 					 KEYFN_AB, KEYFN_DUAL_WATCH,
 #endif
+	KEYFN_BACK,
 };
 static const tr_id_t n_keyfn_press[] = { TRN(VALUE_DEFAULT, "Default"), TRN(KEYFN_VALUE_NOTHING, "Nothing"),
 	TRN(KEYFN_VALUE_MONITOR, "Monitor"), TRN(KEYFN_VALUE_TALK_TARGET, "Talk target"),
@@ -6652,6 +6685,7 @@ static const tr_id_t n_keyfn_press[] = { TRN(VALUE_DEFAULT, "Default"), TRN(KEYF
 #if CONFIG_DUAL_WATCH
 					     TRX(KEYFN_VALUE_A_B, "A/B"), TRN(WORD_DUAL_WATCH, "Dual watch"),
 #endif
+	TRN(KEYFN_VALUE_BACK, "Back"),
 };
 static const int16_t v_keyfn_hold[] = { KEYFN_DEFAULT, KEYFN_NONE, KEYFN_TALK_TARGET, KEYFN_POWER, KEYFN_ZONE_UP,
 					KEYFN_ZONE_DOWN, KEYFN_SCAN, KEYFN_SCAN_SKIP, KEYFN_MONITOR_TOGGLE,
@@ -6668,6 +6702,7 @@ static const int16_t v_keyfn_hold[] = { KEYFN_DEFAULT, KEYFN_NONE, KEYFN_TALK_TA
 #if CONFIG_DUAL_WATCH
 					KEYFN_AB, KEYFN_DUAL_WATCH,
 #endif
+	KEYFN_BACK,
 };
 static const tr_id_t n_keyfn_hold[] = { TRN(VALUE_DEFAULT, "Default"), TRN(KEYFN_VALUE_NOTHING, "Nothing"),
 	TRN(KEYFN_VALUE_TALK_TARGET, "Talk target"), TRN(KEYFN_VALUE_POWER_LEVEL, "Power level"),
@@ -6689,6 +6724,7 @@ static const tr_id_t n_keyfn_hold[] = { TRN(VALUE_DEFAULT, "Default"), TRN(KEYFN
 #if CONFIG_DUAL_WATCH
 					    TRX(KEYFN_VALUE_A_B, "A/B"), TRN(WORD_DUAL_WATCH, "Dual watch"),
 #endif
+	TRN(KEYFN_VALUE_BACK, "Back"),
 };
 #endif
 static const int16_t v_updown[] = { 0, 1, 2 };

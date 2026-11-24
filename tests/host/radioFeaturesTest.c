@@ -1989,6 +1989,41 @@ static bool wait_on(radio_dual_ref_t r, uint32_t ms)
 	return on_ref(r);
 }
 
+static void test_standalone_vfo_swap(void)
+{
+	start();
+	req(RREQ_VFO_SWAP, 0);
+	CHECK(!sm.view.vfo && sm.view.vfo_index == 0);
+	req(RREQ_VFO_SET, 146520000);
+	req(RREQ_VFO_TX, 147120000);
+	req(RREQ_VFO_SWAP, 0);
+	CHECK(sm.view.vfo && sm.view.vfo_index == 1 && sm.view.scan == SCAN_OFF);
+	req(RREQ_VFO_SET, 446000000);
+	req(RREQ_VFO_TX, 445000000);
+	req(RREQ_VFO_SWAP, 0);
+	CHECK(sm.view.vfo_index == 0 && sm.view.ch.rx_hz == 146520000 && sm.view.ch.tx_hz == 147120000);
+	req(RREQ_VFO_SWAP, 0);
+	CHECK(sm.view.vfo_index == 1 && sm.view.ch.rx_hz == 446000000 && sm.view.ch.tx_hz == 445000000);
+	req(RREQ_PTT, 1);
+	CHECK(sm.view.state == RS_TX);
+	req(RREQ_VFO_SWAP, 0);
+	CHECK(sm.view.vfo_index == 1 && sm.view.state == RS_TX);
+	req(RREQ_PTT, 0);
+	sm.hotspot = true;
+	req(RREQ_VFO_SWAP, 0);
+	CHECK(sm.view.vfo_index == 1);
+	sm.hotspot = false;
+	req(RREQ_SCAN, RSCAN_VFO);
+	CHECK(sm.view.scan == SCAN_VFO);
+	req(RREQ_VFO_SWAP, 0);
+	CHECK(sm.view.scan == SCAN_OFF && sm.view.vfo_index == 0 && sm.view.ch.rx_hz == 146520000);
+	dual((radio_dual_ref_t){ true, 0, 0 }, (radio_dual_ref_t){ true, 0, 1 }, 1);
+	CHECK(sm.view.scan == SCAN_DUAL);
+	req(RREQ_VFO_SWAP, 0);
+	CHECK(sm.view.scan == SCAN_DUAL && sm.dual_sel == 1);
+	dual_stop();
+}
+
 static void test_dual_watch(void)
 {
 	start();
@@ -2567,6 +2602,10 @@ static void test_dual_rx2(void)
 static void test_dual_watch(void)
 {
 	start();
+	req(RREQ_VFO_SET, 146520000);
+	req(RREQ_VFO_SWAP, 0);
+	CHECK(sm.view.vfo && sm.view.ch.rx_hz == 146520000);
+	req(RREQ_VFO, 0);
 	req(RREQ_ZONE_POS, 0);
 	radio_dual_ref_t a = { false, 0, 0 }, b = { false, 0, 4 };
 	req2(RREQ_DUAL, (int32_t)radio_dual_arg(&a, true), radio_dual_arg(&b, false));
@@ -4790,6 +4829,7 @@ int main(void)
 	test_scan_dmr_high_floor();
 	test_dual_watch();
 #if CONFIG_DUAL_WATCH
+	test_standalone_vfo_swap();
 	test_dual_wait();
 	test_dual_requests();
 	test_dual_rx2();

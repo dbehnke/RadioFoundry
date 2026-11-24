@@ -153,11 +153,12 @@ static void test_toggles(void)
 		{ KEYFN_COPY_VFO, 14, ACT_COPY_VFO }, { KEYFN_DUAL_WATCH, 15, ACT_DUAL_WATCH }, { KEYFN_AB, 16, ACT_AB },
 		{ KEYFN_VFO_TOGGLE, 17, ACT_VFO_TOGGLE }, { KEYFN_TALK_LABEL, 19, ACT_TALK_LABEL },
 		{ KEYFN_SCAN_SKIP, 20, ACT_SCAN_SKIP }, { KEYFN_MONITOR_TOGGLE, 21, ACT_MONITOR_TOGGLE },
+		{ KEYFN_BACK, 22, ACT_BACK },
 	};
 	// Stored in the codeplug's slots: append only, so every value that shipped keeps its number
 	CHECK(KEYFN_DEFAULT == 0 && KEYFN_NONE == 1 && KEYFN_MONITOR == 2 && KEYFN_TALK_TARGET == 3 &&
 	      KEYFN_POWER == 4 && KEYFN_ZONE_UP == 5 && KEYFN_ZONE_DOWN == 6 && KEYFN_SCAN == 7 && KEYFN_EMERGENCY == 8);
-	CHECK(KEYFN_HEAR_ALL == 9 && KEYFN_MONITOR_LATCH == 10 && KEYFN_COUNT == 22);
+	CHECK(KEYFN_HEAR_ALL == 9 && KEYFN_MONITOR_LATCH == 10 && KEYFN_COUNT == 23);
 	for (unsigned i = 0; i < sizeof t / sizeof t[0]; i++) {
 		uint16_t s[KEYASSIGN_SLOTS] = { 0 };
 		CHECK(t[i].fn == t[i].value);
@@ -315,6 +316,47 @@ static void test_burst_lock(void)
 	CHECK(ptt_downs == 1 && ptt_ups == 2);
 }
 
+// Seven roles preserve the first three panel assignments and append optional microphone keys. Remapping a
+// microphone key changes navigation only: its FM DTMF symbol and the dedicated contextual Select key survive.
+static void test_microphone_roles(void)
+{
+	const uint8_t roles[] = { 0, 1, 2, 3, 4, 5, 6 };
+	const keymap_entry_t mic[] = {
+		{ 0, ACT_MONITOR, ACT_MONITOR, true, false, 0 },
+		{ 1, ACT_TALK_TARGET, ACT_USER_2, false, false, 0 },
+		{ 2, ACT_USER_3, ACT_USER_3, false, false, 0 },
+		{ 3, ACT_USER_1, ACT_USER_1, false, false, 'A' },
+		{ 4, ACT_USER_4, ACT_USER_4, false, false, 'B' },
+		{ 5, ACT_MONITOR, ACT_MONITOR, true, false, 'C' },
+		{ 6, ACT_TALK_TARGET, ACT_TALK_TARGET, false, false, 'D' },
+		{ 7, ACT_SELECT_AB, ACT_SELECT_AB, false, false, 0 },
+	};
+	keymap_entry_t out[8];
+	uint16_t slots[KEYASSIGN_SLOTS] = { KEYASSIGN_MARKER_V1, KEYFN_POWER, KEYFN_SCAN,
+		KEYFN_TALK_TARGET, KEYFN_EMERGENCY, KEYFN_NONE, KEYFN_BACK };
+	keyassign_build(mic, 8, roles, 7, slots, out);
+	CHECK(memcmp(out + 3, mic + 3, 5 * sizeof(*mic)) == 0);
+	keyassign_set(slots, 3, false, KEYFN_BACK);
+	keyassign_set(slots, 3, true, KEYFN_BACK);
+	keyassign_set(slots, 6, false, KEYFN_SCAN_SKIP);
+	CHECK(keyassign_get(slots, 0, false) == KEYFN_POWER && keyassign_get(slots, 0, true) == KEYFN_SCAN);
+	CHECK(keyassign_get(slots, 1, true) == KEYFN_EMERGENCY && keyassign_get(slots, 2, true) == KEYFN_BACK);
+	keyassign_build(mic, 8, roles, 7, slots, out);
+	CHECK(out[3].short_action == ACT_BACK && out[3].long_action == ACT_BACK && out[3].dtmf == 'A');
+	CHECK(out[6].short_action == ACT_SCAN_SKIP && out[6].dtmf == 'D');
+	CHECK(memcmp(out + 7, mic + 7, sizeof(*mic)) == 0);
+	input_engine_t e;
+	uint32_t now = 1000;
+	input_engine_init(&e, out, 8, now);
+	input_engine_step(&e, 0, 0, now, emit, NULL);
+	nev = 0;
+	hold(&e, &now, 1u << 7, 100);
+	CHECK(nev == 1 && evs[0].action == ACT_SELECT_AB && evs[0].gesture == GESTURE_PRESS);
+	nev = 0;
+	hold(&e, &now, 1u << 7, 2000);
+	CHECK(nev == 1 && evs[0].action == ACT_SELECT_AB && evs[0].gesture == GESTURE_LONG);
+}
+
 // A board key map entry whose short press is the VFO / channel toggle (ACT_VFO_TOGGLE) has Copy to VFO on its long
 // press (docs/ux/information-architecture.md 2). Read from the boards' sources: they don't build on the host
 static void test_board_defaults(void)
@@ -416,6 +458,7 @@ int main(void)
 	test_engine();
 	test_burst_edges();
 	test_burst_lock();
+	test_microphone_roles();
 	test_board_defaults();
 	test_home_keys();
 	printf("# keyassignTest: %d checks, %s\n", checks, failures ? "FAILED" : "PASSED");

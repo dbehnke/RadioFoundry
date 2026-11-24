@@ -581,6 +581,7 @@ void radio_req_channel_step(int8_t dir);	// next / previous channel in the zone,
 void radio_req_zone_pos(uint16_t pos);		// jump to a position in the zone
 void radio_req_zone(uint16_t index);
 void radio_req_vfo(bool on);
+void radio_req_vfo_swap(void);
 void radio_req_vfo_step(int8_t dir);
 void radio_req_vfo_set(uint32_t hz);		// RX frequency; TX keeps a split's offset where it can transmit, else = RX
 void radio_req_vfo_tx(uint32_t hz);		// the VFO's TX frequency (split), 0 = simplex; in the VFO only

@@ -491,8 +491,8 @@ column < 4 means a key is down:
 | 3 | * | 0 | # | D |
 | 4 | (unused) | A/B | Up | Down |
 
-The mic has 16 keys plus its own up / down / A/B (unverified). Level windows in raw 12-bit counts, both levels at or
-above 3445 with no key down (unverified):
+The mic has 16 keys plus its own up / down / A/B. All 19 keys and mic PTT read correctly in the recorded
+2026-11-02 bring-up (17, item 8). Level windows in raw 12-bit counts, both levels at or above 3445 with no key down:
 
 | Level | Window 0 | Window 1 | Window 2 | Window 3 | Window 4 |
 |---|---|---|---|---|---|
@@ -861,7 +861,7 @@ the original firmware sounds the same on this radio is not checked); UHF receive
 | DMR | receive on the shared HR_C6000 glue (configuration port PE2-PE5, voice port SPI1 at 4.5 MHz, interrupts PC0-PC2, I2S3 PCM). Reference offset and DMR modulation pair (11.2 rows 0x130-0x149) rewritten at each retune. The two codec profiles (tags 0x0609 and 0x1645, one id `md9600-s11v2`) run the codec from flash: code at 0x080E0000, tables at the start of sector 10, descriptor at 0x080FFF80 ([codec-md9600.md](codec-md9600.md)) |
 | Audio | FM from the IF chip (FM_MUTE high), PCM (DMR voice, beeps) from the HR_C6000 line out with FM held back, AF_SW muting otherwise (`boards/md9600/speaker_md9600.h`). A host audio session (`NET_USRP`) hears FM from PC3 and DMR from the stream, and transmits FM as PWM on PC8 into the HR_C6000's microphone input (19.9) |
 | GPS | USART1 RX (PA10), receive interrupt; 9600 baud first, then 4800, 19200, 38400, 57600, 115200, 3 s each. A silent line ends the search after the first window; a module once heard feeds APRS positions. Settings > Location > GPS off stops USART1; PA9 stays on (it also powers the mic) |
-| Hand mic | the keypad of 9.3 through `drivers/input/adckeys`, three equal scans per key. Key roles of A-D and A/B are a proposal (unverified). No `CAP_KEYPAD`: a mic may have no keypad |
+| Hand mic | the keypad of 9.3 through `drivers/input/adckeys`, three equal scans per key. A-D are assignable roles after P3/P4/Alarm, retaining their defaults; A/B uses contextual Select (short OK, Home hold A/B). The new behavior is host-tested and untested on a radio. No `CAP_KEYPAD`: a mic may have no keypad |
 | Transmit | FM and DMR on UHF and VHF, checked off air into a dummy load (19.8, 19.9; VHF 19.9.1). On in the build (`CONFIG_MD9600_TX`, `CONFIG_MD9600_DMR_TX`); it still needs a confirmed revision (19.3) and plausible PA rows. Sub-audio: CTCSS and DCS from the PWM generator on PC7, with the DCS turn-off tail |
 | Not yet | Transmit power per level (a power meter), split duplex and the two-PLL burst switching (17 #17), the CPS's own command set, update packaging |
 

@@ -185,7 +185,9 @@ instead of OK pressed once per step. The rows shown follow the copy's mode, so a
 - A changed row shows the temporary mark (`UI_ITEM_TEMP`, the dot Home uses).
 - Long SELECT anywhere saves, as long SELECT makes a quick setting permanent. The Save row does the same.
 - BACK with unsaved changes opens Unsaved Changes (`discard`): "No, keep editing" first (the default, P7), then "Yes,
-  discard". Long BACK still goes Home (P3) and drops the copy without asking.
+  discard". Long BACK asks the same question before Home, including pending text or field entry. No or BACK
+  returns to the same editor with pending input intact; Yes reaches Home without saving. A reserved confirmation
+  frame preserves the editor even at the normal navigation depth limit.
 - Save checks the copy first and names the first problem in a toast: an empty name, RX out of every band, TX out of
   the transmit bands on a channel that isn't RX only, a DMR channel whose RX takes no DMR ("Receive only band: set
   FM"), a DMR channel without a TX contact unless it is RX only (the contact is whom PTT calls).
@@ -358,6 +360,7 @@ The name starts as the target's name, else "TG 3100" for a talkgroup or the ID f
 | Save | saves |
 
 - Long SELECT anywhere saves. BACK opens Unsaved Changes ("Discard this new contact?"), "No, keep editing" first.
+  Long BACK uses that confirmation before Home and preserves pending nested name or ID entry when canceled.
 - Save checks first and names the first problem in a toast: an empty name, a private ID past 16776415
   (`CODEPLUG_DMR_ID_MAX`), a contact with the same ID and type ("Already a contact: Q1AAA Joe"), no free contact
   ("No room for more contacts", 1024).
@@ -470,6 +473,12 @@ a battery, `CAP_NO_BATTERY`, the battery is drawn nowhere, and Settings > Power 
 warning are left out of their lists. The Battery tool is not present; tools retain their assigned numbers. Only the name part of the title is
 shortened with a middle ellipsis (the prefix stays whole: "Quick COUNTY DMR", not "Quick ..tions").
 
+Boards may map a contextual Select key to `ACT_SELECT_AB`. A short press is ordinary Select on every screen.
+A long press is ordinary Select LONG in menus, dialogs and text or frequency entry. On Home outside entry, a long
+press selects the other dual-display pane, or the other standalone VFO memory when dual display is off. It never
+enables dual watch. A channel Home with dual display off explains that A/B is unavailable. The normal key lock
+rules apply. The gesture engine emits no short press before a long press.
+
 ### 3.1 Key assignment
 
 Switch: `CONFIG_KEY_ASSIGN`. The board lists the keys a user may reassign (`board.side_keys`, `side_key_count` of them,
@@ -499,6 +508,7 @@ position in the list is its role. Each role has a press and a long press, and ea
 | TG name / number (19) | TALK_LABEL: Home's talk line puts the talkgroup's name first, or back to its number first; the same as Settings > Display > Talkgroup name first, and saved. Toast "Talkgroup name first" / "Talkgroup number first". Offered in builds with DMR | yes | yes |
 | Scan skip (20) | SCAN_SKIP: what the scan action's "Skip channel for now" does, without the menu: the nuisance delete of the channel that stopped the scan, until the scan stops. Toast "Skipped until the scan stops", "Nothing to skip yet" when the radio has no channel to skip, "Not scanning" (and nothing else) when no scan is running. Allowed on a home key like Scan: it is a plain press or long press function | yes | yes |
 | Monitor toggle (21) | MONITOR_TOGGLE: what quick tile 5 does, on one key: on an FM channel it latches the squelch open (status line MON) or closes it again; on a DMR channel it turns digital monitor on or off (toast "Digital monitor on" / "Digital monitor off"). It is not the Monitor key: that one still opens the squelch only while held, and the retired values 9 and 10 stay retired. Allowed on a home key like Scan: it is a plain press or long press function, and works in the VFO too | yes | yes |
+| Back (22) | BACK: the normal Back event, including unsaved-edit confirmation. A long press follows normal Home navigation; it never bypasses a screen's navigation checks | yes | yes |
 
 POWER, ZONE_UP, ZONE_DOWN, SCAN, SCAN_SKIP, MONITOR_TOGGLE, CALL_BACK, HOME_ZONE, COPY_VFO, VFO_TOGGLE and TALK_LABEL do the same on a press and a long
 press and work on any screen. LOCK also gets through while the keys are locked, to unlock them. TALK_TARGET opens the picker on

@@ -700,6 +700,11 @@ msgid "Keys unlocked"
 msgstr "按键已解锁"
 
 #: core/ui/ui_app.c
+msgctxt "HOME_WHY_AB_NEEDS_VFO_OR_DUAL"
+msgid "A/B: use VFO or dual watch"
+msgstr "A/B：使用VFO或双守候"
+
+#: core/ui/ui_app.c
 msgctxt "TALK_WHY_DMR_CHANNELS_ONLY"
 msgid "Talk target: DMR channels only"
 msgstr "通话目标：仅 DMR 信道"
@@ -3763,6 +3768,11 @@ msgstr "回呼"
 msgctxt "KEYFN_VALUE_TG_NAME_NUMBER"
 msgid "TG name / number"
 msgstr "TG 名称/号码"
+
+#: core/ui/ui_menus.c
+msgctxt "KEYFN_VALUE_BACK"
+msgid "Back"
+msgstr "返回"
 
 #: core/ui/ui_menus.c core/ui/ui_screens.c
 msgctxt "TITLE_EMERGENCY"

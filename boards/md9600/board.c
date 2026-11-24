@@ -71,12 +71,12 @@ static const keymap_entry_t keymap[] = {
 	{ KEY_MIC_B, ACT_USER_4, ACT_USER_4, false, false, 'B' },
 	{ KEY_MIC_C, ACT_MONITOR, ACT_MONITOR, true, false, 'C' },
 	{ KEY_MIC_D, ACT_TALK_TARGET, ACT_TALK_TARGET, false, false, 'D' },
-	{ KEY_MIC_AB, ACT_VFO_TOGGLE, ACT_COPY_VFO, false, false, 0 },
+	{ KEY_MIC_AB, ACT_SELECT_AB, ACT_SELECT_AB, false, false, 0 },
 };
 
-// Reassignable in Settings > Keys and the codeplug (core/input/keyassign.h): P3, P4, the orange key
-static const uint8_t side_keys[] = { KEY_P3, KEY_P4, KEY_ALARM };
-static const char *const side_key_names[] = { "P3", "P4", "Orange" };
+// Keep the existing role indices: microphone roles follow the panel keys.
+static const uint8_t side_keys[] = { KEY_P3, KEY_P4, KEY_ALARM, KEY_MIC_A, KEY_MIC_B, KEY_MIC_C, KEY_MIC_D };
+static const char *const side_key_names[] = { "P3", "P4", "Orange", "Mic A", "Mic B", "Mic C", "Mic D" };
 
 #if CONFIG_CPS_OPENFW
 // open-firmware-cps.md 4: type 5 is the MD-9600

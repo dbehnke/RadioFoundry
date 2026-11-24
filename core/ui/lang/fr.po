@@ -698,6 +698,11 @@ msgid "Keys unlocked"
 msgstr "Déverrouillé"
 
 #: core/ui/ui_app.c
+msgctxt "HOME_WHY_AB_NEEDS_VFO_OR_DUAL"
+msgid "A/B: use VFO or dual watch"
+msgstr "A/B : VFO ou double veille"
+
+#: core/ui/ui_app.c
 msgctxt "TALK_WHY_DMR_CHANNELS_ONLY"
 msgid "Talk target: DMR channels only"
 msgstr "Cible : DMR seul"
@@ -3761,6 +3766,11 @@ msgstr "Rappeler"
 msgctxt "KEYFN_VALUE_TG_NAME_NUMBER"
 msgid "TG name / number"
 msgstr "Nom / numéro TG"
+
+#: core/ui/ui_menus.c
+msgctxt "KEYFN_VALUE_BACK"
+msgid "Back"
+msgstr "Retour"
 
 #: core/ui/ui_menus.c core/ui/ui_screens.c
 msgctxt "TITLE_EMERGENCY"

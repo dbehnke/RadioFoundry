@@ -781,9 +781,16 @@ codec in an emulator on a computer.
 | Channel knob | Channel knob |
 | **PTT** | **PTT** (on the hand microphone) |
 
-The hand microphone's keypad gives digits, **\*** (**Quick**) and **#** (**Context**). Its A/B key switches between
-the channel and the VFO, and holding it copies the channel to the VFO. The roles of A-D and A/B are a proposal, and
-the keypad's levels haven't been measured on a radio.
+The hand microphone's keypad gives digits, **\*** (**Quick**) and **#** (**Context**). A and B default to previous
+and next zone, C to Monitor, and D to Talk target. Settings > Keys exposes Mic A-D and their hold actions after P3,
+P4 and Orange; existing assignments keep their positions. You can assign Back, Scan skip, Talk target or VFO/Channel.
+The A-D keys still send their DTMF symbols during FM transmit.
+
+A/B is **OK** on a short press. In a menu, holding it follows the normal OK hold behavior, including Save where
+offered. On Home, holding A/B selects the other dual-display pane. With dual display off in the VFO, it switches
+between the two VFO memories without starting dual watch. On a channel with dual display off it explains that A/B
+is unavailable. During frequency entry it remains OK. The keypad's 19 physical keys were checked in the recorded
+[bring-up](../testing/md9600-bringup.md); these new assignments still need checking on a radio.
 
 ### MD-9600 bands and power levels
 
