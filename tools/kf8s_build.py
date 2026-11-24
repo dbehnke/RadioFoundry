@@ -247,15 +247,17 @@ def write_archive(package, archive, images):
 def package_readme(version, parrot, without_aes):
     aes = ('DMR AES is disabled in this package. AES channels are unavailable and PTT is rejected.\n'
            if without_aes else "DMR AES follows each board's default. See the image manifest.\n")
-    diagnostic = ('Codec diagnostic enabled wherever P25 is built. See build.json for each image configuration.\n'
-                  'Images that exceed RAM with the diagnostic disable the DMR IP gateway.\n'
-                  'Open Settings > Advanced > Codec diagnostic and press OK on Record to capture up to 10 seconds.\n'
-                  'Mode selects P25/IMBE or installed DMR/AMBE+2. AMBE uses codec AGC and has no P25 target.\n'
-                  'DC removal is a local A/B control; live P25 removes computed bias before gain.\n'
-                  'Wait for playback to show Done, then report Test mode, duration, Test AGC and its target or mic step,\n'
-                  'the mic, conditioned, encoder and decoded RMS and peaks, Last PCM gain, and Limited blocks.\n'
-                  'Also report Test DC removal, Mic DC mean, Max block DC, Mic AC and speech levels/active blocks.\n'
-                  'For AMBE also report Codec options and Codec flags. No audio is saved to flash; no RF is sent.\n'
+    diagnostic = ('P25 calibration diagnostic enabled wherever P25 is built. See build.json for overrides.\n'
+                  'This temporary profile disables DMR IP gateway, USB networking/PPP, APRS, SFR, hotspot and satellite tracking\n'
+                  'to retain two seconds of DC-conditioned PCM in RAM. DMR and AES retain their board defaults.\n'
+                  'Open Settings > Advanced > P25 calibration. Press OK on Record speech and speak continuously.\n'
+                  'After a 100 ms startup discard it records up to two seconds once, then automatically tests five AGC targets.\n'
+                  'Each target replays the same phrase twice for warmup and once for measurement, then decodes all three.\n'
+                  'A sixth pass verifies an interpolated target against the decoded goal of -25 dBFS (+/-1 dB).\n'
+                  'Allow about 80 seconds for a full calibration. Report status, Suggested AGC target, all candidate encoder/decoded speech levels,\n'
+                  'PCM gain and Limited blocks, plus mic DC and recording/startup rail counts.\n'
+                  'An invalid result has no recommendation. The energy gate is not a speech classifier: use clear speech in a quiet room.\n'
+                  'The test does not save a new AGC setting. Raw audio is erased after the sweep or on exit; no RF is sent.\n'
                   if parrot else 'The codec diagnostic is off. The DMR IP gateway retains its board defaults.\n')
     return (
         f'{version}\nPrivate KF8S test build based on RadioFoundry. Contact: dbehnke (KF8S).\n'
@@ -409,9 +411,9 @@ def self_test():
     default_readme = package_readme('test-version', parrot=False, without_aes=False)
     diagnostic_readme = package_readme('test-version', parrot=True, without_aes=True)
     assert "DMR AES follows each board's default" in default_readme and 'diagnostic is off' in default_readme
-    assert 'DMR AES is disabled' in diagnostic_readme and 'disable the DMR IP gateway' in diagnostic_readme
+    assert 'DMR AES is disabled' in diagnostic_readme and 'disables DMR IP gateway' in diagnostic_readme
     assert all('Settings > Advanced > AES recovery' in readme for readme in (default_readme, diagnostic_readme))
-    assert 'Settings > Advanced > Codec diagnostic' in diagnostic_readme and 'Limited blocks' in diagnostic_readme
+    assert 'Settings > Advanced > P25 calibration' in diagnostic_readme and 'Limited blocks' in diagnostic_readme
     test_release_notices()
     print('kf8s build: branch guards, daily sequence, provenance, archive, notice and README checks passed')
 
@@ -423,7 +425,9 @@ def main():
     parser.add_argument('--without-aes', action='store_true',
                         help='disable DMR AES on every image; otherwise keep board defaults')
     parser.add_argument('--parrot', action='store_true',
-                        help='enable the codec diagnostic where P25 is built; disable the gateway if RAM requires it')
+                        help='build the temporary P25 calibration profile with RAM-heavy optional services disabled')
+    parser.add_argument('--board', action='append', choices=sorted(boards.BOARDS),
+                        help='build only this registry board (repeat for multiple boards)')
     args = parser.parse_args()
     if args.self_test:
         self_test()
@@ -435,13 +439,17 @@ def main():
     build_env = {key: value for key, value in os.environ.items()
                  if not key.startswith('CONFIG_') and key not in ('VARIANT', 'MAKEFLAGS', 'MFLAGS', 'GNUMAKEFLAGS')}
     profile_flags = ['CONFIG_DMR_AES=n'] if args.without_aes else []
+    if args.parrot:
+        profile_flags += [f'CONFIG_{feature}=n' for feature in
+                          ('DMR_IP_GATEWAY', 'USB_NETWORK', 'NET_PPP', 'APRS', 'SFR', 'HOTSPOT', 'SATELLITE_TLE')]
+    selected = [board for board in boards.BOARDS.values() if not args.board or board.id in args.board]
     subprocess.run(['git', 'fetch', 'origin', 'main'], cwd=ROOT, check=True)
     subprocess.run(['git', 'merge-base', '--is-ancestor', 'origin/main', 'HEAD'], cwd=ROOT, check=True)
     upstream_full = git('rev-parse', 'origin/main')
     commit_full = git('rev-parse', 'HEAD')
     commit_stamp = git('rev-parse', '--short=8', 'HEAD')
     upstream, commit = upstream_full[:8], commit_full[:8]
-    csky_board = next((board for board in boards.BOARDS.values() if board.platform == 'hrc7000'), None)
+    csky_board = next((board for board in selected if board.platform == 'hrc7000'), None)
     if csky_board is not None:
         check_csky_checkout(csky_board, commit_full, build_env)
     day = datetime.now(ZoneInfo('America/Detroit')).strftime('%y%m%d')
@@ -455,7 +463,7 @@ def main():
     package.mkdir(parents=True)
     print(version, flush=True)
     images = []
-    for board in boards.BOARDS.values():
+    for board in selected:
         choices = [[(option['name'], value['id']) for value in option['values']] for option in board.build_options]
         for values in itertools.product(*choices):
             options = dict(values)
@@ -469,17 +477,7 @@ def main():
                      'BUILD_SOURCE=fork', 'BUILD_SOURCE_REPO=dbehnke/RadioFoundry', *image_flags, *option_flags]
             print('building ' + name, flush=True)
             log = out / (name + '.log')
-            try:
-                run_logged(build_command(board, ['make', f'-j{args.jobs}', *flags, 'all', 'stack-check']), log, build_env)
-            except subprocess.CalledProcessError:
-                if not parrot or 'DMR_IP_GATEWAY' not in baseline or not re.search(
-                        r"region [`']RAM['`] overflowed", log.read_text()):
-                    raise
-                log.rename(out / (name + '-gateway-ram-limit.log'))
-                image_flags.append('CONFIG_DMR_IP_GATEWAY=n')
-                flags.append('CONFIG_DMR_IP_GATEWAY=n')
-                print(name + ': diagnostic needs RAM; disabling DMR IP gateway for this image', flush=True)
-                run_logged(build_command(board, ['make', f'-j{args.jobs}', *flags, 'all', 'stack-check']), log, build_env)
+            run_logged(build_command(board, ['make', f'-j{args.jobs}', *flags, 'all', 'stack-check']), log, build_env)
             image = build / Path(board.build_image(options)).name
             expected = configured_features(board, [*image_flags, *option_flags], build_env) if parrot else baseline
             check_built_profile((build / 'version').read_text(), (build / 'flags').read_text(),
@@ -510,7 +508,7 @@ def main():
             git('rev-parse', 'origin/main') != upstream_full):
         raise ValueError('source changed during the build; refusing to package')
     write_release_sums(package, images)
-    profile = 'agc-parrot' if args.parrot else 'agc'
+    profile = 'p25-calibration' if args.parrot else 'agc'
     if args.without_aes:
         profile += '-test-no-aes'
     metadata = {'version': version, 'upstream': upstream_full,

@@ -12,9 +12,6 @@
 #include "radio/radio_bands.h"
 #if CONFIG_IMBE
 #include "p25/p25Voice.h"
-#if CONFIG_P25_PARROT && CONFIG_DMR
-#include "dmr/ambe/ambeVoice.h"
-#endif
 #endif
 #if CONFIG_P25_TRUNK
 #include "hal_time.h"
@@ -278,8 +275,11 @@ static p25_mem_t *mem_get(void)
 #define PARROT_SHARED_FRAMES (offsetof(p25_mem_t, voice) / IMBE_BYTES)
 _Static_assert(PARROT_SHARED_FRAMES < 500, "parrot shared recording extent");
 #define PARROT_EXTRA_BYTES ((500 - PARROT_SHARED_FRAMES) * IMBE_BYTES)
-// AMBE cannot record into its own lent codec RAM. Reuse the owned tail for its packed 49-bit frames.
-static uint8_t parrot_extra[PARROT_EXTRA_BYTES > 3500 ? PARROT_EXTRA_BYTES : 3500];
+static uint8_t parrot_extra[PARROT_EXTRA_BYTES];
+// Retain one phrase so all candidate targets receive the same samples, including pauses and peaks.
+#if CONFIG_TX_DC_BLOCK
+static int16_t parrot_pcm[2 * AUDIO_RATE_HZ];
+#endif
 bool radio_p25_parrot_open(void)
 {
 	if (mem != NULL || board.audio == NULL || board.audio->start == NULL || board.audio->stop == NULL ||
@@ -288,11 +288,9 @@ bool radio_p25_parrot_open(void)
 	if (workspace == NULL) return false;
 	p25VoiceBegin(&workspace->voice);
 	p25VoiceParrotReady((uint8_t (*)[IMBE_BYTES])workspace, PARROT_SHARED_FRAMES, (uint8_t (*)[IMBE_BYTES])parrot_extra);
-	uint32_t options = VOCODER_OPT_DEFAULT;
-#if CONFIG_DMR
-	options = ambeVoiceEncodeOptions();
+#if CONFIG_TX_DC_BLOCK
+	p25VoiceParrotPcm(parrot_pcm, sizeof parrot_pcm / sizeof parrot_pcm[0]);
 #endif
-	p25VoiceParrotVocoder(board.vocoder, parrot_extra, sizeof parrot_extra, options);
 	return true;
 }
 void radio_p25_parrot_close(void) { p25VoiceEnd(); }

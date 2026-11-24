@@ -814,60 +814,17 @@ def test_factory_reset(home):
 
 @pytest.mark.feature("p25_parrot")
 @pytest.mark.needs_switch("UI_SETTINGS")
-def test_p25_parrot_local_roundtrip(home):
-    """Open the diagnostic, capture briefly and play locally; no PTT or RF command."""
-    r = home
-    if r.view(["p25"]).get("p25parrot.built") != "1":
-        skip("not_built", "firmware without the P25 parrot")
-    try:
-        for key in "ok 7 up ok up".split():
-            r.press(key)
-        # Only optional Hardware and Freq trim can follow the parrot in Advanced.
-        for _ in range(3):
-            r.press("ok")
-            page = r.view(["link"]).get("ui.screen")
-            if page == "p25parrot":
-                break
-            assert page in ("hwopt", "freq-trim"), page
-            r.press("back")
-            r.press("up")
-        wait_screen(r, "p25parrot")
-        r.wait_for(lambda v: v.get("p25parrot.state") == "1", sections=("p25",), what="parrot ready")
-        r.press("ok")
-        r.wait_for(lambda v: as_int(v.get("p25parrot.frames"), 0) >= 25, sections=("p25",),
-                   what="half a second captured")
-        r.press("ok")
-        v = r.wait_for(lambda v: v.get("p25parrot.state") == "4", sections=("p25",), what="local playback done")
-        assert 25 <= as_int(v.get("p25parrot.frames"), 0) <= 500, v
-        for key in ("input_db10", "encoder_db10", "output_db10"):
-            assert -960 <= as_int(v.get("p25parrot." + key), -1000) <= 0, v
-        assert v.get("p25parrot.mode") == "P25/IMBE", v
-        assert v.get("p25parrot.agc") == "1" and v.get("p25parrot.target_dbfs") == "-25", v
-        assert 0 <= as_int(v.get("p25parrot.mic_step"), -1) <= 10, v
-        for key in ("input_peak", "encoder_peak", "output_peak"):
-            assert 0 <= as_int(v.get("p25parrot." + key), -1) <= 32768, v
-        assert as_int(v.get("p25parrot.encoder_peak")) <= 28000, v
-        assert 0 < as_int(v.get("p25parrot.gain_q16")) <= 1038676, v
-        assert v.get("p25parrot.limiter") == "1", v
-        assert 0 <= as_int(v.get("p25parrot.limited_blocks"), -1) <= as_int(v.get("p25parrot.frames")), v
-    finally:
-        r.press("back", LONG)
-        wait_screen(r, "home")
-    r.wait_for(lambda v: v.get("p25parrot.state") == "0", sections=("p25",), what="parrot released")
-
-
-@pytest.mark.feature("tx_dc_block")
-@pytest.mark.feature("p25_parrot")
 @pytest.mark.needs_switch("TX_DC_BLOCK")
-@pytest.mark.needs_switch("UI_SETTINGS")
-def test_codec_dc_ab_capture(home):
-    """Owner-opt-in local captures verify the DC switch snapshot; never start RF."""
+def test_p25_calibration_local_roundtrip(home):
+    """Run a local calibration without RF. Ambient conditions may prevent a recommendation."""
     r = home
     if r.view(["p25"]).get("p25parrot.built") != "1":
-        skip("not_built", "firmware without codec diagnostics")
+        skip("not_built", "firmware without P25 calibration")
+    before = r.core()
     try:
         for key in "ok 7 up ok up".split():
             r.press(key)
+        # Only optional Hardware and Freq trim can follow calibration in Advanced.
         for _ in range(3):
             r.press("ok")
             page = r.view(["link"]).get("ui.screen")
@@ -877,21 +834,34 @@ def test_codec_dc_ab_capture(home):
             r.press("back")
             r.press("up")
         wait_screen(r, "p25parrot")
-        r.wait_for(lambda v: v.get("p25parrot.state") == "1", sections=("p25",), what="diagnostic ready")
-        for enabled in (True, False):
-            r.press("ok")
-            r.wait_for(lambda v: as_int(v.get("p25parrot.frames"), 0) >= 25, sections=("p25",),
-                       what="local microphone capture")
-            r.press("ok")
-            v = r.wait_for(lambda v: v.get("p25parrot.state") == "4", sections=("p25",), what="playback done")
-            assert v.get("p25parrot.dc") == str(int(enabled)), v
-            assert -960 <= as_int(v.get("p25parrot.cond_db10"), -1000) <= 0, v
-            if not enabled:
-                assert v["p25parrot.cond_db10"] == v["p25parrot.input_db10"], v
-            else:
-                # Record is row 1. The read-only recorded-DC row is skipped while navigating.
-                for key in "up up up up up up ok down down down down down down".split():
-                    r.press(key)
+        r.wait_for(lambda v: v.get("p25parrot.state") == "1", sections=("p25",), what="calibration ready")
+        r.press("ok")
+        v = r.wait_for(lambda v: v.get("p25parrot.state") == "4", sections=("p25",), timeout=110.0,
+                       what="local calibration complete")
+        assert v.get("p25parrot.mode") == "P25/calibration", v
+        assert v.get("p25parrot.agc") == "1" and v.get("p25parrot.dc") == "1", v
+        assert as_int(v.get("p25parrot.frames")) == as_int(v.get("p25parrot.capture_limit")) == 100, v
+        assert -960 <= as_int(v.get("p25parrot.input_db10"), -1000) <= 0, v
+        assert -960 <= as_int(v.get("p25parrot.cond_db10"), -1000) <= 0, v
+        status = as_int(v.get("p25parrot.cal_status"))
+        passes = as_int(v.get("p25parrot.cal_pass"), -1)
+        assert 2 <= status <= 6 and 0 <= passes <= 6, v
+        for i, target in enumerate((-350, -300, -250, -200, -150)[:passes]):
+            measured = tuple(int(n) for n in v[f"p25parrot.cal{i}"].split(","))
+            assert len(measured) == 6 and measured[0] == target, v
+        if status == 2:  # P25_CAL_OK
+            assert passes == 6, v
+            target, _, decoded, active, limited, gain = (int(n) for n in v["p25parrot.cal5"].split(","))
+            assert target == as_int(v.get("p25parrot.suggested_db10")), v
+            assert -350 <= target <= -150 and target % 10 == 0 and abs(decoded + 250) <= 10, v
+            assert 25 <= active <= 100 and 0 <= limited * 10 <= active and gain > 0, v
+        else:
+            assert as_int(v.get("p25parrot.suggested_db10")) == -960, v
+        assert r.core().get("state") != "tx"
     finally:
         r.press("back", LONG)
         wait_screen(r, "home")
+    r.wait_for(lambda v: v.get("p25parrot.state") == "0", sections=("p25",), what="calibration released")
+    after = r.core()
+    for key in ("mode", "rx_hz", "tx_hz", "channel_number"):
+        assert after[key] == before[key], (key, before, after)

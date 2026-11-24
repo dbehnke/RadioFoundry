@@ -298,18 +298,15 @@ static uint16_t input_block(const int16_t *mic, int16_t *scaled, uint16_t gain, 
 #define PARROT_FRAMES 500u
 static uint8_t (*parrot_frames)[IMBE_BYTES], (*parrot_extra)[IMBE_BYTES];
 static unsigned parrot_split;
-static const hal_vocoder_t *parrot_vocoder;
-static uint8_t *parrot_ambe;
-static unsigned parrot_ambe_size;
-static uint32_t parrot_restore_options;
-static bool parrot_codec_used;
-
-static void parrot_restore(void)
-{
-	if (parrot_codec_used && parrot_vocoder->set_options != NULL)
-		parrot_vocoder->set_options(parrot_restore_options);
-	parrot_codec_used = false;
-}
+static int16_t *cal_pcm;
+static unsigned cal_samples;
+static bool calibrating;
+static uint8_t cal_stage, cal_pass, cal_startup;
+static uint16_t cal_index;
+static uint8_t cal_active[P25_CAL_MAX_BLOCKS];
+static uint64_t cal_encoder_power, cal_decoder_power;
+static uint16_t cal_active_count, cal_measure_count, cal_limited;
+static const int8_t cal_targets[P25_CAL_PASSES - 1] = { -35, -30, -25, -20, -15 };
 
 static uint8_t parrot_state, parrot_command;
 static bool parrot_agc, parrot_stop;
@@ -337,6 +334,19 @@ static void parrot_view_reset(void)
 	STORE(parrot_view.conditioned_db10, -960);
 	STORE(parrot_view.codec_options, 0);
 	STORE(parrot_view.codec_flags, 0);
+	STORE(parrot_view.cal_status, P25_CAL_IDLE);
+	STORE(parrot_view.cal_pass, 0);
+	STORE(parrot_view.suggested_db10, -960);
+	STORE(parrot_view.capture_limit, 0);
+	STORE(parrot_view.startup_rail_samples, 0);
+	for (unsigned i = 0; i < P25_CAL_PASSES; i++) {
+		STORE(parrot_view.cal[i].target_db10, -960);
+		STORE(parrot_view.cal[i].encoder_db10, -960);
+		STORE(parrot_view.cal[i].decoded_db10, -960);
+		STORE(parrot_view.cal[i].active_blocks, 0);
+		STORE(parrot_view.cal[i].limited_blocks, 0);
+		STORE(parrot_view.cal[i].gain_q16, TX_LEVEL_UNITY);
+	}
 	STORE(parrot_view.mic_mean, 0);
 	STORE(parrot_view.mic_dc_peak, 0);
 	STORE(parrot_view.mic_ac_db10, -960);
@@ -401,6 +411,175 @@ static void parrot_speech(unsigned index, const int16_t *pcm)
 	STORE(parrot_view.speech_db10[index], (int16_t)(speech_level_q8(parrot_speech_power[index]) * 10 / 256));
 }
 
+// Whole-sample energy, gated on the same conditioned-input mask for every candidate and both codec sides.
+// Pad activity by one block on each side for the analysis window and synthesis overlap; this is not a VAD.
+static bool cal_mask(unsigned n)
+{
+	return cal_active[n] || cal_active[(n + parrot_count - 1u) % parrot_count] || cal_active[(n + 1u) % parrot_count];
+}
+
+static uint16_t parrot_rms(int target)
+{
+	static const uint16_t rms[] = { 583, 654, 734, 823, 924, 1036, 1163, 1305, 1464, 1642, 1843, 2068, 2320, 2603, 2920, 3277, 3677, 4125, 4629, 5193, 5827 };
+	return rms[target + 35];
+}
+
+static void cal_begin_pass(int target)
+{
+	STORE(parrot_view.cal[cal_pass].target_db10, target * 10);
+	parrot_target = parrot_rms(target);
+	cal_stage = 1;
+	cal_index = cal_active_count = cal_measure_count = cal_limited = 0;
+	cal_encoder_power = cal_decoder_power = 0;
+	tx_level_reset(&input_level, TX_LEVEL_UNITY);
+	imbe_enc_init(&enc);
+}
+
+static void cal_finish(uint8_t status)
+{
+	STORE(parrot_view.cal_status, status);
+	// The last candidate's encoded frames survive for ordinary playback. Raw PCM never survives the sweep.
+	memset(cal_pcm, 0, cal_samples * sizeof *cal_pcm);
+	if (status != P25_CAL_OK) {
+		speaker(false);
+		STORE(parrot_state, P25_PARROT_DONE);
+		return;
+	}
+	cal_stage = 3;
+	parrot_played = 0;
+	imbe_dec_init(&dec);
+	parrot_lead = aud != NULL ? (aud->speaker_lead_ms + AUDIO_BLOCK_MS - 1u) / AUDIO_BLOCK_MS : 0;
+	speaker(true);
+}
+
+static bool cal_usable(const p25_cal_result_t *r)
+{
+	return LOAD(r->active_blocks) != 0 && LOAD(r->limited_blocks) * 10u <= LOAD(r->active_blocks);
+}
+
+static void cal_next(void)
+{
+	p25_cal_result_t *r = &parrot_view.cal[cal_pass];
+	STORE(r->encoder_db10, tx_level_db10((uint32_t)(cal_encoder_power / cal_measure_count)));
+	STORE(r->decoded_db10, tx_level_db10((uint32_t)(cal_decoder_power / cal_measure_count)));
+	STORE(r->active_blocks, cal_active_count);
+	STORE(r->limited_blocks, cal_limited);
+	STORE(r->gain_q16, input_level.gain_q16);
+	STORE(parrot_view.cal_pass, cal_pass + 1u);
+	if (cal_pass < P25_CAL_PASSES - 2u) {
+		cal_pass++;
+		cal_begin_pass(cal_targets[cal_pass]);
+		return;
+	}
+	if (cal_pass == P25_CAL_PASSES - 2u) {
+		// Prefer a measured target already within tolerance; otherwise interpolate an increasing bracket.
+		int target = 0, closest = 32767;
+		for (unsigned i = 0; i < P25_CAL_PASSES - 1u; i++) {
+			int error = LOAD(parrot_view.cal[i].decoded_db10) + 250;
+			if (error < 0) error = -error;
+			if (cal_usable(&parrot_view.cal[i]) && error < closest) { closest = error; target = LOAD(parrot_view.cal[i].target_db10) / 10; }
+		}
+		if (closest > 10) {
+			target = 0;
+			for (unsigned i = 1; i < P25_CAL_PASSES - 1u; i++) {
+				p25_cal_result_t *lo = &parrot_view.cal[i - 1u], *hi = &parrot_view.cal[i];
+				int a = LOAD(lo->decoded_db10), b = LOAD(hi->decoded_db10);
+				if (a <= -250 && b >= -250 && b > a) {
+					int t = LOAD(lo->target_db10) + (-250 - a) * (LOAD(hi->target_db10) - LOAD(lo->target_db10)) / (b - a);
+					target = (t - 5) / 10;
+					break;
+				}
+			}
+		}
+		if (target != 0) {
+			cal_pass++;
+			cal_begin_pass(target);
+			return;
+		}
+		cal_finish(P25_CAL_RANGE);
+		return;
+	}
+	int error = LOAD(r->decoded_db10) + 250;
+	if (error < -10 || error > 10) { cal_finish(P25_CAL_RANGE); return; }
+	if (!cal_usable(r)) { cal_finish(P25_CAL_LIMITED); return; }
+	STORE(parrot_view.suggested_db10, LOAD(r->target_db10));
+	cal_finish(P25_CAL_OK);
+}
+
+static bool calibration_block(const int16_t *mic, int16_t *spk)
+{
+	silence(spk);
+	if (p25VoiceParrotState() == P25_PARROT_RECORD) {
+		if (cal_startup < 5u) {
+			uint32_t rails = LOAD(parrot_view.startup_rail_samples);
+			for (unsigned i = 0; i < AUDIO_BLOCK_SAMPLES; i++)
+				if (mic[i] == INT16_MIN || mic[i] == INT16_MAX) rails++;
+			STORE(parrot_view.startup_rail_samples, rails);
+#if CONFIG_TX_DC_BLOCK
+			dc_block_process(&input_dc, mic, spk, AUDIO_BLOCK_SAMPLES);
+#endif
+			cal_startup++;
+		} else if (parrot_count < LOAD(parrot_view.capture_limit) && !LOAD(parrot_stop)) {
+			int16_t *pcm = cal_pcm + parrot_count * AUDIO_BLOCK_SAMPLES;
+#if CONFIG_TX_DC_BLOCK
+			dc_block_process(&input_dc, mic, pcm, AUDIO_BLOCK_SAMPLES);
+#else
+			memcpy(pcm, mic, AUDIO_BLOCK_SAMPLES * sizeof *pcm);
+#endif
+			cal_active[parrot_count] = speech_level_q8(speech_power(pcm, AUDIO_BLOCK_SAMPLES, NULL)) >= -50 * 256;
+			parrot_count++;
+			parrot_speech(0, mic);
+			parrot_meter(0, tx_level_measure(mic, AUDIO_BLOCK_SAMPLES, true));
+			parrot_conditioned_power += tx_level_measure(pcm, AUDIO_BLOCK_SAMPLES, true).power;
+			STORE(parrot_view.conditioned_db10, tx_level_db10((uint32_t)(parrot_conditioned_power / parrot_count)));
+			STORE(parrot_view.frames, parrot_count);
+		} else {
+			unsigned active = 0;
+			for (unsigned i = 0; i < parrot_count; i++) active += cal_active[i];
+			if (parrot_count < 50u || active < 25u || LOAD(parrot_view.input_rail_samples) != 0) {
+				STORE(parrot_view.cal_status, LOAD(parrot_view.input_rail_samples) ? P25_CAL_CLIPPED : P25_CAL_SHORT);
+				memset(cal_pcm, 0, cal_samples * sizeof *cal_pcm);
+				STORE(parrot_state, P25_PARROT_DONE);
+			} else {
+				STORE(parrot_state, P25_PARROT_PLAY);
+				cal_pass = 0;
+				cal_begin_pass(cal_targets[0]);
+			}
+		}
+	} else if (cal_stage == 1) {
+		unsigned i = cal_index % parrot_count;
+		uint32_t limited = input_level.limited_blocks;
+		tx_level_process(&input_level, cal_pcm + i * AUDIO_BLOCK_SAMPLES, spk, AUDIO_BLOCK_SAMPLES,
+			TX_LEVEL_UNITY, parrot_target, NULL);
+		imbe_enc_frame(&enc, spk, parrot_frame(cal_index));
+		if (cal_index >= 2u * parrot_count && cal_mask(i)) {
+			cal_encoder_power += speech_power(spk, AUDIO_BLOCK_SAMPLES, NULL);
+			cal_measure_count++;
+		}
+		if (cal_index >= 2u * parrot_count && cal_active[i]) {
+			cal_active_count++;
+			cal_limited += input_level.limited_blocks != limited;
+		}
+		if (++cal_index == 3u * parrot_count) { cal_stage = 2; cal_index = 0; imbe_dec_init(&dec); }
+	} else if (cal_stage == 2) {
+		imbe_dec_frame(&dec, parrot_frame(cal_index), 0, spk);
+		if (cal_index >= 2u * parrot_count && cal_mask(cal_index % parrot_count))
+			cal_decoder_power += speech_power(spk, AUDIO_BLOCK_SAMPLES, NULL);
+		if (++cal_index == 3u * parrot_count) cal_next();
+	} else if (cal_stage == 3) {
+		if (parrot_lead != 0) { parrot_lead--; silence(spk); }
+		else if (parrot_played < 3u * parrot_count) {
+			imbe_dec_frame(&dec, parrot_frame(parrot_played++), 0, spk);
+			// Warmup is decoded for state continuity, but only the measurement phrase is audible.
+			if (parrot_played <= 2u * parrot_count) silence(spk);
+			else return true;
+		} else if (aud != NULL && aud->spk_pending != NULL && aud->spk_pending()) return false;
+		else { speaker(false); STORE(parrot_state, P25_PARROT_DONE); }
+	}
+	silence(spk);
+	return true;
+}
+
 static void parrot_block(const int16_t *mic, int16_t *spk)
 {
 	uint8_t command = LOAD(parrot_command);
@@ -412,21 +591,23 @@ static void parrot_block(const int16_t *mic, int16_t *spk)
 		parrot_mic_sum = 0;
 		parrot_ac_power = parrot_conditioned_power = 0;
 		parrot_count = parrot_played = 0;
-		if (parrot_view.mode == CODEC_DIAG_AMBE) {
-			parrot_vocoder->reset();
-			if (parrot_vocoder->set_options != NULL) parrot_vocoder->set_options(parrot_view.codec_options);
-			if (parrot_vocoder->encode_flags != NULL) STORE(parrot_view.codec_flags, parrot_vocoder->encode_flags());
-		} else imbe_enc_init(&enc);
+		imbe_enc_init(&enc);
 		tx_level_reset(&input_level, parrot_agc && parrot_view.mode == CODEC_DIAG_P25 ? TX_LEVEL_UNITY : manual);
 #if CONFIG_TX_DC_BLOCK
 		dc_block_reset(&input_dc);
 #endif
 		STORE(parrot_command, 0);
 	}
+	if (calibrating) {
+		if (p25VoiceParrotState() == P25_PARROT_RECORD || p25VoiceParrotState() == P25_PARROT_PLAY) {
+			if (calibration_block(mic, spk))
+				STORE(parrot_progress, (uint16_t)(LOAD(parrot_progress) + 1u));
+		} else silence(spk);
+		return;
+	}
 	uint8_t state = p25VoiceParrotState();
 	if (state == P25_PARROT_RECORD && (parrot_count == PARROT_FRAMES || LOAD(parrot_stop))) {
-		if (parrot_view.mode == CODEC_DIAG_AMBE) parrot_vocoder->reset();
-		else imbe_dec_init(&dec);
+		imbe_dec_init(&dec);
 		STORE(parrot_state, P25_PARROT_PLAY);
 		speaker(true);
 		parrot_lead = aud != NULL ? (aud->speaker_lead_ms + AUDIO_BLOCK_MS - 1u) / AUDIO_BLOCK_MS : 0;
@@ -439,14 +620,7 @@ static void parrot_block(const int16_t *mic, int16_t *spk)
 		input_block(mic, spk, parrot_gain_q8,
 			parrot_agc && parrot_view.mode == CODEC_DIAG_P25 ? parrot_target : 0,
 			&raw, parrot_view.dc_block, &conditioned);
-		if (parrot_view.mode == CODEC_DIAG_AMBE) {
-			uint8_t bits[VOCODER_BITS];
-			parrot_vocoder->encode(spk, bits);
-			uint8_t *frame = parrot_ambe + parrot_count * 7u;
-			memset(frame, 0, 7);
-			for (unsigned i = 0; i < VOCODER_BITS; i++) frame[i / 8] |= (bits[i] & 1u) << (7 - i % 8);
-			if (parrot_vocoder->encode_flags != NULL) STORE(parrot_view.codec_flags, parrot_vocoder->encode_flags());
-		} else imbe_enc_frame(&enc, spk, parrot_frame(parrot_count));
+		imbe_enc_frame(&enc, spk, parrot_frame(parrot_count));
 		parrot_count++;
 		parrot_conditioned_power += conditioned.power;
 		STORE(parrot_view.conditioned_db10, tx_level_db10((uint32_t)(parrot_conditioned_power / parrot_count)));
@@ -462,12 +636,7 @@ static void parrot_block(const int16_t *mic, int16_t *spk)
 		parrot_lead--;
 		silence(spk);
 	} else if (state == P25_PARROT_PLAY && parrot_played < parrot_count) {
-		if (parrot_view.mode == CODEC_DIAG_AMBE) {
-			uint8_t bits[VOCODER_BITS];
-			const uint8_t *frame = parrot_ambe + parrot_played * 7u;
-			for (unsigned i = 0; i < VOCODER_BITS; i++) bits[i] = (frame[i / 8] >> (7 - i % 8)) & 1u;
-			parrot_vocoder->decode(bits, spk);
-		} else imbe_dec_frame(&dec, parrot_frame(parrot_played), 0, spk);
+		imbe_dec_frame(&dec, parrot_frame(parrot_played), 0, spk);
 		parrot_played++;
 		parrot_speech(2, spk);
 		parrot_meter(2, tx_level_measure(spk, AUDIO_BLOCK_SAMPLES, true));
@@ -603,54 +772,56 @@ void p25VoiceParrotReady(uint8_t (*frames)[IMBE_BYTES], unsigned count, uint8_t 
 	STORE(parrot_state, P25_PARROT_READY);
 	STORE(parrot_command, 0);
 }
-void p25VoiceParrotVocoder(const hal_vocoder_t *v, uint8_t *recording, unsigned size, uint32_t restore_options)
+void p25VoiceParrotPcm(int16_t *pcm, unsigned samples)
 {
-	parrot_vocoder = v;
-	parrot_ambe = recording;
-	parrot_ambe_size = size;
-	parrot_restore_options = restore_options;
+	cal_pcm = pcm;
+	cal_samples = samples;
+	unsigned blocks = samples / AUDIO_BLOCK_SAMPLES;
+	STORE(parrot_view.capture_limit, blocks > P25_CAL_MAX_BLOCKS ? P25_CAL_MAX_BLOCKS : blocks);
 }
 
 bool p25VoiceParrotCapture(bool agc_on, int8_t target_dbfs, uint8_t mic_step, bool hardware_gain)
 {
-	return p25VoiceParrotCaptureMode(CODEC_DIAG_P25, CONFIG_TX_DC_BLOCK, agc_on, target_dbfs, mic_step, hardware_gain, 256);
+	return p25VoiceParrotCaptureMode(CODEC_DIAG_P25, CONFIG_TX_DC_BLOCK, agc_on, target_dbfs, mic_step, hardware_gain);
 }
 
 bool p25VoiceParrotCaptureMode(uint8_t mode, bool dc, bool agc_on, int8_t target_dbfs,
-	uint8_t mic_step, bool hardware_gain, uint16_t ambe_gain_q8)
+	uint8_t mic_step, bool hardware_gain)
 {
 	uint8_t state = p25VoiceParrotState();
 	if (state != P25_PARROT_READY && state != P25_PARROT_DONE && state != P25_PARROT_ERROR) return false;
-	if (LOAD(mem) == NULL || mode > CODEC_DIAG_AMBE) return false;
-	if (mode == CODEC_DIAG_AMBE && (parrot_vocoder == NULL || parrot_vocoder->present == NULL ||
-	    !parrot_vocoder->present() || parrot_vocoder->reset == NULL || parrot_vocoder->encode == NULL ||
-	    parrot_vocoder->decode == NULL || parrot_ambe == NULL || parrot_ambe_size < PARROT_FRAMES * 7u)) {
+	if (LOAD(mem) == NULL || mode > CODEC_DIAG_CALIBRATE) return false;
+	bool calibration = mode == CODEC_DIAG_CALIBRATE;
+	if (calibration && (!CONFIG_TX_DC_BLOCK || cal_pcm == NULL || cal_samples < 50u * AUDIO_BLOCK_SAMPLES)) {
+		if (streaming) { aud->stop(); streaming = false; }
+		parrot_view_reset();
+		STORE(parrot_view.mode, CODEC_DIAG_CALIBRATE);
+		STORE(parrot_view.cal_status, P25_CAL_UNAVAILABLE);
 		p25VoiceParrotFail();
 		return false;
 	}
-	if (streaming) { aud->stop(); streaming = false; } // synchronizes with the audio callback before changing its parameters
-	parrot_restore();
-	// The previous P25 frames can be in owned RAM too; erase them before AMBE reclaims any lent workspace.
-	if (mode == CODEC_DIAG_AMBE && parrot_view.mode == CODEC_DIAG_P25 && parrot_frames != NULL)
-		memset(parrot_frames, 0, parrot_split * IMBE_BYTES);
-	static const uint16_t rms[] = { 583, 654, 734, 823, 924, 1036, 1163, 1305, 1464, 1642, 1843, 2068, 2320, 2603, 2920, 3277, 3677, 4125, 4629, 5193, 5827 };
+	if (streaming) { aud->stop(); streaming = false; }
 	int target = target_dbfs < -35 ? -35 : target_dbfs > -15 ? -15 : target_dbfs;
-	parrot_target = rms[target + 35];
+	parrot_target = parrot_rms(target);
 	parrot_gain_q8 = mic_gain_step_q8(hardware_gain ? 5 : mic_step);
 	parrot_view_reset();
 	STORE(parrot_view.mode, mode);
 	STORE(parrot_view.dc_block, dc && CONFIG_TX_DC_BLOCK);
-	if (mode == CODEC_DIAG_AMBE) {
-		uint32_t supported = parrot_vocoder->options != NULL && parrot_vocoder->set_options != NULL ? parrot_vocoder->options() : 0;
-		agc_on = agc_on && (supported & VOCODER_OPT_AGC) != 0;
-		parrot_gain_q8 = ambe_gain_q8;
-		STORE(parrot_view.codec_options, ((parrot_restore_options & ~VOCODER_OPT_AGC) | (agc_on ? VOCODER_OPT_AGC : 0)) & supported);
-		parrot_codec_used = true;
+	calibrating = calibration;
+	if (calibration) {
+		agc_on = true;
+		parrot_gain_q8 = 256;
+		cal_startup = cal_stage = 0;
+		unsigned blocks = cal_samples / AUDIO_BLOCK_SAMPLES;
+		if (blocks > P25_CAL_MAX_BLOCKS) blocks = P25_CAL_MAX_BLOCKS;
+		STORE(parrot_view.capture_limit, blocks);
+		STORE(parrot_view.cal_status, P25_CAL_RUNNING);
+		STORE(parrot_view.dc_block, true);
 	}
 	parrot_agc = agc_on;
 	STORE(parrot_view.agc, agc_on);
-	STORE(parrot_view.limiter, (mode == CODEC_DIAG_P25 && agc_on) || CONFIG_TX_MIC_LIMITER);
-	STORE(parrot_view.target_dbfs, mode == CODEC_DIAG_AMBE ? 0 : (int8_t)target);
+	STORE(parrot_view.limiter, agc_on || CONFIG_TX_MIC_LIMITER);
+	STORE(parrot_view.target_dbfs, (int8_t)target);
 	STORE(parrot_view.mic_step, mic_step > 10 ? 10 : mic_step);
 	STORE(parrot_view.manual_gain_q16, (uint32_t)parrot_gain_q8 << 8);
 	STORE(parrot_stop, false);
@@ -669,7 +840,7 @@ void p25VoiceParrotFail(void)
 		streaming = false;
 	}
 	if (aud != NULL && aud->speaker_pcm != NULL) aud->speaker_pcm(false);
-	parrot_restore();
+	if (cal_pcm != NULL) memset(cal_pcm, 0, cal_samples * sizeof *cal_pcm);
 	STORE(parrot_command, 0);
 	STORE(parrot_state, P25_PARROT_ERROR);
 }
@@ -684,6 +855,19 @@ void p25VoiceParrotView(p25_parrot_view_t *out)
 	out->conditioned_db10 = LOAD(parrot_view.conditioned_db10);
 	out->codec_options = LOAD(parrot_view.codec_options);
 	out->codec_flags = LOAD(parrot_view.codec_flags);
+	out->cal_status = LOAD(parrot_view.cal_status);
+	out->cal_pass = LOAD(parrot_view.cal_pass);
+	out->suggested_db10 = LOAD(parrot_view.suggested_db10);
+	out->capture_limit = LOAD(parrot_view.capture_limit);
+	out->startup_rail_samples = LOAD(parrot_view.startup_rail_samples);
+	for (unsigned i = 0; i < P25_CAL_PASSES; i++) {
+		out->cal[i].target_db10 = LOAD(parrot_view.cal[i].target_db10);
+		out->cal[i].encoder_db10 = LOAD(parrot_view.cal[i].encoder_db10);
+		out->cal[i].decoded_db10 = LOAD(parrot_view.cal[i].decoded_db10);
+		out->cal[i].active_blocks = LOAD(parrot_view.cal[i].active_blocks);
+		out->cal[i].limited_blocks = LOAD(parrot_view.cal[i].limited_blocks);
+		out->cal[i].gain_q16 = LOAD(parrot_view.cal[i].gain_q16);
+	}
 	out->mic_mean = LOAD(parrot_view.mic_mean);
 	out->mic_ac_db10 = LOAD(parrot_view.mic_ac_db10);
 	out->mic_dc_peak = LOAD(parrot_view.mic_dc_peak);
@@ -783,13 +967,13 @@ void p25VoiceEnd(void)
 	rx_agc_end(&agc);
 #endif
 #if CONFIG_P25_PARROT
-	parrot_restore();
+	if (cal_pcm != NULL) memset(cal_pcm, 0, cal_samples * sizeof *cal_pcm);
 	STORE(parrot_state, P25_PARROT_OFF);
-	if (parrot_view.mode != CODEC_DIAG_AMBE && parrot_frames != NULL) memset(parrot_frames, 0, parrot_split * IMBE_BYTES);
+	if (parrot_frames != NULL) memset(parrot_frames, 0, parrot_split * IMBE_BYTES);
 	if (parrot_extra != NULL) memset(parrot_extra, 0, (PARROT_FRAMES - parrot_split) * IMBE_BYTES);
-	if (parrot_ambe != NULL) memset(parrot_ambe, 0, parrot_ambe_size);
-	parrot_vocoder = NULL;
-	parrot_ambe = NULL;
+	cal_pcm = NULL;
+	cal_samples = 0;
+	calibrating = false;
 	parrot_frames = parrot_extra = NULL;
 #endif
 	STORE(mem, (p25_voice_mem_t *)NULL);

@@ -19,7 +19,6 @@
 #if CONFIG_P25
 #include "p25/p25_codeplug.h"
 #if CONFIG_P25_PARROT
-#include "dsp/tx_level.h"
 #include "dsp/speech_meter.h"
 #endif
 #endif
@@ -5615,198 +5614,174 @@ static const ui_scr_def_t about_screen = {
 };
 
 #if CONFIG_P25_PARROT
-enum {
-	PARROT_ROW_MODE, PARROT_ROW_RECORD, PARROT_ROW_AGC, PARROT_ROW_TARGET, PARROT_ROW_STATUS,
-	PARROT_ROW_MIC_RMS, PARROT_ROW_ENC_RMS, PARROT_ROW_DEC_RMS, PARROT_ROW_TEST_AGC,
-	PARROT_ROW_TEST_TARGET, PARROT_ROW_TEST_MIC, PARROT_ROW_MIC_PEAK, PARROT_ROW_ENC_PEAK,
-	PARROT_ROW_DEC_PEAK, PARROT_ROW_GAIN, PARROT_ROW_LIMITED,
-	PARROT_ROW_MIC_DC, PARROT_ROW_DC_PEAK, PARROT_ROW_MIC_AC,
-	PARROT_ROW_MIC_SPEECH, PARROT_ROW_ENC_SPEECH, PARROT_ROW_DEC_SPEECH,
-	PARROT_ROW_MIC_BLOCKS, PARROT_ROW_ENC_BLOCKS, PARROT_ROW_DEC_BLOCKS,
-	PARROT_ROW_RAILS, PARROT_ROW_DC, PARROT_ROW_CONDITIONED, PARROT_ROW_TEST_DC,
-	PARROT_ROW_TEST_MODE, PARROT_ROW_CODEC_OPTIONS, PARROT_ROW_CODEC_FLAGS, PARROT_ROW_COUNT,
-};
-static bool parrot_ui_agc = true;
-static bool parrot_ui_dc = CONFIG_TX_DC_BLOCK;
-static uint8_t parrot_ui_mode;
-static int8_t parrot_ui_target = -25;
-static uint16_t parrot_ui_count(void) { return PARROT_ROW_COUNT; }
-static void parrot_ui_enter(void)
+enum { PARROT_ROW_RECORD, PARROT_ROW_STATUS, PARROT_ROW_GOAL, PARROT_ROW_RESULT, PARROT_ROW_TIME, PARROT_ROW_REPORT };
+enum { PARROT_MIC_SPEECH, PARROT_MIC_RAILS, PARROT_MIC_STARTUP_RAILS, PARROT_MIC_DC, PARROT_MIC_COUNT };
+
+static bool parrot_ui_report(const p25_parrot_view_t *v)
 {
-	parrot_ui_dc = CONFIG_TX_DC_BLOCK;
-	parrot_ui_mode = CODEC_DIAG_P25;
-	parrot_ui_agc = true;
-	parrot_ui_target = -25;
-	ui_frame()->focus = PARROT_ROW_RECORD;
+	return v->state == P25_PARROT_DONE || (v->state == P25_PARROT_ERROR && v->frames != 0);
 }
-static void parrot_ui_leave(void) { (void)ui_svc_p25_parrot(P25_PARROT_CLOSE, false, -25); }
-static const char *parrot_ui_status(uint8_t state)
+
+static uint16_t parrot_ui_count(void)
 {
-	switch (state) {
+	p25_parrot_view_t v;
+	ui_svc_p25_parrot_view(&v);
+	return PARROT_ROW_REPORT + (parrot_ui_report(&v) ? PARROT_MIC_COUNT + (v.cal_pass ? 2u * (1u + v.cal_pass) : 0u) : 0u);
+}
+
+static void parrot_ui_leave(void) { (void)ui_svc_p25_parrot(P25_PARROT_CLOSE, false, -25); }
+
+static const char *parrot_ui_status(const p25_parrot_view_t *v)
+{
+	if (v->cal_status == P25_CAL_UNAVAILABLE) return TR(P25_PARROT_UNAVAILABLE, "Unavailable");
+	switch (v->state) {
 	case P25_PARROT_OPENING: return TR(P25_PARROT_OPENING, "Opening");
 	case P25_PARROT_READY: return TR(P25_PARROT_READY, "Ready: no RF");
 	case P25_PARROT_RECORD: return TR(P25_PARROT_RECORDING, "Recording");
-	case P25_PARROT_PLAY: return TR(P25_PARROT_PLAYING, "Playing");
-	case P25_PARROT_DONE: return TR(P25_PARROT_DONE, "Done: no RF");
+	case P25_PARROT_PLAY:
+		return v->cal_status == P25_CAL_RUNNING ? TR(P25_CAL_MEASURING, "Measuring") : TR(P25_PARROT_PLAYING, "Playing");
 	case P25_PARROT_ERROR: return TR(P25_PARROT_AUDIO_FAILED, "Audio failed");
+	case P25_PARROT_DONE:
+		switch (v->cal_status) {
+		case P25_CAL_SHORT: return TR(P25_CAL_TOO_SHORT, "Too little speech");
+		case P25_CAL_CLIPPED: return TR(P25_CAL_MIC_CLIP, "Mic clipped");
+		case P25_CAL_LIMITED: return TR(P25_CAL_LIMIT_EXCESS, "Too much limiting");
+		case P25_CAL_RANGE: return TR(P25_CAL_UNVERIFIED, "No verified target");
+		default: return TR(P25_PARROT_DONE, "Done: no RF");
+		}
 	default: return TR(P25_PARROT_UNAVAILABLE, "Unavailable");
 	}
 }
-static void parrot_ui_db(char *dst, size_t size, int16_t db)
+
+static void parrot_ui_db(sbuf_t *b, int16_t db)
 {
-	if (db <= -960) { str_copy(dst, size, "--"); return; }
-	sbuf_t b; sb_init(&b, dst, size);
-	if (db < 0) sb_chr(&b, '-');
+	if (db <= -960) { sb_str(b, "--"); return; }
+	if (db < 0) sb_chr(b, '-');
 	unsigned a = (unsigned)(db < 0 ? -db : db);
-	sb_u32(&b, a / 10, 1); sb_chr(&b, '.'); sb_u32(&b, a % 10, 1);
+	sb_u32(b, a / 10, 1); sb_chr(b, '.'); sb_u32(b, a % 10, 1);
 }
+
+static void parrot_ui_result(uint16_t row, const p25_parrot_view_t *v, ui_item_t *it, sbuf_t *value)
+{
+	const unsigned n = v->cal_pass;
+	if (n != 0 && row < 2u * (n + 1u)) {
+		bool levels = row <= n;
+		unsigned pass = levels ? row : row - n - 1u;
+		if (pass == 0) {
+			str_copy(it->label, sizeof it->label, levels ? TR(P25_CAL_LEVELS, "AGC / Enc / Dec dBFS") :
+				TR(P25_CAL_GAIN_LIMITS, "AGC / Gain / Limited"));
+			it->flags |= UI_ITEM_INFO;
+			return;
+		}
+		const unsigned index = pass - 1u;
+		sbuf_t label;
+		sb_init(&label, it->label, sizeof it->label);
+		sb_i32(&label, v->cal[index].target_db10 / 10);
+		if (pass == P25_CAL_PASSES) sb_chr(&label, '*'); // the verification pass
+		if (levels) {
+			parrot_ui_db(value, v->cal[index].encoder_db10);
+			sb_chr(value, '/');
+			parrot_ui_db(value, v->cal[index].decoded_db10);
+		} else {
+			unsigned gain100 = (v->cal[index].gain_q16 * 100u + 32768u) >> 16;
+			sb_u32(value, gain100 / 100, 1); sb_chr(value, '.'); sb_u32(value, gain100 % 100, 2);
+			sb_str(value, "x/"); sb_u32(value, v->cal[index].limited_blocks, 1);
+		}
+		return;
+	}
+	switch (row - (n != 0 ? 2u * (n + 1u) : 0u)) {
+	case PARROT_MIC_SPEECH:
+		str_copy(it->label, sizeof it->label, TR(P25_PARROT_MIC_SPEECH, "Mic speech dBFS"));
+		parrot_ui_db(value, v->speech_blocks[0] < SPEECH_ACQUIRE_BLOCKS ? -960 : v->speech_db10[0]);
+		break;
+	case PARROT_MIC_RAILS:
+		str_copy(it->label, sizeof it->label, TR(P25_PARROT_RAILS, "Mic rail samples"));
+		sb_u32(value, v->input_rail_samples, 1);
+		break;
+	case PARROT_MIC_STARTUP_RAILS:
+		str_copy(it->label, sizeof it->label, TR(P25_CAL_STARTUP_RAILS, "Startup rails"));
+		sb_u32(value, v->startup_rail_samples, 1);
+		break;
+	case PARROT_MIC_DC:
+		str_copy(it->label, sizeof it->label, TR(P25_PARROT_MIC_DC, "Mic DC mean"));
+		sb_i32(value, v->mic_mean);
+		break;
+	}
+}
+
 static void parrot_ui_item(uint16_t i, ui_item_t *it)
 {
 	p25_parrot_view_t v;
 	ui_svc_p25_parrot_view(&v);
-	bool recording = v.state == P25_PARROT_RECORD;
-	bool playing = v.state == P25_PARROT_PLAY;
-	if (i == PARROT_ROW_MODE) {
-		str_copy(it->label, sizeof it->label, TR(P25_PARROT_MODE, "Mode"));
-		str_copy(it->value, sizeof it->value, parrot_ui_mode == CODEC_DIAG_AMBE ? "DMR / AMBE+2" : "P25 / IMBE");
-		if (recording || playing) it->flags |= UI_ITEM_DIM;
-	} else if (i == PARROT_ROW_RECORD) {
-		str_copy(it->label, sizeof it->label, playing ? TR(P25_PARROT_PLAYING, "Playing") :
-			recording ? TR(P25_PARROT_STOP_PLAY, "Stop and play") : TR(P25_PARROT_RECORD, "Record up to 10 s"));
-		if (playing || v.state == P25_PARROT_OFF || v.state == P25_PARROT_OPENING || v.state == P25_PARROT_REFUSED)
-			it->flags |= UI_ITEM_DIM;
-	} else if (i == PARROT_ROW_AGC) {
-		str_copy(it->label, sizeof it->label, parrot_ui_mode == CODEC_DIAG_AMBE ? TR(CODEC_DIAG_AGC, "Codec AGC") : TR(P25_PARROT_AGC, "Input AGC"));
-		str_copy(it->value, sizeof it->value, parrot_ui_agc ? TR(P25_PARROT_ON, "On") : TR(P25_PARROT_OFF, "Off"));
-		if (recording || playing)
-			it->flags |= UI_ITEM_DIM;
-	} else if (i == PARROT_ROW_TARGET) {
-		str_copy(it->label, sizeof it->label, TR(P25_PARROT_TARGET, "Target dBFS"));
-		if (parrot_ui_agc && parrot_ui_mode == CODEC_DIAG_P25) {
-			sbuf_t b;
-			sb_init(&b, it->value, sizeof it->value);
-			sb_i32(&b, parrot_ui_target);
+	sbuf_t value;
+	sb_init(&value, it->value, sizeof it->value);
+	switch (i) {
+	case PARROT_ROW_RECORD:
+		str_copy(it->label, sizeof it->label, v.state == P25_PARROT_RECORD ? TR(P25_CAL_STOP, "Stop recording") :
+			TR(P25_CAL_RECORD, "Record speech"));
+		if (v.state == P25_PARROT_OFF || v.state == P25_PARROT_OPENING || v.state == P25_PARROT_REFUSED ||
+		    v.state == P25_PARROT_PLAY) it->flags |= UI_ITEM_DIM;
+		break;
+	case PARROT_ROW_STATUS:
+		str_copy(it->label, sizeof it->label, parrot_ui_status(&v));
+		it->flags |= UI_ITEM_INFO;
+		if (v.state == P25_PARROT_ERROR || (v.state == P25_PARROT_DONE && v.cal_status != P25_CAL_OK))
+			it->flags |= UI_ITEM_WARN;
+		if (v.state == P25_PARROT_PLAY && v.cal_status == P25_CAL_RUNNING) {
+			sb_u32(&value, v.cal_pass, 1); sb_chr(&value, '/'); sb_u32(&value, P25_CAL_PASSES, 1);
+		}
+		break;
+	case PARROT_ROW_GOAL:
+		str_copy(it->label, sizeof it->label, TR(P25_CAL_GOAL, "Decode goal dBFS"));
+		sb_str(&value, "-25");
+		it->flags |= UI_ITEM_INFO;
+		break;
+	case PARROT_ROW_RESULT:
+		if (!parrot_ui_report(&v) && v.cal_status != P25_CAL_OK) {
+			if (v.state == P25_PARROT_READY || v.state == P25_PARROT_RECORD)
+				str_copy(it->label, sizeof it->label, TR(P25_CAL_SPEAK, "Speak normally"));
 		} else {
-			str_copy(it->value, sizeof it->value, "--");
+			str_copy(it->label, sizeof it->label, TR(P25_CAL_SUGGESTED, "AGC target dBFS"));
+			if (v.cal_status == P25_CAL_OK) sb_i32(&value, v.suggested_db10 / 10);
+			else sb_str(&value, "--");
 		}
-		if (!parrot_ui_agc || parrot_ui_mode == CODEC_DIAG_AMBE || recording || playing)
-			it->flags |= UI_ITEM_DIM;
-	} else if (i == PARROT_ROW_STATUS) {
-		str_copy(it->label, sizeof it->label, parrot_ui_status(v.state));
-		if (v.frames != 0) {
-			sbuf_t b;
-			sb_init(&b, it->value, sizeof it->value);
-			sb_u32(&b, v.frames / 50, 1);
-			sb_chr(&b, '.');
-			sb_u32(&b, (v.frames % 50) * 2, 2);
-			sb_str(&b, " s");
+		it->flags |= UI_ITEM_INFO;
+		break;
+	case PARROT_ROW_TIME: {
+		unsigned frames = v.state == P25_PARROT_READY ? v.capture_limit : v.frames;
+		str_copy(it->label, sizeof it->label, TR(P25_CAL_CAPTURE_TIME, "Capture time"));
+		if (frames != 0) {
+			sb_u32(&value, frames / 50, 1); sb_chr(&value, '.'); sb_u32(&value, (frames % 50) * 2, 2);
+			sb_str(&value, " s");
+		} else {
+			sb_str(&value, "--");
 		}
-	} else if (i <= PARROT_ROW_DEC_RMS) {
-		str_copy(it->label, sizeof it->label, i == PARROT_ROW_MIC_RMS ? TR(P25_PARROT_INPUT, "Mic RMS dBFS") :
-			i == PARROT_ROW_ENC_RMS ? TR(P25_PARROT_ENCODER, "Enc RMS dBFS") : TR(P25_PARROT_OUTPUT, "Dec RMS dBFS"));
-		int16_t db = i == PARROT_ROW_MIC_RMS ? v.input_db10 : i == PARROT_ROW_ENC_RMS ? v.encoder_db10 : v.output_db10;
-		parrot_ui_db(it->value, sizeof it->value, db);
-	} else if (i == PARROT_ROW_TEST_AGC) {
-		str_copy(it->label, sizeof it->label, TR(P25_PARROT_TEST_AGC, "Test AGC"));
-		str_copy(it->value, sizeof it->value, v.frames == 0 ? "--" : v.agc ? TR(P25_PARROT_ON, "On") : TR(P25_PARROT_OFF, "Off"));
-	} else if (i == PARROT_ROW_TEST_TARGET) {
-		str_copy(it->label, sizeof it->label, TR(P25_PARROT_TEST_TARGET, "Test target dBFS"));
-		if (v.frames == 0 || !v.agc || v.mode == CODEC_DIAG_AMBE) str_copy(it->value, sizeof it->value, "--");
-		else { sbuf_t b; sb_init(&b, it->value, sizeof it->value); sb_i32(&b, v.target_dbfs); }
-	} else if (i == PARROT_ROW_TEST_MIC) {
-		str_copy(it->label, sizeof it->label, TR(P25_PARROT_TEST_MIC, "Test mic step"));
-		if (v.frames == 0 || v.agc) str_copy(it->value, sizeof it->value, "--");
-		else { sbuf_t b; sb_init(&b, it->value, sizeof it->value); sb_u32(&b, v.mic_step, 1); }
-	} else if (i <= PARROT_ROW_DEC_PEAK) {
-		str_copy(it->label, sizeof it->label, i == PARROT_ROW_MIC_PEAK ? TR(P25_PARROT_MIC_PEAK, "Mic peak dBFS") :
-			i == PARROT_ROW_ENC_PEAK ? TR(P25_PARROT_ENC_PEAK, "Enc peak dBFS") : TR(P25_PARROT_DEC_PEAK, "Dec peak dBFS"));
-		uint32_t peak = i == PARROT_ROW_MIC_PEAK ? v.input_peak : i == PARROT_ROW_ENC_PEAK ? v.encoder_peak : v.output_peak;
-		parrot_ui_db(it->value, sizeof it->value, tx_level_db10(peak * peak));
-	} else if (i == PARROT_ROW_GAIN) {
-		str_copy(it->label, sizeof it->label, TR(P25_PARROT_GAIN, "Last PCM gain"));
-		if (v.frames == 0) str_copy(it->value, sizeof it->value, "--");
-		else {
-			unsigned gain100 = (v.gain_q16 * 100u + 32768u) >> 16;
-			sbuf_t b; sb_init(&b, it->value, sizeof it->value);
-			sb_u32(&b, gain100 / 100, 1); sb_chr(&b, '.'); sb_u32(&b, gain100 % 100, 2); sb_chr(&b, 'x');
-		}
-	} else if (i == PARROT_ROW_LIMITED) {
-		str_copy(it->label, sizeof it->label, TR(P25_PARROT_LIMITED, "Limited blocks"));
-		if (v.frames == 0 || !v.limiter) str_copy(it->value, sizeof it->value, "--");
-		else { sbuf_t b; sb_init(&b, it->value, sizeof it->value); sb_u32(&b, v.limited_blocks, 1); }
-	} else if (i == PARROT_ROW_MIC_DC || i == PARROT_ROW_DC_PEAK || i == PARROT_ROW_RAILS) {
-		str_copy(it->label, sizeof it->label, i == PARROT_ROW_MIC_DC ? TR(P25_PARROT_MIC_DC, "Mic DC mean") :
-			i == PARROT_ROW_DC_PEAK ? TR(P25_PARROT_DC_PEAK, "Max block DC") : TR(P25_PARROT_RAILS, "Mic rail samples"));
-		if (v.frames == 0) str_copy(it->value, sizeof it->value, "--");
-		else {
-			sbuf_t b; sb_init(&b, it->value, sizeof it->value);
-			if (i == PARROT_ROW_MIC_DC) sb_i32(&b, v.mic_mean);
-			else sb_u32(&b, i == PARROT_ROW_DC_PEAK ? v.mic_dc_peak : v.input_rail_samples, 1);
-		}
-	} else if (i == PARROT_ROW_MIC_AC) {
-		str_copy(it->label, sizeof it->label, TR(P25_PARROT_MIC_AC, "Mic AC dBFS"));
-		parrot_ui_db(it->value, sizeof it->value, v.mic_ac_db10);
-	} else if (i <= PARROT_ROW_DEC_SPEECH) {
-		unsigned index = i - PARROT_ROW_MIC_SPEECH;
-		str_copy(it->label, sizeof it->label, index == 0 ? TR(P25_PARROT_MIC_SPEECH, "Mic speech dBFS") :
-			index == 1 ? TR(P25_PARROT_ENC_SPEECH, "Enc speech dBFS") : TR(P25_PARROT_DEC_SPEECH, "Dec speech dBFS"));
-		// Acquisition uses the same 15 qualifying blocks as the receive meter.
-		parrot_ui_db(it->value, sizeof it->value, v.speech_blocks[index] < SPEECH_ACQUIRE_BLOCKS ? -960 : v.speech_db10[index]);
-	} else if (i == PARROT_ROW_DC || i == PARROT_ROW_TEST_DC) {
-		str_copy(it->label, sizeof it->label, i == PARROT_ROW_DC ? TR(CODEC_DIAG_DC, "DC removal") : TR(CODEC_DIAG_TEST_DC, "Test DC removal"));
-		bool enabled = i == PARROT_ROW_DC ? parrot_ui_dc : v.dc_block;
-		str_copy(it->value, sizeof it->value, i == PARROT_ROW_TEST_DC && v.frames == 0 ? "--" :
-			enabled ? TR(P25_PARROT_ON, "On") : TR(P25_PARROT_OFF, "Off"));
-		if (i == PARROT_ROW_TEST_DC) it->flags |= UI_ITEM_INFO;
-		else if (!CONFIG_TX_DC_BLOCK || recording || playing) it->flags |= UI_ITEM_DIM;
-	} else if (i == PARROT_ROW_CONDITIONED) {
-		str_copy(it->label, sizeof it->label, TR(CODEC_DIAG_CONDITIONED, "Cond RMS dBFS"));
-		parrot_ui_db(it->value, sizeof it->value, v.conditioned_db10);
-	} else if (i == PARROT_ROW_TEST_MODE) {
-		str_copy(it->label, sizeof it->label, TR(CODEC_DIAG_TEST_MODE, "Test mode"));
-		str_copy(it->value, sizeof it->value, v.frames == 0 ? "--" : v.mode == CODEC_DIAG_AMBE ? "DMR / AMBE+2" : "P25 / IMBE");
-	} else if (i == PARROT_ROW_CODEC_OPTIONS || i == PARROT_ROW_CODEC_FLAGS) {
-		str_copy(it->label, sizeof it->label, i == PARROT_ROW_CODEC_OPTIONS ? TR(CODEC_DIAG_OPTIONS, "Codec options") : TR(CODEC_DIAG_FLAGS, "Codec flags"));
-		if (v.frames == 0 || v.mode != CODEC_DIAG_AMBE) str_copy(it->value, sizeof it->value, "--");
-		else {
-			sbuf_t b; sb_init(&b, it->value, sizeof it->value);
-			sb_u32(&b, i == PARROT_ROW_CODEC_OPTIONS ? v.codec_options : v.codec_flags, 1);
-		}
-	} else {
-		unsigned index = i - PARROT_ROW_MIC_BLOCKS;
-		str_copy(it->label, sizeof it->label, index == 0 ? TR(P25_PARROT_MIC_BLOCKS, "Mic active blocks") :
-			index == 1 ? TR(P25_PARROT_ENC_BLOCKS, "Enc active blocks") : TR(P25_PARROT_DEC_BLOCKS, "Dec active blocks"));
-		sbuf_t b; sb_init(&b, it->value, sizeof it->value); sb_u32(&b, v.speech_blocks[index], 1);
+		break;
+	}
+	default:
+		parrot_ui_result(i - PARROT_ROW_REPORT, &v, it, &value);
+		break;
 	}
 }
+
 static void parrot_ui_select(uint16_t i, bool hold)
 {
-	(void)hold;
-	p25_parrot_view_t v; ui_svc_p25_parrot_view(&v);
-	if (v.state == P25_PARROT_PLAY || v.state == P25_PARROT_OFF ||
-	    v.state == P25_PARROT_OPENING || v.state == P25_PARROT_REFUSED)
+	if (i != PARROT_ROW_RECORD || hold) return;
+	p25_parrot_view_t v;
+	ui_svc_p25_parrot_view(&v);
+	if (v.state != P25_PARROT_READY && v.state != P25_PARROT_RECORD && v.state != P25_PARROT_DONE && v.state != P25_PARROT_ERROR)
 		return;
-	if (i == PARROT_ROW_RECORD) {
-		uint8_t command = v.state == P25_PARROT_RECORD ? P25_PARROT_STOP : P25_PARROT_CAPTURE;
-		if (!ui_svc_codec_diagnostic(command, parrot_ui_agc, parrot_ui_target, parrot_ui_mode, parrot_ui_dc))
-			ui_toast(TR(P25_PARROT_UNAVAILABLE, "Unavailable"));
-	} else if (v.state != P25_PARROT_RECORD) {
-		if (i == PARROT_ROW_MODE)
-			parrot_ui_mode ^= 1u;
-		else if (i == PARROT_ROW_DC && CONFIG_TX_DC_BLOCK)
-			parrot_ui_dc = !parrot_ui_dc;
-		else if (i == PARROT_ROW_AGC)
-			parrot_ui_agc = !parrot_ui_agc;
-		else if (i == PARROT_ROW_TARGET && parrot_ui_agc && parrot_ui_mode == CODEC_DIAG_P25)
-			parrot_ui_target = parrot_ui_target == -15 ? -35 : parrot_ui_target + 1;
-	}
+	uint8_t command = v.state == P25_PARROT_RECORD ? P25_PARROT_STOP : P25_PARROT_CAPTURE;
+	if (!ui_svc_codec_diagnostic(command, true, -25, CODEC_DIAG_CALIBRATE, true))
+		ui_toast(TR(P25_PARROT_UNAVAILABLE, "Unavailable"));
 	ui_dirty();
 }
+
 static const ui_scr_def_t parrot_screen = {
 	.name = "p25parrot", .flags = SF_LIST,
-	.prefix = TRN(P25_PARROT_TITLE, "Codec diagnostic"), .hint = TRN(P25_PARROT_HINT, "OK / Back: exit"),
+	.prefix = TRN(P25_PARROT_TITLE, "P25 calibration"), .hint = TRN(P25_PARROT_HINT, "Back: exit"),
 	.count = parrot_ui_count, .item = parrot_ui_item, .select = parrot_ui_select,
-	.enter = parrot_ui_enter, .leave = parrot_ui_leave,
+	.leave = parrot_ui_leave,
 };
 #endif
 
@@ -7219,7 +7194,7 @@ static const set_item_t s_advanced[] = {
 	TOGGLE(TRN(SET_LABEL_RX_PAST_BANDS, "RX past bands"), "extended out of band receive range", UI_SET_RX_EXT),
 #endif
 #if CONFIG_P25_PARROT
-	ACTION(TRN(P25_PARROT_TITLE, "Codec diagnostic"), "audio microphone codec levels", SA_P25_PARROT),
+	ACTION(TRN(P25_PARROT_TITLE, "P25 calibration"), "audio microphone codec levels", SA_P25_PARROT),
 #endif
 #if CONFIG_REF_TRIM
 	NUMBER(TRN(SET_ROW_FREQ_TRIM, "Freq trim"), "frequency offset reference oscillator calibration ppm",

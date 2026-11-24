@@ -109,10 +109,10 @@ bool p25VoiceAgc(void);
 void p25VoiceParrotReady(uint8_t (*frames)[IMBE_BYTES], unsigned count, uint8_t (*extra)[IMBE_BYTES]);
 // Record the chosen gain step. When the board applies the step, software gain starts at unity.
 bool p25VoiceParrotCapture(bool agc, int8_t target_dbfs, uint8_t mic_step, bool hardware_gain);
-// AMBE recording must live outside any RAM lent by this vocoder. Options are restored after the stream stops.
-void p25VoiceParrotVocoder(const hal_vocoder_t *v, uint8_t *recording, unsigned size, uint32_t restore_options);
+// Caller-owned signed 16-bit PCM, retained only until close; disjoint from codec/frame workspace.
+void p25VoiceParrotPcm(int16_t *pcm, unsigned samples);
 bool p25VoiceParrotCaptureMode(uint8_t mode, bool dc, bool agc, int8_t target_dbfs,
-	uint8_t mic_step, bool hardware_gain, uint16_t ambe_gain_q8);
+	uint8_t mic_step, bool hardware_gain);
 void p25VoiceParrotStop(void);
 // Stop the stalled stream, retaining its report and the workspace for another capture.
 void p25VoiceParrotFail(void);

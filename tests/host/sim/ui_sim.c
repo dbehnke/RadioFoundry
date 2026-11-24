@@ -500,6 +500,9 @@ board_t board = {
 };
 
 static uint32_t now_ms = 1000;
+#if CONFIG_P25_PARROT
+static uint8_t parrot_sim_state, parrot_sim_result;
+#endif
 uint32_t hal_millis(void) { return now_ms; }
 uint32_t sim_now(void) { return now_ms; }
 
@@ -2682,6 +2685,10 @@ void ui_svc_next_aes_key(channel_t *c)
 
 void sim_reset(const sim_geom_t *g, sim_map_t map)
 {
+#if CONFIG_P25_PARROT
+	parrot_sim_state = P25_PARROT_OFF;
+	parrot_sim_result = P25_CAL_OK;
+#endif
 	sim_caller_database = false;
 	emergency_on = false;
 	sim_foreign = sim_held = false;
@@ -3167,6 +3174,16 @@ static bool run_token(char *t, char *err, size_t len)
 	char *arg = strchr(t, ':');
 	if (arg != NULL)
 		*arg++ = 0;
+#if CONFIG_P25_PARROT
+	if (strcmp(t, "calresult") == 0 && arg != NULL) {
+		if (strcmp(arg, "clip") == 0) parrot_sim_result = P25_CAL_CLIPPED;
+		else if (strcmp(arg, "limited") == 0) parrot_sim_result = P25_CAL_LIMITED;
+		else if (strcmp(arg, "range") == 0) parrot_sim_result = P25_CAL_RANGE;
+		else if (strcmp(arg, "ok") == 0) parrot_sim_result = P25_CAL_OK;
+		else { snprintf(err, len, "unknown calibration result %s", arg); return false; }
+		return true;
+	}
+#endif
 	if (strcmp(t, "long") == 0)
 		return press(arg, true, err, len);
 	if (strcmp(t, "ptt") == 0) {
@@ -4077,56 +4094,107 @@ bool sim_run(const char *script, char *err, size_t err_len)
 }
 
 #if CONFIG_P25_PARROT
-static uint8_t parrot_sim_state;
-static bool parrot_sim_agc;
-static int8_t parrot_sim_target;
-static uint8_t parrot_sim_mic_step, parrot_sim_mode;
-static bool parrot_sim_dc;
+enum { SIM_CAL_PASS_MS = 300 };
+static uint32_t parrot_sim_start, parrot_sim_sweep;
+static uint16_t parrot_sim_frames;
+static uint8_t parrot_sim_status, parrot_sim_pass;
+
+static void parrot_sim_stop(void)
+{
+	parrot_sim_status = parrot_sim_frames < 15 ? P25_CAL_SHORT : parrot_sim_result;
+	if (parrot_sim_status == P25_CAL_SHORT || parrot_sim_status == P25_CAL_CLIPPED) {
+		parrot_sim_state = P25_PARROT_DONE;
+		return;
+	}
+	parrot_sim_state = P25_PARROT_PLAY;
+	parrot_sim_sweep = now_ms;
+}
+
+static void parrot_sim_tick(void)
+{
+	if (parrot_sim_state == P25_PARROT_RECORD) {
+		uint32_t frames = (now_ms - parrot_sim_start) / 20u;
+		parrot_sim_frames = frames < P25_CAL_MAX_BLOCKS ? (uint16_t)frames : P25_CAL_MAX_BLOCKS;
+		if (parrot_sim_frames == P25_CAL_MAX_BLOCKS) parrot_sim_stop();
+	}
+	if (parrot_sim_state == P25_PARROT_PLAY) {
+		uint32_t elapsed = now_ms - parrot_sim_sweep;
+		unsigned passes = parrot_sim_status == P25_CAL_OK ? P25_CAL_PASSES : P25_CAL_PASSES - 1u;
+		unsigned pass = elapsed / SIM_CAL_PASS_MS;
+		parrot_sim_pass = (uint8_t)(pass < passes ? pass : passes);
+		if (elapsed >= passes * SIM_CAL_PASS_MS + (parrot_sim_status == P25_CAL_OK ? parrot_sim_frames * 20u : 0u))
+			parrot_sim_state = P25_PARROT_DONE;
+	}
+}
+
+bool ui_svc_codec_diagnostic(uint8_t command, bool agc, int8_t target, uint8_t mode, bool dc)
+{
+	parrot_sim_tick();
+	switch (command) {
+	case P25_PARROT_OPEN:
+		parrot_sim_state = view.state == RS_TX || view.hotspot ? P25_PARROT_REFUSED : P25_PARROT_READY;
+		parrot_sim_frames = 0;
+		parrot_sim_pass = 0;
+		parrot_sim_status = P25_CAL_IDLE;
+		break;
+	case P25_PARROT_CAPTURE:
+		if (!agc || target != -25 || mode != CODEC_DIAG_CALIBRATE || !dc) return false;
+		parrot_sim_frames = 0;
+		parrot_sim_pass = 0;
+		parrot_sim_status = P25_CAL_RUNNING;
+		parrot_sim_state = P25_PARROT_RECORD;
+		parrot_sim_start = now_ms;
+		break;
+	case P25_PARROT_STOP:
+		if (parrot_sim_state == P25_PARROT_RECORD) parrot_sim_stop();
+		break;
+	case P25_PARROT_CLOSE:
+		parrot_sim_state = P25_PARROT_OFF;
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
+
 bool ui_svc_p25_parrot(uint8_t command, bool agc, int8_t target)
 {
 	return ui_svc_codec_diagnostic(command, agc, target, CODEC_DIAG_P25, CONFIG_TX_DC_BLOCK);
 }
-bool ui_svc_codec_diagnostic(uint8_t command, bool agc, int8_t target, uint8_t mode, bool dc)
+
+uint8_t ui_svc_p25_parrot_state(void)
 {
-	if (command == P25_PARROT_OPEN && (view.state == RS_TX || view.hotspot)) {
-		parrot_sim_state = P25_PARROT_REFUSED;
-		return true;
-	}
-	if (command == P25_PARROT_CAPTURE) {
-		parrot_sim_mode = mode;
-		parrot_sim_dc = dc;
-		parrot_sim_agc = agc;
-		parrot_sim_target = target;
-		parrot_sim_mic_step = (uint8_t)ui_svc_setting_get(UI_SET_MIC_GAIN);
-	}
-	parrot_sim_state = command == P25_PARROT_CLOSE ? P25_PARROT_OFF : command == P25_PARROT_CAPTURE ? P25_PARROT_RECORD : command == P25_PARROT_STOP ? P25_PARROT_DONE : P25_PARROT_READY;
-	return true;
+	parrot_sim_tick();
+	return parrot_sim_state;
 }
-uint8_t ui_svc_p25_parrot_state(void) { return parrot_sim_state; }
+
 void ui_svc_p25_parrot_view(p25_parrot_view_t *out)
 {
+	static const int16_t targets[] = { -350, -300, -250, -200, -150, -240 };
+	static const int16_t encoder[] = { -355, -301, -252, -198, -166, -243 };
+	static const int16_t decoded[] = { -364, -318, -262, -214, -187, -251 };
+	parrot_sim_tick();
 	memset(out, 0, sizeof *out);
 	out->state = parrot_sim_state;
-	out->input_db10 = out->encoder_db10 = out->output_db10 = out->mic_ac_db10 = out->conditioned_db10 = -960;
-	if (parrot_sim_state == P25_PARROT_DONE) {
-		out->mode = parrot_sim_mode;
-		out->dc_block = parrot_sim_dc;
-		out->conditioned_db10 = -410;
-		out->codec_options = parrot_sim_mode == CODEC_DIAG_AMBE ? 7 : 0;
-		out->frames = 100;
-		out->agc = parrot_sim_agc;
-		out->limiter = parrot_sim_agc || CONFIG_TX_MIC_LIMITER;
-		out->target_dbfs = parrot_sim_target;
-		out->mic_step = parrot_sim_mic_step;
-		out->input_db10 = -380; out->encoder_db10 = parrot_sim_agc ? -250 : -380; out->output_db10 = -260;
-		out->input_peak = parrot_sim_agc ? 6800 : 29000;
-		out->encoder_peak = 28000; out->output_peak = 6500;
-		out->gain_q16 = parrot_sim_agc ? 292946 : 65536;
-		out->limited_blocks = 3;
-		out->mic_mean = -2500; out->mic_dc_peak = 2600; out->mic_ac_db10 = -410;
-		out->input_rail_samples = 2;
-		out->speech_db10[0] = -390; out->speech_db10[1] = -250; out->speech_db10[2] = -260;
-		for (unsigned i = 0; i < 3; i++) out->speech_blocks[i] = 80;
+	out->capture_limit = P25_CAL_MAX_BLOCKS;
+	out->frames = parrot_sim_frames;
+	out->cal_status = parrot_sim_status;
+	out->cal_pass = parrot_sim_pass;
+	if (out->state == P25_PARROT_PLAY && out->cal_pass < (parrot_sim_status == P25_CAL_OK ? P25_CAL_PASSES : P25_CAL_PASSES - 1u))
+		out->cal_status = P25_CAL_RUNNING;
+	out->suggested_db10 = -240;
+	out->mic_mean = -2500;
+	out->input_rail_samples = out->cal_status == P25_CAL_CLIPPED ? 20u : 0u;
+	out->startup_rail_samples = 2;
+	out->speech_db10[0] = -390;
+	out->speech_blocks[0] = out->cal_status == P25_CAL_SHORT ? 10 : 80;
+	for (unsigned i = 0; i < out->cal_pass; i++) {
+		out->cal[i].target_db10 = targets[i];
+		out->cal[i].encoder_db10 = encoder[i];
+		out->cal[i].decoded_db10 = decoded[i];
+		out->cal[i].active_blocks = 80;
+		out->cal[i].gain_q16 = 98407u + i * 20000u;
+		out->cal[i].limited_blocks = (uint16_t)i;
 	}
 }
 #endif

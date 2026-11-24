@@ -475,7 +475,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 
 | Feature | Switch | Bytes DM-1701 | Bytes MD-380 | Notes |
 |---|---|---:|---:|---|
-| P25 local codec parrot | `P25_PARROT` | — | — | Opt-in, up to 10 seconds of local microphone encode/decode/playback with RMS meters. Shares recording RAM with the inactive engine; no transmission ([p25.md](spec/p25.md) 5.3) |
+| P25 AGC calibration | `P25_PARROT` | — | — | Opt-in temporary test: two seconds of conditioned PCM, repeated input-target sweeps and a verified recommendation for -25 dBFS decoded speech. Requires a compact memory profile; no transmission ([p25.md](spec/p25.md) 5.3) |
 | Audio path probe (debug link 0x10) | `AUDIO_PROBE` | 1,176* | — | Bench only, never in a release |
 | Air interface bench: raw symbols and tap samples (debug link 0x24) | `AIR_RAW` | 2,780* | — | Bench only, never in a release ([debuglink.md](spec/debuglink.md) 3.28) |
 | Voice capture for receive tests: the next 32 voice frames received, read over the debug link | `VOICE_CAPTURE` | 256* | 344* | Bench only, never in a release ([debuglink](spec/debuglink.md)) |

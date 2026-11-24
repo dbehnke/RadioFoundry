@@ -3280,14 +3280,14 @@ msgid "Recording"
 msgstr "正在录音"
 
 #: core/ui/ui_menus.c
+msgctxt "P25_CAL_MEASURING"
+msgid "Measuring"
+msgstr "测量中"
+
+#: core/ui/ui_menus.c
 msgctxt "P25_PARROT_PLAYING"
 msgid "Playing"
 msgstr "正在播放"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_DONE"
-msgid "Done: no RF"
-msgstr "完成：无射频"
 
 #: core/ui/ui_menus.c
 msgctxt "P25_PARROT_AUDIO_FAILED"
@@ -3295,119 +3295,39 @@ msgid "Audio failed"
 msgstr "音频失败"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_MODE"
-msgid "Mode"
-msgstr "模式"
+msgctxt "P25_CAL_TOO_SHORT"
+msgid "Too little speech"
+msgstr "语音太少"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_STOP_PLAY"
-msgid "Stop and play"
-msgstr "停止后播放"
+msgctxt "P25_CAL_MIC_CLIP"
+msgid "Mic clipped"
+msgstr "麦克风过载"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_RECORD"
-msgid "Record up to 10 s"
-msgstr "录音最多10秒"
+msgctxt "P25_CAL_LIMIT_EXCESS"
+msgid "Too much limiting"
+msgstr "限制过多"
 
 #: core/ui/ui_menus.c
-msgctxt "CODEC_DIAG_AGC"
-msgid "Codec AGC"
-msgstr "编解码 AGC"
+msgctxt "P25_CAL_UNVERIFIED"
+msgid "No verified target"
+msgstr "未确认目标"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_AGC"
-msgid "Input AGC"
-msgstr "输入自动增益"
+msgctxt "P25_PARROT_DONE"
+msgid "Done: no RF"
+msgstr "完成：无射频"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_ON"
-msgid "On"
-msgstr "开"
+msgctxt "P25_CAL_LEVELS"
+msgid "AGC / Enc / Dec dBFS"
+msgstr "AGC / 编 / 解 dBFS"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_OFF"
-msgid "Off"
-msgstr "关"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_TARGET"
-msgid "Target dBFS"
-msgstr "目标 dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_INPUT"
-msgid "Mic RMS dBFS"
-msgstr "麦克风RMS dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_ENCODER"
-msgid "Enc RMS dBFS"
-msgstr "编码RMS dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_OUTPUT"
-msgid "Dec RMS dBFS"
-msgstr "解码RMS dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_TEST_AGC"
-msgid "Test AGC"
-msgstr "测试AGC"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_TEST_TARGET"
-msgid "Test target dBFS"
-msgstr "测试目标dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_TEST_MIC"
-msgid "Test mic step"
-msgstr "测试麦克风级"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_MIC_PEAK"
-msgid "Mic peak dBFS"
-msgstr "麦克风峰值dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_ENC_PEAK"
-msgid "Enc peak dBFS"
-msgstr "编码峰值dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_DEC_PEAK"
-msgid "Dec peak dBFS"
-msgstr "解码峰值dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_GAIN"
-msgid "Last PCM gain"
-msgstr "最后PCM增益"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_LIMITED"
-msgid "Limited blocks"
-msgstr "限制次数"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_MIC_DC"
-msgid "Mic DC mean"
-msgstr "麦克风 DC 均值"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_DC_PEAK"
-msgid "Max block DC"
-msgstr "最大 DC 均值"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_RAILS"
-msgid "Mic rail samples"
-msgstr "麦克风上下限计数"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_MIC_AC"
-msgid "Mic AC dBFS"
-msgstr "麦克风 AC dBFS"
+msgctxt "P25_CAL_GAIN_LIMITS"
+msgid "AGC / Gain / Limited"
+msgstr "AGC / 增益 / 限制"
 
 #: core/ui/ui_menus.c
 msgctxt "P25_PARROT_MIC_SPEECH"
@@ -3415,69 +3335,59 @@ msgid "Mic speech dBFS"
 msgstr "麦克风语音 dBFS"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_ENC_SPEECH"
-msgid "Enc speech dBFS"
-msgstr "编码语音 dBFS"
+msgctxt "P25_PARROT_RAILS"
+msgid "Mic rail samples"
+msgstr "麦克风上下限计数"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_DEC_SPEECH"
-msgid "Dec speech dBFS"
-msgstr "解码语音 dBFS"
+msgctxt "P25_CAL_STARTUP_RAILS"
+msgid "Startup rails"
+msgstr "启动过载数"
 
 #: core/ui/ui_menus.c
-msgctxt "CODEC_DIAG_DC"
-msgid "DC removal"
-msgstr "消除 DC"
+msgctxt "P25_PARROT_MIC_DC"
+msgid "Mic DC mean"
+msgstr "麦克风 DC 均值"
 
 #: core/ui/ui_menus.c
-msgctxt "CODEC_DIAG_TEST_DC"
-msgid "Test DC removal"
-msgstr "测试消除 DC"
+msgctxt "P25_CAL_STOP"
+msgid "Stop recording"
+msgstr "停止录音"
 
 #: core/ui/ui_menus.c
-msgctxt "CODEC_DIAG_CONDITIONED"
-msgid "Cond RMS dBFS"
-msgstr "处理 RMS dBFS"
+msgctxt "P25_CAL_RECORD"
+msgid "Record speech"
+msgstr "录制语音"
 
 #: core/ui/ui_menus.c
-msgctxt "CODEC_DIAG_TEST_MODE"
-msgid "Test mode"
-msgstr "测试模式"
+msgctxt "P25_CAL_GOAL"
+msgid "Decode goal dBFS"
+msgstr "解码目标 dBFS"
 
 #: core/ui/ui_menus.c
-msgctxt "CODEC_DIAG_OPTIONS"
-msgid "Codec options"
-msgstr "编解码选项"
+msgctxt "P25_CAL_SPEAK"
+msgid "Speak normally"
+msgstr "请正常说话"
 
 #: core/ui/ui_menus.c
-msgctxt "CODEC_DIAG_FLAGS"
-msgid "Codec flags"
-msgstr "编解码标志"
+msgctxt "P25_CAL_SUGGESTED"
+msgid "AGC target dBFS"
+msgstr "AGC 目标 dBFS"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_MIC_BLOCKS"
-msgid "Mic active blocks"
-msgstr "麦克风有效组数"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_ENC_BLOCKS"
-msgid "Enc active blocks"
-msgstr "编码有效组数"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_DEC_BLOCKS"
-msgid "Dec active blocks"
-msgstr "解码有效组数"
+msgctxt "P25_CAL_CAPTURE_TIME"
+msgid "Capture time"
+msgstr "录音时长"
 
 #: core/ui/ui_menus.c
 msgctxt "P25_PARROT_TITLE"
-msgid "Codec diagnostic"
-msgstr "编解码测试"
+msgid "P25 calibration"
+msgstr "P25 校准"
 
 #: core/ui/ui_menus.c
 msgctxt "P25_PARROT_HINT"
-msgid "OK / Back: exit"
-msgstr "确定 / 返回：退出"
+msgid "Back: exit"
+msgstr "返回：退出"
 
 #: core/ui/ui_menus.c
 msgctxt "ROAM_VALUE_SYNCED"

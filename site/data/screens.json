@@ -926,13 +926,7 @@
     "P25_PARROT"
    ]
   },
-  "p25_parrot_conditioning": {
-   "group": "settings",
-   "needs": [
-    "P25_PARROT"
-   ]
-  },
-  "p25_parrot_ambe": {
+  "p25_parrot_gain": {
    "group": "settings",
    "needs": [
     "P25_PARROT"
