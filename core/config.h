@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // Feature switches (config/features.mk sets them for firmware builds; everything defaults on here, e.g. for host
 // tests). Always defined to 0 or 1: test with #if CONFIG_X, never #ifdef. See docs/build-config.md.
 #ifndef RFOUNDRY_CONFIG_H
@@ -227,6 +228,9 @@
 #endif
 #ifndef CONFIG_DUAL_WATCH
 #define CONFIG_DUAL_WATCH		CONFIG_SCAN
+#endif
+#ifndef CONFIG_TX_POWER_MENU
+#define CONFIG_TX_POWER_MENU		1
 #endif
 #ifndef CONFIG_KEY_ASSIGN
 #define CONFIG_KEY_ASSIGN		1

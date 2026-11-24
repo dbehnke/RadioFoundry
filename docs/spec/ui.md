@@ -697,8 +697,9 @@ HIL: `tests/hil/test_ui.py` (`tests/hil/README.md`) replays the main sequences o
 
 - Task flow 12 budgets 3 presses into the VFO, but flow 2 opens Zones on the current zone (so a zone two away is
   2 presses); the VFO row is first, so entering it takes 4 (OK 4 Up OK). The test uses 4; the owner decides.
-- Power on radios with many levels: the Quick tile cycles three presets (low, the board's default, highest); the full
-  list is in Settings.
+- With `CONFIG_TX_POWER_MENU`, the Quick Power tile opens the full board-provided level list; selecting applies
+  a temporary override and Back cancels. Settings > Talk & listen > Default TX power exposes Factory default and
+  every supported level. Without the switch, Quick cycles lowest, factory default and highest.
 - Long BACK on Home no longer opens diagnostics (P3: one meaning per key); they are in Tools 7. The firmware boots
   into Home.
 - The long-press and key-repeat times are stored in `settings_t` and handed to the input layer (`input_set_timing`,

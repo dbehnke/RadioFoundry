@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // What the codeplug editor shows for each kind of record: table columns, the full form of a record, and the
 // membership editor for zones and RX group lists. Setters parse what was typed and return an error text, or
 // nothing when the value was taken.
@@ -13,6 +14,7 @@ import { kindRow, kindName, offeredKinds } from "../codeplug/modes.js";
 import { setKind } from "../codeplug/channelmodes.js";
 import { specField } from "./modefields.js";
 import { combo, comboText } from "./combo.js";
+import { radioPowerOptions } from "../codeplug/power.js";
 
 // --- Parsers shared by the columns and the forms ---
 
@@ -141,7 +143,8 @@ export const toneCombo = (t) => () => ({
 	use: (v) => t("editor.tone.use", { tone: v || t("editor.none") }), noMatch: t("editor.tone.no_match"),
 });
 
-export function powerOptions(t) {
+export function powerOptions(t, power = null, row = {}, rows = null) {
+	if (power) return radioPowerOptions(t, power, row, rows);
 	const opts = [[0, t("editor.power.default")]];
 	for (let n = 1; n <= 10; n++) opts.push([n, POWER_NAMES[n] ? t(`editor.power.${POWER_NAMES[n].toLowerCase()}`) : t("editor.power.level", { n: n - 1 })]);
 	return opts;
@@ -159,7 +162,7 @@ const refLabel = (v, t) => (v == null ? "" : typeof v === "number" ? t("editor.m
 // table whose members are edited in its own dialog (zones, RX lists): Bulk Edit isn't offered there
 export const bulkColumns = (table, m, t, opts) => columns(table, m, t, opts).filter((c) => c.readOnly !== true && c.key !== "name" && c.key !== "number");
 
-export function columns(table, m, t, { features = null } = {}) {
+export function columns(table, m, t, { features = null, power = null } = {}) {
 	const col = (key, label, type, parse, extra = {}) => ({
 		key, label: t(label), type,
 		get: (r) => r[key],
@@ -201,7 +204,7 @@ export function columns(table, m, t, { features = null } = {}) {
 				return err;
 			}, { format: mhz, numeric: true })),
 			tx(own(col("txHz", "editor.col.tx", "text", txFreq(t), { format: mhz, numeric: true }))),
-			tx(col("power", "editor.col.power", "select", pick, { options: () => powerOptions(t) })),
+			tx(col("power", "editor.col.power", "select", pick, { options: (r) => powerOptions(t, power, r), bulkOptions: (rows) => powerOptions(t, power, {}, rows) })),
 			only("fm", col("bw", "editor.col.bw", "select", pick, { options: () => [[12.5, "12.5"], [25, "25"]] })),
 			only("fm", col("rxTone", "editor.col.rx_tone", "text", tone(t), { format: (v) => toneText(v, t), editValue: (v) => v, combo: toneCombo(t) })),
 			tx(only("fm", col("txTone", "editor.col.tx_tone", "text", tone(t), { format: (v) => toneText(v, t), editValue: (v) => v, combo: toneCombo(t) }))),
@@ -303,7 +306,7 @@ export function systemOptions(m, t, type, current, optional = false) {
 }
 
 // features: the connected radio's (null: none), which says the kinds a channel may be made
-export function channelForm(m, t, { features = null } = {}) {
+export function channelForm(m, t, { features = null, power = null } = {}) {
 	const sel = (key, label, options, extra = {}) => ({ key, label: t(label), type: "select", options, ...extra });
 	const chk = (key, label) => ({ key, label: t(label), type: "bool" });
 	const txt = (key, label, parse, format) => ({ key, label: t(label), type: "text", parse, format });
@@ -347,7 +350,7 @@ export function channelForm(m, t, { features = null } = {}) {
 		txt("name", "editor.col.name", name(LIMITS.name)(t)),
 		sel("mode", "editor.col.mode", mode.options, { get: mode.get, set: mode.set }),
 		{ type: "note", key: "kindNote", text: (value, w) => (w?.kind && !ownFreqs(w) ? t("editor.modes.freqs_system") : "") },
-		{ ...sel("power", "editor.col.power", () => powerOptions(t)), disabled: noTx },
+		{ ...sel("power", "editor.col.power", (r, value) => powerOptions(t, power, { ...r, txHz: value ? parseFreq(value("txHz")) ?? r.txHz : r.txHz })), dynamicOptions: true, disabled: noTx },
 		// in a receive-only band TX follows RX, locked (rxFreq); RX Only locks TX where it is
 		{ type: "pair", key: "freqs", show: ownFreqs, disabled: noTx,
 			fields: [txt("rxHz", "editor.col.rx", rxFreq(t), mhz), { ...txt("txHz", "editor.col.tx", txFreq(t), mhz), disabled: noTx, follows: "rxHz", followsIf: listening }], buttons: [
@@ -520,7 +523,7 @@ export function formDialog(title, fields, record, t, onSave, opts = {}) {
 			if (f.type === "select") {
 				if (f.dynamicOptions) {
 					const current = input._opts[input.selectedIndex]?.[0];
-					const options = f.options(work);
+					const options = f.options(work, value);
 					if (options.length !== input._opts.length || options.some(([v, l], i) => v !== input._opts[i][0] || l !== input._opts[i][1])) {
 						input.replaceChildren(...options.map(([, l], i) => h("option", { value: String(i) }, l)));
 						input.selectedIndex = Math.max(0, options.findIndex(([v]) => v === current));

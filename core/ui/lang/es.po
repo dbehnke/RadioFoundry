@@ -3548,6 +3548,21 @@ msgid "Crash report not sent"
 msgstr "Informe de fallo no enviado"
 
 #: core/ui/ui_menus.c
+msgctxt "POWER_VALUE_FACTORY_DEFAULT"
+msgid "Factory default"
+msgstr "Predeterminado de fábrica"
+
+#: core/ui/ui_menus.c
+msgctxt "SET_LABEL_DEFAULT_TX_POWER"
+msgid "Default TX power"
+msgstr "Potencia TX predeterminada"
+
+#: core/ui/ui_menus.c
+msgctxt "POWER_TITLE_TX_POWER"
+msgid "TX Power"
+msgstr "Potencia TX"
+
+#: core/ui/ui_menus.c
 msgctxt "TOOLS_HINT_OPEN_BACK"
 msgid " open  Back"
 msgstr " abrir  Atrás"

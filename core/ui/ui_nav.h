@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // Inside the UI: the navigation stack, the screen table and the helpers the screens share (ui_app.c, ui_menus.c,
 // ui_find.c). Not for other packages.
 #ifndef UI_NAV_H
@@ -48,6 +49,9 @@ typedef enum {
 	SCR_SIG_CHAIN,			// Settings > Signaling tones: one event's five steps (arg = sig_event_t)
 #if CONFIG_BACKLIGHT_TEST
 	SCR_BL_TEST,			// Settings > Advanced > Backlight tests
+#endif
+#if CONFIG_TX_POWER_MENU
+	SCR_POWER,			// all power levels: arg 0 temporary, 1 radio default
 #endif
 	SCR_COUNT
 } ui_scr_t;

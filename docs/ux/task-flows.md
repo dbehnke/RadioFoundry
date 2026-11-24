@@ -153,11 +153,12 @@ Banner is up (8 s): `CONTEXT` opens it. Banner gone: the status strip shows an e
 
 - Volume: the volume knob (analog on the reference radios). If the board reports the volume position, Home shows a volume bar for 1 s. No presses in firmware.
 - Squelch (FM): `QUICK`, `2`, `NAV_UP`/`NAV_DOWN` (live: hear it change), `QUICK` or `BACK` to close. Temporary; long `SELECT` saves.
-- Power: `QUICK`, `1` cycles levels (Low, Mid, High; each press advances, voice "Power high"). `BACK` closes.
+- Power: `QUICK`, `1` opens every supported level; `NAV_UP`/`NAV_DOWN` chooses and `SELECT` applies it.
+  `BACK` cancels. The saved radio-wide default is in Settings > Talk & listen > Default TX power.
 
 | | K | M | V | F | Budget |
 |---|---|---|---|---|---|
-| Power one step | 3 (`*`,`1`,`BACK`) | 3 | 3 | 4 | 3 |
+| Power one step | 4 (`*`,`1`,`DOWN`,`OK`) | 4 | 4 | 4 | 4 |
 | Squelch 2 steps | 5 | 5 | 5 | 6 | 5 |
 
 ## 10. Enable privacy

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The USB debug link (docs/spec/debuglink.md): framed commands on the host port, beside the MMDVM hotspot and the CPS
 // protocol (core/hostlink), for bench automation: version, diagnostics and counters, the radio view as key=value
 // text, screenshots, key and PTT injection, radio requests, a log ring. CONFIG_DEBUGLINK.
@@ -58,6 +59,7 @@ enum {
 	DL_VIEW_P25,		// P25 on the channel: the call, settings, engine and voice counters (debuglink_view_p25.c)
 	DL_VIEW_P25_TRUNK,	// a trunked P25 channel's follower: system, channels, call followed, counters (the same file)
 	DL_VIEW_NXDN,		// NXDN on the channel: the call, settings, the provider's fit, engine counters (debuglink_view_nxdn.c)
+	DL_VIEW_POWER,		// complete supported power labels and the configured default
 	DL_VIEW_COUNT
 };
 #define DL_VIEW_VERSION		5	// bumped when a key changes meaning or goes away (new keys don't bump it)
@@ -82,6 +84,8 @@ void debuglink_dmr_reset(void);
 // returns a DL_ST_* status)
 void debuglink_view_radio(const radio_view_t *v, dl_text_t *t);
 void debuglink_view_audio(dl_text_t *t);
+// Board-provided power labels and the effective configured default (the power section).
+void debuglink_view_power(dl_text_t *t);
 // The p25 section (debuglink_view_p25.c; "p25.built=0" without CONFIG_P25) and its counter reset
 void debuglink_view_p25(const radio_view_t *v, dl_text_t *t);
 // The p25_trunk section ("p25t.built=0" without CONFIG_P25_TRUNK)

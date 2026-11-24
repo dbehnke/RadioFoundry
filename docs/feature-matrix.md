@@ -145,6 +145,7 @@ is `tools/bringup.py list --radio <id>`.
 | `ui_navigation` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | pass, needs re-run |
 | `key_lock` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | ✕ |
 | `channel_knob` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass | pass |
+| `tx_power_menu` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `ui_settings` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | partial, needs re-run | ✕ |
 | `diag` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | ✕ |
 | `backlight_test` | off | off | off | off | off | off | off | ✕ |
@@ -298,6 +299,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | `GPS_SKY` | ● | ● | ✕ | ● | ● | ● | ● | ✕ |
 | `SATELLITE_TLE` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `KEY_ASSIGN` | ● | ● | ● | ● | ● | ● | ● | ● |
+| `TX_POWER_MENU` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `CHANNEL_LIST` | ● | ● | ● | ● | ● | ● | ● | ✕ |
 | `CHANNEL_EDIT` | ● | ● | ● | ● | ● | ● | ● | ✕ |
 | `ZONE_EDIT` | ● | ● | ● | ● | ● | ● | ● | ✕ |

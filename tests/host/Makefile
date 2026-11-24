@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 The RadioFoundry Authors
 # Copyright (c) 2026 Open25-DM32 Authors
+# Copyright (c) 2026 David Behnke
 ## Host unit tests for the hardware independent parts of the firmware
 ##
 ##   make -C tests/host
@@ -721,7 +722,11 @@ UIFLAGS := -std=gnu99 -Wall -Wextra -Wno-unused-parameter -Wshadow -g $(COVFLAGS
            '-DGFX_FB_BYTES=(320u*320u*2u)' -DGFX_MAX_ROWS=320 -DCONFIG_FONT_XL=1 -DFONT_BOTH -DGFX_INDEXED=1 -DGFX_FIT_TRACE
 UIDEPS  := $(UIAPP) $(ABOUT_H) $(LANG_H) $(wildcard $(CORE)/ui/*.h $(CORE)/ui/fonts/*.inc sim/ui_sim.h)
 TESTS   += uiFlowTest uiFlowTestNoColor uiSim
-TESTS   += uiFlowTestSatellite
+TESTS   += uiFlowTestSatellite uiFlowTestNoPowerMenu
+
+uiFlowTestNoPowerMenu: uiFlowTest.c $(UIDEPS)
+	$(CC) $(UIFLAGS) -DCONFIG_TX_POWER_MENU=0 -o $@ uiFlowTest.c $(UIAPP) -lz
+
 
 uiFlowTest: uiFlowTest.c $(UIDEPS)
 	$(CC) $(UIFLAGS) -DCONFIG_P25=1 -DCONFIG_P25_TRUNK=1 -DCONFIG_NXDN=1 -o $@ uiFlowTest.c $(UIAPP) -lz
@@ -778,7 +783,7 @@ ui-sheets: uiSim
 	UI_GALLERY_COLORS="$(UI_GALLERY_COLORS)" ./uiSim --sheets out/sheets $(GEOM)
 
 run: run-ui
-run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault uiFlowTest uiFlowTestNoColor uiFlowTestSatellite uiSim beepReel
+run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault uiFlowTest uiFlowTestNoColor uiFlowTestSatellite uiFlowTestNoPowerMenu uiSim beepReel
 	./gfxTest
 	./gfxTestZh
 	./gfxFbEdgeTest
@@ -787,6 +792,7 @@ run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault 
 	./i18nTestDefault
 	./uiFlowTest
 	./uiFlowTestNoColor
+	./uiFlowTestNoPowerMenu
 	./uiFlowTestSatellite
 	./uiSim --layout
 	./beepReel --out out/beep-reel --no-frames > /dev/null	# checks every beep has a scene and the scenes still run
@@ -1931,3 +1937,13 @@ run: run-hrc-pcm
 run-hrc-pcm: hrc7000PcmTest
 	./hrc7000PcmTest
 .PHONY: run-hrc-pcm
+
+# Runtime power metadata has its own bounded GET_VIEW section.
+TESTS   += powerViewTest
+POWERVIEW := powerViewTest.c $(CORE)/debuglink/debuglink_view_power.c $(CORE)/debuglink/dl_fmt.c
+powerViewTest: $(POWERVIEW) $(ROOT)/hal/board.h $(CORE)/settings/settings.h $(wildcard $(CORE)/debuglink/*.h)
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -o $@ $(POWERVIEW)
+run: run-powerview
+run-powerview: powerViewTest
+	./powerViewTest
+.PHONY: run-powerview

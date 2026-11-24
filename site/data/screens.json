@@ -932,6 +932,26 @@
    "needs": [
     "UI_SETTINGS"
    ]
+  },
+  "channel_power_default": {
+   "group": "channels",
+   "needs": [
+    "CHANNEL_LIST",
+    "CHANNEL_EDIT"
+   ]
+  },
+  "power_default": {
+   "group": "settings",
+   "needs": [
+    "TX_POWER_MENU",
+    "UI_SETTINGS"
+   ]
+  },
+  "power_quick": {
+   "group": "home",
+   "needs": [
+    "TX_POWER_MENU"
+   ]
   }
  }
 }

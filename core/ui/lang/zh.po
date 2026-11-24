@@ -3550,6 +3550,21 @@ msgid "Crash report not sent"
 msgstr "崩溃报告未发送"
 
 #: core/ui/ui_menus.c
+msgctxt "POWER_VALUE_FACTORY_DEFAULT"
+msgid "Factory default"
+msgstr "出厂默认"
+
+#: core/ui/ui_menus.c
+msgctxt "SET_LABEL_DEFAULT_TX_POWER"
+msgid "Default TX power"
+msgstr "默认发射功率"
+
+#: core/ui/ui_menus.c
+msgctxt "POWER_TITLE_TX_POWER"
+msgid "TX Power"
+msgstr "发射功率"
+
+#: core/ui/ui_menus.c
 msgctxt "TOOLS_HINT_OPEN_BACK"
 msgid " open  Back"
 msgstr " 打开  返回"

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The automated UI checks of docs/ux/usability-tests.md 2, in the host simulator:
 // - press budgets: each task flow of docs/ux/task-flows.md as a script on the reference key maps, at most its budget
 //   (impossible on a key map that should have it = failure);
@@ -323,7 +324,20 @@ static const flow_t flows[] = {
 #endif
 	{ "8 radio check last caller", CALLER, "ctx 4", "checks=1", 2, false },
 	{ "8 radio check by name", "", "5 6 3 ctx 4", "checks=1", 5, false },
+#if CONFIG_TX_POWER_MENU
+	{ "9 power opens every level", "", "quick 1", "screen=power focus=1W", 2, false },
+	{ "9 power selects intermediate level", "quick 1", "down ok back", "power=5 screen=home temporary=1", 3, false },
+	{ "9 power picker cancels", "quick 1", "down back back", "power=4 screen=home temporary=0", 3, false },
+	{ "S default power opens all levels and factory", "", "ok 7 3 up ok", "screen=power focus=Factory_default", 5, false },
+	{ "S default power saves an explicit level", "ok 7 3 up ok", "down down ok", "masterpower=1 screen=group", 3, false },
+	{ "S default power cancellation preserves setting", "ok 7 3 up ok", "down down back", "masterpower=-1 screen=group", 3, false },
+	{ "S default power restores factory inheritance", "ok 7 3 up ok down down ok ok", "up up ok", "masterpower=-1 screen=group", 3, false },
+	{ "S inherited master power has no temporary dot", "ok 7 3 up ok down down ok long:back", "quick", "power=1 powerdot=0", 1, false },
+	{ "S changed power has a temporary dot", "ok 7 3 up ok down down ok long:back", "quick 1 down ok", "power=2 powerdot=1", 4, false },
+	{ "S channel power names inherited master level", "ok 7 3 up ok down down ok long:back", "ok 5 ok down down down down down", "shows=Radio's_(250mW)", 8, false },
+#else
 	{ "9 power one step", "", "quick 1 back", "power=8 screen=home", 3, false },
+#endif
 	{ "9 squelch 2 steps (FM)", "down", "quick 2 up up back", "sq=7 screen=home", 5, false },
 #if CONFIG_DMR && CONFIG_DMR_PRIVACY
 	{ "10 privacy", "", "quick 6 back", "privacy=1 screen=home", 3, false },
@@ -779,8 +793,13 @@ static const flow_t flows[] = {
 	  "writes=0 toast=Old_codeplug_kept", 3, false },
 	{ "20 foreign codeplug: after Use anyway a save writes", "foreign quick 2 long:ok down down ok", "long:ok",
 	  "writes=1", 1, true },
+#if CONFIG_TX_POWER_MENU
+	{ "20 VFO Quick save explains itself", "ok 4 up ok", "quick 1 down ok long:ok",
+	  "vfo=1 toast=VFO_settings_save_automatically writes=0", 5, false },
+#else
 	{ "20 VFO Quick save explains itself", "ok 4 up ok", "quick 1 long:ok",
 	  "vfo=1 toast=VFO_settings_save_automatically writes=0", 3, false },
+#endif
 	// Settings the radio core acts on reach it (ui_svc_apply), key presses ask for a key beep
 	{ "S TX timeout to the radio", "", "ok 7 3 down ok", "radio_tot=300", 5, false },
 	{ "S backlight time to the radio", "", "ok 7 2 down ok", "radio_backlight=60", 5, false },

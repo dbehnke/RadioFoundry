@@ -2403,5 +2403,8 @@
  "editor.sig.play": "Reproducir",
  "editor.sig.roll": "La cadena como tono a lo largo del tiempo, {ms} ms",
  "editor.sig.no_audio": "Sin audio aquí",
- "editor.sig.empty": "Sin pasos: el sonido estándar"
+ "editor.sig.empty": "Sin pasos: el sonido estándar",
+ "screen.channel_power_default": "Editor de canal: heredar la potencia predeterminada de la radio",
+ "screen.power_default": "Ajustes: elegir la potencia de transmisión predeterminada",
+ "screen.power_quick": "Ajustes rápidos: elegir cualquier potencia de transmisión compatible"
 }

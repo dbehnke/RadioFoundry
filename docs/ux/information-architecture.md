@@ -130,7 +130,7 @@ Contacts, Recent and Messages are the "people" side, Zones, Channels and Tools t
 
 | Key | DMR channel | FM channel |
 |---|---|---|
-| 1 | Power (each press cycles levels) | Power |
+| 1 | Power (full supported-level picker) | Power |
 | 2 | Timeslot 1/2 | Squelch level |
 | 3 | Color code | Tone (CTCSS/DCS, RX and TX) |
 | 4 | To VFO (copy the channel to the VFO and open it) | To VFO |

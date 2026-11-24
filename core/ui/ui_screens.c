@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // Home, quick settings and the boot splash, laid out from the display size (docs/ux/information-architecture.md 3, 5;
 // docs/ux/wireframes). Regions top to bottom: status strip, place, talk target, activity, hint row.
 #include <string.h>
@@ -269,9 +270,17 @@ const char *ui_power_name(uint8_t p, uint32_t tx_hz)
 	return board_power_name(p, tx_hz);
 }
 
+uint8_t ui_default_power(void)
+{
+	int32_t p = ui_svc_setting_get(UI_SET_MASTER_POWER);
+	if (p >= 0 && p < board.power_count)
+		return (uint8_t)p;
+	return board.power_default < board.power_count ? board.power_default : board.power_count ? board.power_count - 1u : 0;
+}
+
 static uint8_t channel_power(const radio_view_t *v)
 {
-	return v->ch.power == CODEPLUG_POWER_DEFAULT ? board.power_default : v->ch.power;
+	return v->ch.power >= board.power_count ? ui_default_power() : v->ch.power;
 }
 
 void ui_bands_text(char *out, size_t len, bool tx)

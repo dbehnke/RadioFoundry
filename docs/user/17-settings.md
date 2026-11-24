@@ -69,6 +69,7 @@ Some settings are on the menu before the feature behind them exists, or don't ap
 |---|---|---|---|---|
 | Reply window | 0 to 30 s | The codeplug's hang time, else 10 s | How long **PTT** answers the last call ([DMR](09-dmr.md#replying)). 0 turns it off | Works |
 | TX timeout | Off, 30 s, 1, 2, 3, 5, 10 min | 3 min | Longest transmission, for channels without their own timeout in the codeplug | Works |
+| Default TX power | Factory default, each supported level | Factory default | Power inherited by channels set to Radio's. Explicit channel levels and the VFO keep their own power. A change reloads the current channel, clearing temporary changes. Requires `CONFIG_TX_POWER_MENU` | Host tested; hardware checks pending |
 | Default squelch | 0 to 9 | 5 | The FM squelch level when a channel doesn't set one | Works |
 | VFO step | Auto, 2.5, 5, 6.25, 8.33, 10, 12.5, 20, 25, 50, 100 kHz | Auto | The step of Up, Down and the knob in the VFO. Auto is 25 kHz at width 25K and in AM, else 12.5 kHz. Only on radios with a VFO | Works |
 | FM broadcast step | 200 kHz, 100 kHz | 200 kHz | The VFO step in the broadcast band. 200 kHz lands on the odd tenths (88.1, 88.3), the stations in the Americas. You can still type any frequency. Only on radios with a broadcast receiver ([Air band and FM broadcast](07-channels-zones-vfo.md#air-band-and-fm-broadcast)) | Works |

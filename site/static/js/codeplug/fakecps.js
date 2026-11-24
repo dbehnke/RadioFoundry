@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // A simulated RadioFoundry radio as the codeplug editor sees it: the debug link VERSION answer and the open-firmware CPS
 // (reads, sector writes, C 5), on a data flash with the codeplug at a base address. Writes outside the codeplug's
 // room are refused as the radio refuses them (cps-protocol.md 2.3). For the tests and the page's #sim mode.
@@ -14,10 +15,10 @@ export class FakeCpsRadio {
 	// release: VERSION's release, for a radio that runs one. gitTime: VERSION's git_time, 0 for none. noMap: a memory chip
 	// smaller than the board's flash map needs: no settings region (STORAGE answers unavailable). region: the STORAGE
 	// INFO region byte instead of ours or foreign (0: a map whose flash didn't start). radioInfo: area 9
-	// answered, with the chip's size (core/cps/cps_openfw.c)
+	// answered, with the chip's size (core/cps/cps_openfw.c). views: optional GET_VIEW sections, indexed by section number.
 	constructor({ board = "DM-1701", base = 0, end = 0xE00000, size = 0x1000000, image = null, cable = false, foreign = false, uid = 0x11,
-		features = "FM,DMR", release = null, gitTime = 0, noMap = false, radioInfo = false, region = null } = {}) {
-		Object.assign(this, { board, base, end, cable, foreign, uid, features, release, gitTime, noMap, radioInfo, region });
+		features = "FM,DMR", release = null, gitTime = 0, noMap = false, radioInfo = false, region = null, views = {} } = {}) {
+		Object.assign(this, { board, base, end, cable, foreign, uid, features, release, gitTime, noMap, radioInfo, region, views });
 		this.spi = new Uint8Array(size).fill(0xFF);
 		if (image) this.spi.set(image.subarray(0, Math.min(image.length, end - base)), base);
 		this.writes = [];		// [addr, length] of every X 2
@@ -40,6 +41,11 @@ export class FakeCpsRadio {
 				return frame(0x82, f.seq, concat(new Uint8Array([0]), new TextEncoder().encode(text)));
 			}
 			const ok = (...b) => frame(f.cmd | 0x80, f.seq, new Uint8Array([0, ...b]));
+			if (f?.cmd === 0x09) {
+				const view = this.views[f.payload[0]];
+				if (!view) return frame(0x89, f.seq, new Uint8Array([2]));
+				return ok(0, 0, 0, 0, view.next ?? 255, ...new TextEncoder().encode(view.text));
+			}
 			if (f?.cmd === 0x0B) return ok(...new Uint8Array(28).fill(this.uid));	// INFO_CHIP: the UID's low word 0x11111111 by default
 			if (f?.cmd === 0x0F && this.noMap) return frame(0x8F, f.seq, new Uint8Array([4]));
 			if (f?.cmd === 0x0F && f.payload[0] === 0) return ok(this.region ?? (this.foreign ? 2 : 1), 0, ...new Uint8Array(24));

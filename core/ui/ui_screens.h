@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // Screen drawing (docs/ux/wireframes): layout from the display size, no task or input code, so host tests and the
 // host simulator can render any screen at any geometry
 #ifndef UI_SCREENS_H
@@ -300,6 +301,7 @@ uint32_t ui_freq_parse(const char *digits, uint8_t len);
 void ui_bands_text(char *out, size_t len, bool tx);
 // The board's power level name
 const char *ui_power_name(uint8_t level, uint32_t tx_hz);
+uint8_t ui_default_power(void);
 // A call from a dialing gateway on the trunked system in use (CONFIG_DMR_TRUNK_GW): the caller's number it gave
 // (dmr-trunking.md 7.6), else "Phone line"; false (nothing written) for any other source
 bool ui_sb_gw_caller(sbuf_t *b, uint32_t src);

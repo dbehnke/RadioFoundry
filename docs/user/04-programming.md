@@ -221,6 +221,11 @@ plan entry the radio uses the plan the control channel sends.
 follows calls to every talk group, not just the channel's. **Fallback channel** is kept in the codeplug; the radio
 doesn't use it yet and keeps hunting for a control channel. A trunked channel has no frequencies of its own.
 
+When connected to firmware that reports its power levels, the channel **Power** selector shows that radio's
+supported levels, with labels for the channel's transmit band. **Radio default** inherits its saved default.
+Without that metadata, the editor keeps the portable Min/Low/Mid/High/Max and numbered scale; the numbers
+are relative steps, not watts. Several portable steps may map to the same level on a radio with fewer levels.
+
 ### Files
 
 **Open File** takes:

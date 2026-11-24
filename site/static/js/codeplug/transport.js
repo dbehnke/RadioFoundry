@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // How the codeplug editor reaches a radio. A transport reads the codeplug's regions into an image and writes back
 // the bytes that changed; the page doesn't care how. Today there is one, "cps-serial", over the radio's USB serial port
 // or the programming cable. It speaks the fast codeplug protocol (docs/spec/cps-fast.md, fastlink.js: 4 KB blocks
@@ -13,11 +14,12 @@
 import { CodeplugImage, EDITOR_REGIONS, IDDB_HEADER, CODEPLUG_SPAN } from "./image.js";
 import { readHeader, extent, AREA1, AREA1_SIZE, AREA2 } from "./iddb.js";
 import { GENERAL, BOOT_TEXT } from "./records.js";
-import { Link, probe, whyNoAnswer } from "../flasher/link.js";
+import { Link, CMD, probe, whyNoAnswer } from "../flasher/link.js";
 import { crc32, sleep } from "../flasher/bytes.js";
 import { encodeBlock } from "../flasher/lz4.js";
 import { FastLink, FastError, BLOCK, REASON } from "./fastlink.js";
 import { note } from "../diag.js";
+import { powerProfile } from "./power.js";
 
 export class TransportError extends Error {
 	constructor(code, params = {}) {
@@ -153,6 +155,25 @@ export class CpsSerial {
 		this.radio = radio;
 		this.base = radio.codeplug.base;
 		this.probe = p;
+		// Older firmware has no complete level metadata: keep the portable generic choices there.
+		this.power = null;
+		try {
+			// Power is appended after the original 39 views. Forks may append their own views first;
+			// follow their next-section links rather than assigning meaning to an occupied index.
+			let section = 39;
+			for (let tries = 0; tries < 8; tries++) {
+				const view = await this.link.request(CMD.GET_VIEW, new Uint8Array([section]));
+				if (view.length < 5) break;
+				const text = new TextDecoder().decode(view.subarray(5));
+				if (/^section=power\r?$/m.test(text)) {
+					this.power = powerProfile(text);
+					break;
+				}
+				const next = view[4];
+				if (next <= section || next === 255) break;
+				section = next;
+			}
+		} catch { /* optional metadata, never blocks reading a codeplug */ }
 		const features = String(p.features || "").split(",");
 		this.compact = features.includes("IDDB_COMPACT");
 		this.fast = null;

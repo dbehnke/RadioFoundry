@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // What the UI needs from packages it doesn't own, as thin calls. ui_svc_stub.c defines every one weakly with a
 // harmless "not in this build" behavior, so the UI builds and runs alone; the owning package defines the real one
 // (a strong definition replaces the weak one at link time). docs/spec/ui.md lists who owns what.
@@ -459,6 +460,7 @@ typedef enum {
 	// One step of a chain, set whole (its frequency and length in one write of the settings area): the value is
 	// UI_SIG_STEP(event, step, Hz, ms). Write only
 	UI_SET_SIG_STEP,
+	UI_SET_MASTER_POWER,	// -1 factory default, else a board power level for default channels
 	UI_SET_COUNT
 } ui_setting_t;
 

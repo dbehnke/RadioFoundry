@@ -187,8 +187,8 @@ haven't been measured with a wattmeter.
 
 | Way to change it | Levels |
 |---|---|
-| A channel without a power in the codeplug | 1 W |
-| **\***, **1** | 100 mW, 1 W, 5 W |
+| A channel without a power in the codeplug | 1 W unless Default TX power is changed |
+| **\***, **1** | All five in a picker |
 | SK3 on Home | All five, one per press |
 
 ### DM-1701 battery
@@ -379,7 +379,7 @@ No **P1**, **P2**, **SK3** or top key, so no **Power level** or zone keys and no
 ### MD-UV380 power levels
 
 Nine levels: 50 mW, 250 mW, 500 mW, 750 mW, 1 W, 2 W, 3 W, 4 W, 5 W. On the MD-UV390 Plus 10 W image the top four are
-2, 3, 5 and 10 W. A channel without a power in the codeplug uses 1 W. The radio refuses to transmit without a valid factory calibration.
+2, 3, 5 and 10 W. A channel without a power in the codeplug uses 1 W unless Default TX power is changed. The radio refuses to transmit without a valid factory calibration.
 
 ### MD-UV380 battery
 
@@ -441,8 +441,8 @@ hold), or change the power with **\***, **1**.
 ### DM-32UV power levels
 
 Five levels, L-, L, M, M+, H, from the radio's factory calibration. The radio is rated 5 W (VHF) and
-4 W (UHF) at high power. The levels haven't been measured. A channel without a power in the codeplug uses L.
-**\***, **1** steps through L-, L and H.
+4 W (UHF) at high power. The levels haven't been measured. A channel without a power in the codeplug uses L unless Default TX power is changed.
+**\***, **1** opens all five levels in a picker.
 
 ### DM-32UV battery
 

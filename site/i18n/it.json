@@ -2403,5 +2403,8 @@
  "editor.sig.play": "Riproduci",
  "editor.sig.roll": "La catena come tono nel tempo, {ms} ms",
  "editor.sig.no_audio": "Nessun audio qui",
- "editor.sig.empty": "Nessun passo: il suono standard"
+ "editor.sig.empty": "Nessun passo: il suono standard",
+ "screen.channel_power_default": "Editor canale: uso della potenza predefinita della radio",
+ "screen.power_default": "Impostazioni: scelta della potenza di trasmissione predefinita",
+ "screen.power_quick": "Impostazioni rapide: scelta di qualsiasi potenza di trasmissione supportata"
 }
