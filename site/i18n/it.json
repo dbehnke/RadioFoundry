@@ -308,6 +308,7 @@
  "screen.p25_parrot": "Test pappagallo del codec P25",
  "screen.p25_parrot_levels": "Livelli del test P25",
  "screen.p25_parrot_report": "Risultati del test P25",
+ "screen.p25_parrot_speech": "Livelli CC e voce della prova P25",
  "screen.freq_trim": "Trim di frequenza",
  "screen.freq_trim_typing": "Digitazione di un trim di frequenza",
  "screen.crash_log": "Log dei crash",

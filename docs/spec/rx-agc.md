@@ -26,7 +26,9 @@ maximum gain change of 3 dB per block, using the cumulative mean energy of those
 exponential energy average with weight 1/75 for each new block (about 1.5 seconds of active audio). Boost then moves at no more than about 1 dB per second of active audio. Attenuation can move up to 1 dB per
 block, so a quiet lead-in or stale caller estimate cannot leave a loud voice boosted for seconds. Both directions
 follow the averaged input, rather than individual blocks. An error within 0.5 dB holds the gain.
-The controller, display and caller history use this same input estimate. Pauses and concealed frames freeze the
+The controller, display and caller history use this same input estimate. The power, logarithm and averaging
+functions in `core/dsp/speech_meter.h` also supply the local codec diagnostic; diagnostics do not publish receive
+views, change gain or update caller history. Pauses and concealed frames freeze the
 averages and the requested gain; normal syllable dynamics remain in the output.
 Gain is bounded to -24 through +24 dB. Samples are ramped within each block; a peak ceiling of -1 dBFS overrides the
 ramp immediately when necessary. The target is best effort when the gain bounds or safety ceilings intervene.

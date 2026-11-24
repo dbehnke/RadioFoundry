@@ -308,6 +308,7 @@
  "screen.p25_parrot": "P25 编解码回放测试",
  "screen.p25_parrot_levels": "P25 回放测试电平",
  "screen.p25_parrot_report": "P25 回放测试报告",
+ "screen.p25_parrot_speech": "P25 回放 DC 与语音电平",
  "screen.freq_trim": "频率微调",
  "screen.freq_trim_typing": "输入频率微调",
  "screen.crash_log": "崩溃日志",

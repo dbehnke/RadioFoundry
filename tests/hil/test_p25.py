@@ -1138,3 +1138,23 @@ def test_p25_trunk_rx(radio, sdr_bench, sdr_bench_2, backup_dir, pytestconfig):
     assert grew("p25.tx_calls") == 0 and grew("p25t.bursts") == 0, "the radio sent something"
     if "p25v.frames" in v1 and v1.get("p25v.built") == "1":
         assert grew("p25v.frames") > 0, "no voice frame played"
+
+
+@pytest.mark.feature("p25_parrot")
+def test_p25_parrot_level_report(radio):
+    """Read an owner-created completed local capture; never open audio or key the transmitter."""
+    values = radio.view(["p25"])
+    if int(values.get("p25parrot.built", 0)) != 1:
+        skip("not_built", "CONFIG_P25_PARROT is off")
+    if int(values.get("p25parrot.state", 0)) != 4:
+        skip("state", "owner must finish a local codec diagnostic capture first")
+    if "p25parrot.mic_mean" not in values:
+        skip("not_built", "firmware predates the extended codec level report")
+    frames = int(values["p25parrot.frames"])
+    assert 0 <= frames <= 500
+    assert -32768 <= int(values["p25parrot.mic_mean"]) <= 32767
+    assert 0 <= int(values["p25parrot.mic_dc_peak"]) <= 32768
+    assert 0 <= int(values["p25parrot.rail_samples"]) <= frames * 160
+    for index in range(3):
+        assert 0 <= int(values[f"p25parrot.speech{index}_blocks"]) <= frames
+        assert -960 <= int(values[f"p25parrot.speech{index}_db10"]) <= 1

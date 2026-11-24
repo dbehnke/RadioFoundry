@@ -308,6 +308,7 @@
  "screen.p25_parrot": "Prueba de eco del códec P25",
  "screen.p25_parrot_levels": "Niveles de la prueba P25",
  "screen.p25_parrot_report": "Informe de la prueba P25",
+ "screen.p25_parrot_speech": "Niveles de CC y voz de la prueba P25",
  "screen.freq_trim": "Ajuste fino de frecuencia",
  "screen.freq_trim_typing": "Escribir un ajuste fino de frecuencia",
  "screen.crash_log": "Registro de fallos",

@@ -527,6 +527,104 @@ static void testParrotMatchesTx(void)
 	p25VoiceEnd();
 }
 
+// Matching settings must exercise identical encoding in the diagnostic and live TX.
+static void testParrotAgcMatchesTx(void)
+{
+#if CONFIG_P25_TX_AGC
+	static uint8_t frames[500][IMBE_BYTES], transmitted[60][IMBE_BYTES];
+	int16_t mic[160], out[160];
+	begin();
+	p25VoiceSetAgc(true);
+	p25VoiceTx(true);
+	for (unsigned b = 0; b < 60; b++) {
+		for (unsigned i = 0; i < 160; i++) mic[i] = (int16_t)((i % 40 < 20 ? 700 : -700) + (b < 30 ? 2500 : -2500));
+		p25VoiceAudioBlock(mic, out, NULL);
+		CHECK(hk->tx_voice(transmitted[b], NULL), "missing live AGC frame");
+	}
+	p25VoiceEnd();
+	p25VoiceBegin(&vmem);
+	p25VoiceParrotReady(frames, 217, frames + 217);
+	CHECK(p25VoiceParrotCapture(true, -25, 5, false), "AGC parity capture refused");
+	for (unsigned b = 0; b < 60; b++) {
+		for (unsigned i = 0; i < 160; i++) mic[i] = (int16_t)((i % 40 < 20 ? 700 : -700) + (b < 30 ? 2500 : -2500));
+		p25VoiceAudioBlock(mic, out, NULL);
+		CHECK(memcmp(transmitted[b], frames[b], IMBE_BYTES) == 0, "AGC frame %u differs from live TX", b);
+	}
+	p25VoiceEnd();
+#endif
+}
+
+// Compare the diagnostic's decoded estimate with the real receive controller, with RX gain Off.
+static void testParrotMeters(void)
+{
+	static uint8_t frames[500][IMBE_BYTES];
+	p25_parrot_view_t v;
+	for (int polarity = -1; polarity <= 1; polarity += 2) {
+		begin();
+		p25VoiceParrotReady(frames, 217, frames + 217);
+		CHECK(p25VoiceParrotCapture(false, -25, 5, false), "meter capture refused");
+		int16_t mic[160], out[160];
+		for (unsigned block = 0; block < 40; block++) {
+			for (unsigned i = 0; i < 160; i++) mic[i] = (int16_t)(polarity * 2500 + (i % 40 < 20 ? 1000 : -1000));
+			p25VoiceAudioBlock(mic, out, NULL);
+		}
+		p25VoiceParrotView(&v);
+		CHECK(v.mic_mean == polarity * 2500 && v.mic_dc_peak == 2500, "DC %d/%u", v.mic_mean, v.mic_dc_peak);
+		CHECK(abs(v.mic_ac_db10 + 303) <= 2, "centered RMS %d", v.mic_ac_db10);
+		CHECK(v.input_rail_samples == 0 && v.speech_blocks[0] == 40, "capture count");
+		int16_t speech = v.speech_db10[0], ac = v.mic_ac_db10;
+		memset(mic, 0, sizeof mic);
+		for (unsigned block = 0; block < 20; block++) p25VoiceAudioBlock(mic, out, NULL);
+		p25VoiceParrotView(&v);
+		CHECK(v.speech_blocks[0] == 40 && v.speech_db10[0] == speech, "pauses changed speech estimate");
+		CHECK(v.mic_ac_db10 < ac - 15, "whole-capture RMS did not include pauses");
+		p25VoiceParrotStop();
+		p25VoiceAudioBlock(mic, out, NULL);
+#if CONFIG_RX_AGC
+		rx_agc_reset();
+		rx_agc_t reference;
+		rx_agc_begin(&reference, RX_AGC_P25, 0, 0);
+#endif
+		for (unsigned block = 0; block < 60; block++) {
+			p25VoiceAudioBlock(mic, out, NULL);
+#if CONFIG_RX_AGC
+			rx_agc_process(&reference, out, true);
+#endif
+		}
+		p25VoiceParrotView(&v);
+#if CONFIG_RX_AGC
+		CHECK(v.speech_blocks[2] >= 15, "decoded comparison never acquired speech");
+		CHECK(v.speech_blocks[2] == reference.speech_blocks, "RX qualifying count mismatch");
+		CHECK(v.speech_db10[2] == reference.input_q8 * 10 / 256, "RX estimator mismatch %d/%d", v.speech_db10[2], reference.input_q8);
+#endif
+		p25VoiceEnd();
+	}
+	// A changing bias must remain visible even when its signed recording mean cancels.
+	begin();
+	p25VoiceParrotReady(frames, 217, frames + 217);
+	CHECK(p25VoiceParrotCapture(false, -25, 5, false), "rail capture refused");
+	int16_t mic[160], out[160];
+	for (unsigned b = 0; b < 2; b++) {
+		for (unsigned i = 0; i < 160; i++) mic[i] = b ? -32768 : 32767;
+		p25VoiceAudioBlock(mic, out, NULL);
+	}
+	p25VoiceParrotView(&v);
+	CHECK(v.mic_mean == 0 && v.mic_dc_peak == 32768 && v.input_rail_samples == 320, "changing DC/rail report");
+	CHECK(v.mic_ac_db10 == -960 && v.speech_blocks[0] == 0, "DC alone counted as speech");
+	CHECK(p25VoiceParrotCapture(false, -25, 5, false) == false, "capture unexpectedly restarted");
+	p25VoiceEnd();
+	begin();
+	p25VoiceParrotReady(frames, 217, frames + 217);
+	CHECK(p25VoiceParrotCapture(false, -25, 5, false), "full capture refused");
+	for (unsigned i = 0; i < 160; i++) mic[i] = INT16_MIN;
+	for (unsigned b = 0; b < 500; b++) p25VoiceAudioBlock(mic, out, NULL);
+	p25VoiceParrotView(&v);
+	CHECK(v.mic_mean == INT16_MIN && v.input_rail_samples == 80000 && v.mic_dc_peak == 32768,
+	      "full capture overflow %d/%u", v.mic_mean, (unsigned)v.input_rail_samples);
+	CHECK(v.mic_ac_db10 == -960 && v.speech_blocks[0] == 0, "constant full capture counted as speech");
+	p25VoiceEnd();
+}
+
 static void testParrotDrain(void)
 {
 	static uint8_t frames[500][IMBE_BYTES];
@@ -633,6 +731,8 @@ int main(void)
 #if CONFIG_P25_PARROT
 	testParrot();
 	testParrotMatchesTx();
+	testParrotMeters();
+	testParrotAgcMatchesTx();
 	testParrotDrain();
 	testParrotFailure();
 #endif

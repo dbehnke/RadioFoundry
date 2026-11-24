@@ -277,6 +277,6 @@ __attribute__((weak)) uint8_t ui_svc_p25_parrot_state(void) { return P25_PARROT_
 __attribute__((weak)) void ui_svc_p25_parrot_view(p25_parrot_view_t *out)
 {
 	memset(out, 0, sizeof *out);
-	out->input_db10 = out->encoder_db10 = out->output_db10 = -960;
+	out->input_db10 = out->encoder_db10 = out->output_db10 = out->mic_ac_db10 = -960;
 }
 #endif

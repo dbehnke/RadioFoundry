@@ -105,7 +105,7 @@ source = ["core/dsp/tx_level.h", "core/p25/p25Voice.c"]
 [feature.p25_parrot]
 switch = "P25_PARROT"
 spec = "docs/spec/p25.md"
-source = ["core/p25/p25_parrot.h", "core/p25/p25Voice.c"]
+source = ["core/p25/p25_parrot.h", "core/p25/p25Voice.c", "core/dsp/speech_meter.h"]
 
 [feature.p25_trunk]
 switch = "P25_TRUNK"
@@ -631,5 +631,5 @@ spec = "docs/spec/usb-audio.md"
 [feature.rx_agc]
 switch = "RX_AGC"
 spec = "docs/spec/rx-agc.md"
-source = ["core/audio", "core/dmr/ambe/ambeVoice.c", "core/p25/p25Voice.c", "core/radio/radio_nxdn.c"]
+source = ["core/audio", "core/dsp/speech_meter.h", "core/dmr/ambe/ambeVoice.c", "core/p25/p25Voice.c", "core/radio/radio_nxdn.c"]
 manual = "Receive quiet and loud digital speech, check convergence and recalled caller gain, listen for distortion and gaps."

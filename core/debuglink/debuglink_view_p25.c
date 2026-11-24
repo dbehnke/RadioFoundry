@@ -34,6 +34,14 @@ void debuglink_view_p25(const radio_view_t *v, dl_text_t *t)
 			pv.agc, pv.target_dbfs, (unsigned)pv.limited_blocks);
 		dl_text(t, "p25parrot.mode=P25/IMBE\np25parrot.mic_step=%u\np25parrot.manual_gain_q16=%u\np25parrot.limiter=%u\n",
 			pv.mic_step, (unsigned)pv.manual_gain_q16, pv.limiter);
+		dl_text(t, "p25parrot.mic_mean=%d\np25parrot.mic_dc_peak=%u\np25parrot.mic_ac_db10=%d\np25parrot.rail_samples=%u\n",
+			pv.mic_mean, pv.mic_dc_peak, pv.mic_ac_db10, (unsigned)pv.input_rail_samples);
+		for (unsigned i = 0; i < 3; i++)
+			dl_text(t, "p25parrot.speech%u_db10=%d\np25parrot.speech%u_blocks=%u\n",
+				i, pv.speech_db10[i], i, pv.speech_blocks[i]);
+		// The local diagnostic suspends the engine; reserve the reply for its complete report.
+		dl_text(t, "p25.on=0\n");
+		return;
 	}
 #else
 	dl_text(t, "p25parrot.built=0\n");

@@ -114,6 +114,8 @@ int main(void)
 		.input_peak = 4189, .encoder_peak = 28000, .output_peak = 21393,
 		.gain_q16 = 181963, .manual_gain_q16 = 164619, .limited_blocks = 104,
 		.agc = true, .limiter = true, .target_dbfs = -25, .mic_step = 9,
+		.mic_mean = -32768, .mic_dc_peak = 32768, .mic_ac_db10 = -960, .input_rail_samples = 80000,
+		.speech_db10 = { -960, -960, -960 }, .speech_blocks = { 500, 500, 500 },
 	};
 	render(&t, text, sizeof(text));
 	static const char *const results[] = {
@@ -123,6 +125,8 @@ int main(void)
 		"p25parrot.gain_q16=181963\n", "p25parrot.agc=1\n", "p25parrot.target_dbfs=-25\n",
 		"p25parrot.limited_blocks=104\n", "p25parrot.mode=P25/IMBE\n", "p25parrot.mic_step=9\n",
 		"p25parrot.manual_gain_q16=164619\n", "p25parrot.limiter=1\n",
+		"p25parrot.mic_mean=-32768\n", "p25parrot.mic_dc_peak=32768\n", "p25parrot.mic_ac_db10=-960\n",
+		"p25parrot.rail_samples=80000\n", "p25parrot.speech2_db10=-960\n", "p25parrot.speech2_blocks=500\n",
 	};
 	for (size_t i = 0; i < sizeof(results) / sizeof(results[0]); i++) {
 		if (strstr(text, results[i]) == NULL) {
@@ -131,6 +135,7 @@ int main(void)
 		}
 	}
 	CHECK(strstr(text, "p25.on=0\n") != NULL);
+	CHECK(!t.full);
 	printf("p25ViewTest: RX %zu bytes, RX with load %zu bytes, diagnostic %zu bytes, %d failures\n",
 	       without_load, with_load, t.len, failures);
 	return failures != 0;
