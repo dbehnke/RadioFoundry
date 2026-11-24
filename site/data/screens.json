@@ -874,6 +874,27 @@
    "group": "settings",
    "needs": []
   },
+  "aes_recovery": {
+   "group": "settings",
+   "needs": [
+    "UI_SETTINGS",
+    "DMR_AES"
+   ]
+  },
+  "aes_recovery_keep": {
+   "group": "settings",
+   "needs": [
+    "UI_SETTINGS",
+    "DMR_AES"
+   ]
+  },
+  "aes_recovery_rekey": {
+   "group": "settings",
+   "needs": [
+    "UI_SETTINGS",
+    "DMR_AES"
+   ]
+  },
   "settings_freq_trim": {
    "group": "settings",
    "needs": [
