@@ -3308,6 +3308,11 @@ msgid "Record up to 10 s"
 msgstr "Grabar hasta 10 s"
 
 #: core/ui/ui_menus.c
+msgctxt "CODEC_DIAG_AGC"
+msgid "Codec AGC"
+msgstr "AGC del códec"
+
+#: core/ui/ui_menus.c
 msgctxt "P25_PARROT_AGC"
 msgid "Input AGC"
 msgstr "AGC de entrada"
@@ -3416,6 +3421,36 @@ msgstr "Voz cod. dBFS"
 msgctxt "P25_PARROT_DEC_SPEECH"
 msgid "Dec speech dBFS"
 msgstr "Voz dec. dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "CODEC_DIAG_DC"
+msgid "DC removal"
+msgstr "Eliminar DC"
+
+#: core/ui/ui_menus.c
+msgctxt "CODEC_DIAG_TEST_DC"
+msgid "Test DC removal"
+msgstr "DC de prueba"
+
+#: core/ui/ui_menus.c
+msgctxt "CODEC_DIAG_CONDITIONED"
+msgid "Cond RMS dBFS"
+msgstr "RMS acond. dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "CODEC_DIAG_TEST_MODE"
+msgid "Test mode"
+msgstr "Modo de prueba"
+
+#: core/ui/ui_menus.c
+msgctxt "CODEC_DIAG_OPTIONS"
+msgid "Codec options"
+msgstr "Opciones del códec"
+
+#: core/ui/ui_menus.c
+msgctxt "CODEC_DIAG_FLAGS"
+msgid "Codec flags"
+msgstr "Indicadores del códec"
 
 #: core/ui/ui_menus.c
 msgctxt "P25_PARROT_MIC_BLOCKS"

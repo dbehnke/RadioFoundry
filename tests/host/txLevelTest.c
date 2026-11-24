@@ -6,6 +6,7 @@
 #include <string.h>
 #include "dsp/mic_gain.h"
 #include "dsp/tx_level.h"
+#include "dsp/dc_block.h"
 
 #define N	160
 #define TARGET	1843
@@ -21,6 +22,60 @@ static void tone(int16_t *pcm, int amplitude)
 static int16_t db10(const int16_t *pcm)
 {
 	return tx_level_db10(tx_level_measure(pcm, N, true).power);
+}
+
+static void test_dc(void)
+{
+	int16_t in[N], out[N];
+	dc_block_t dc;
+	for (int bias = -2400; bias <= 2400; bias += 2400) {
+		dc_block_reset(&dc);
+		for (unsigned f = 0; f < 100; f++) {
+			tone(in, 500);
+			for (unsigned i = 0; i < N; i++) in[i] += bias;
+			dc_block_process(&dc, in, out, N);
+		}
+		CHECK(abs(db10(out) + 393) <= 2);
+		int sum = 0;
+		for (unsigned i = 0; i < N; i++) sum += out[i];
+		CHECK(abs(sum / N) <= 1);
+	}
+	// A fractional first-block mean must be translation invariant too, including a sign crossing.
+	int16_t reference[N];
+	dc_block_t biased;
+	dc_block_reset(&dc);
+	dc_block_reset(&biased);
+	for (unsigned f = 0; f < 8; f++) {
+		memset(in, 0, sizeof in);
+		in[0] = 1; in[1] = -2;
+		dc_block_process(&dc, in, reference, N);
+		for (unsigned i = 0; i < N; i++) in[i] += 50;
+		dc_block_process(&biased, in, out, N);
+		CHECK(memcmp(reference, out, sizeof out) == 0);
+	}
+	// The additional blocker must leave the speech band essentially unchanged.
+	for (unsigned hz = 80; hz <= 3000; hz += 730) {
+		dc_block_reset(&dc);
+		for (unsigned f = 0; f < 100; f++) {
+			for (unsigned i = 0; i < N; i++) in[i] = (int16_t)lrint(5000 * cos(2 * M_PI * hz * (f * N + i) / 8000));
+			dc_block_process(&dc, in, out, N);
+		}
+		CHECK(abs(db10(out) - db10(in)) <= 1);
+	}
+	// Constant bias is removed from the first block; no stored per-radio correction.
+	for (int bias = INT16_MIN; bias <= INT16_MAX; bias += 32767) {
+		dc_block_reset(&dc);
+		for (unsigned i = 0; i < N; i++) in[i] = bias;
+		dc_block_process(&dc, in, in, N);
+		for (unsigned i = 0; i < N; i++) CHECK(in[i] == 0);
+	}
+	// A changed bias settles without wrapping, including an extreme polarity reversal.
+	dc_block_reset(&dc);
+	for (unsigned i = 0; i < N; i++) in[i] = INT16_MIN;
+	dc_block_process(&dc, in, out, N);
+	for (unsigned i = 0; i < N; i++) in[i] = INT16_MAX;
+	for (unsigned f = 0; f < 30; f++) dc_block_process(&dc, in, out, N);
+	CHECK(tx_level_measure(out, N, true).peak <= 1);
 }
 
 static void test_target(void)
@@ -203,6 +258,7 @@ static void test_meter(void)
 
 int main(void)
 {
+	test_dc();
 	test_target();
 	test_manual();
 	test_board_calibration();

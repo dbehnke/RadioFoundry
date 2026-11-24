@@ -55,6 +55,7 @@ is `tools/bringup.py list --radio <id>`.
 | `caller_details` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `p25_id_lookup` | not recorded | not recorded | not recorded | not recorded | off | not recorded | not recorded | not recorded |
 | `tx_mic_limiter` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
+| `tx_dc_block` | not recorded | not recorded | not recorded | not recorded | off | not recorded | not recorded | not recorded |
 | `p25_tx_agc` | not recorded | not recorded | not recorded | not recorded | off | not recorded | not recorded | not recorded |
 | `p25_parrot` | off | off | off | off | off | off | off | off |
 | `p25_trunk` | not recorded | not recorded | not recorded | not recorded | not written | not recorded | not recorded | not recorded |
@@ -138,7 +139,7 @@ is `tools/bringup.py list --radio <id>`.
 | `net_webctl` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | off |
 | `net_radio_udp` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | off |
 | `net_rigctl` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | off |
-| `net_usrp` | not recorded | not recorded | not recorded | not written | not recorded | not recorded | pass, needs re-run | not written |
+| `net_usrp` | not written | not recorded | not written | not written | not recorded | not recorded | pass, needs re-run | not written |
 | `net_aprsis` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | off |
 | `mdns` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | off |
 | `tftp` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | off |
@@ -235,7 +236,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | `NET_RADIO_UDP` | ● | ● | ● | ● | ● | ● | ● | ○ |
 | `NET_RIGCTL` | ● | ● | ● | ● | ● | ● | ● | ○ |
 | `NET_APRSIS` | ● | ● | ● | ● | ● | ● | ● | ○ |
-| `NET_USRP` | ● | ● | ● | … | ● | ● | ● | … |
+| `NET_USRP` | … | ● | … | … | ● | ● | ● | … |
 | `MDNS` | ● | ● | ● | ● | ● | ● | ● | ○ |
 | `TFTP` | ● | ● | ● | ● | ● | ● | ● | ○ |
 | `TFTP_IDDB` | ● | ● | ● | ● | ● | ● | ● | ○ |
@@ -314,6 +315,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | `P25` | ● | ● | ● | ● | … | ● | ● | ● |
 | `P25_ID_LOOKUP` | ● | ● | ● | ● | ○ | ● | ● | ● |
 | `CALLER_DETAILS` | ● | ● | ● | ● | ● | ● | ● | ● |
+| `TX_DC_BLOCK` | ● | ● | ● | ● | ○ | ● | ● | ● |
 | `P25_TX_AGC` | ● | ● | ● | ● | ○ | ● | ● | ● |
 | `P25_PARROT` | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 | `P25_TRUNK` | ● | ● | ● | ● | … | ● | ● | ● |
@@ -341,6 +343,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | DMR Tier II voice (modem, call stack, AMBE FEC, vocoder) | `DMR` | 175,856 | 134,308 | Includes every DMR feature and everything on IP over DMR |
 | Digital microphone peak limiter | `TX_MIC_LIMITER` | — | — | Protects microphone PCM before AMBE encoding, including NXDN, and during manual P25 gain. See [Mic gain](spec/radio-features.md#36-mic-gain). |
 | P25 Phase 1 conventional: the air interface (framer, soft modem, shared FEC), the engine, the P25 channel mode and the full-rate voice decoder on the MBE core | `P25` | 43,300* | 24,640* | Needs a board with an air interface provider (`board.air`); without one nothing runs ([air-interface.md](spec/air-interface.md)). Off on the MD-380 until receive is written ([hardware-md380.md](spec/hardware-md380.md) 4.11). Receive and transmit checked on air against the SDR bench on the DM-32UV and the DM-1701, receive, zone scan and dual watch on the MD-9600; the VFO's mode tile, the debug link or a stored P25 channel sets it ([p25.md](spec/p25.md)). RAM: 6,640 B on the DM-1701, 424 B on the MD-380 |
+| Computed microphone DC removal before P25 gain | `TX_DC_BLOCK` | — | — | Shared streaming blocker, reset per transmission; diagnostic A/B toggle also supports AMBE. Live AMBE/FM/RX unchanged. See [Microphone input leveling](spec/p25.md#52-microphone-input-leveling). |
 | P25 transmit microphone AGC | `P25_TX_AGC` | — | — | The Mic AGC setting enables automatic PCM gain and peak protection before IMBE encoding. The setting defaults to off. See [Microphone input leveling](spec/p25.md#52-microphone-input-leveling). |
 | Rich DMR and P25 caller identity in single and dual Home | `CALLER_DETAILS` | — | — | Needs `DMR`; preserves the numeric ID with database callsign and name. P25 labels require its opt-in lookup setting. Shares the deferred cache with `P25_ID_LOOKUP` ([p25.md](spec/p25.md) 7.3.1) |
 | Optional P25 caller names from private contacts and the DMR ID database | `P25_ID_LOOKUP` | — | — | Needs `P25`; shares the deferred label cache with `CALLER_DETAILS`. The Talk & listen option is off by default. Host tested; radio listening check pending ([p25.md](spec/p25.md) 7.3.1) |
@@ -430,7 +433,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | Web control: the front panel page, keys, status and receive audio over `/ws` | `NET_WEBCTL` | 9,620 | 9,332 | The page and the radio's drawing included (about 6 KB gzip compressed); 1 KB RAM ([tcp-services.md](spec/tcp-services.md) 5.1) |
 | Zone and channel control over UDP, port 4191: where the radio is, select and step, change notices | `NET_RADIO_UDP` | 2,296 | 2,292 | 112-120 B RAM; needs no TCP or HTTP; DM-32UV 2,392 ([tcp-services.md](spec/tcp-services.md) 8) |
 | rigctld, port 4532 | `NET_RIGCTL` | 3,852 | 3,728 |  |
-| Audio linking (USRP over UDP, port 34001) | `NET_USRP` | 4,552 | 4,888 | DM-1701: DMR and FM both ways. MD-380: DMR only (FM audio doesn't reach the processor yet). DM-32UV: DMR only until its board code has the FM audio paths |
+| Audio linking (USRP over UDP, port 34001) | `NET_USRP` | 4,552 | 4,888 | DM-1701: DMR and FM both ways. MD-380: DMR only (FM audio doesn't reach the processor yet). Off where the host link is the programming cable at 115200 baud (about 11.5 KB/s): received audio alone needs about 17.6 KB/s |
 | APRS-IS client | `NET_APRSIS` | 2,856 | 2,720 | Needs NAT on the host |
 | mDNS / DNS-SD (rfoundry-<id>.local) | `MDNS` | 6,744 | 6,504 |  |
 | TFTP codeplug read / write | `TFTP` | 6,356 | 6,412 | Without the ID database below |

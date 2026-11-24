@@ -9080,7 +9080,7 @@ static void parrot_release_mic(radio_sm_t *sm)
 	if (!sm->p25_parrot_capture)
 		return;
 	if (board.radio->pcm_mic_gain != NULL)
-		board.radio->pcm_mic_gain(mic_gain_offset_db(radio_mic_gain()));
+		board.radio->pcm_mic_gain(mic_gain_on_board() ? mic_gain_offset_db(radio_mic_gain()) : 0);
 	if (board.radio->pcm_mic_route != NULL)
 		board.radio->pcm_mic_route(false);
 	sm->p25_parrot_capture = false;
@@ -9168,18 +9168,25 @@ static void parrot_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_
 		if (state == P25_PARROT_RECORD || state == P25_PARROT_PLAY)
 			return;
 		bool agc = (req->arg2 & 256u) != 0;
+		uint8_t mode = (req->arg2 >> 9) & 1u;
+		bool dc = (req->arg2 & 1024u) != 0;
+		if (mode == CODEC_DIAG_AMBE)
+			agc = agc && board.vocoder != NULL && board.vocoder->set_options != NULL && board.vocoder->options != NULL &&
+				(board.vocoder->options() & VOCODER_OPT_AGC) != 0;
 		uint8_t step = SETTINGS_FIELD(mic_gain);
 		if (step > MIC_GAIN_STEPS)
 			step = MIC_GAIN_UNITY;
-		bool hw_gain = board.radio->pcm_mic_gain != NULL;
-		if (hw_gain)
-			board.radio->pcm_mic_gain(agc ? 0 : mic_gain_offset_db(step));
+		bool hw_gain = board.radio->pcm_mic_gain != NULL &&
+			(mode == CODEC_DIAG_P25 || mic_gain_on_board());
+		if (board.radio->pcm_mic_gain != NULL)
+			board.radio->pcm_mic_gain(hw_gain && !agc ? mic_gain_offset_db(step) : 0);
 		if (board.radio->pcm_mic_route != NULL)
 			board.radio->pcm_mic_route(true);
 		sm->p25_parrot_capture = true;
 		sm->p25_parrot_progress = 0;
 		sm->p25_parrot_stall_polls = 0;
-		if (!p25VoiceParrotCapture(agc, (int8_t)req->arg2, step, hw_gain))
+		uint16_t ambe_gain = radio_mic_pcm_gain_q8(agc ? MIC_GAIN_UNITY : step, hw_gain);
+		if (!p25VoiceParrotCaptureMode(mode, dc, agc, (int8_t)req->arg2, step, hw_gain, ambe_gain))
 			parrot_release_mic(sm);
 	} else if (sm->p25_parrot && req->arg == P25_PARROT_STOP) {
 		p25VoiceParrotStop();

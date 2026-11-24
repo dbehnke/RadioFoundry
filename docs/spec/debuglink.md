@@ -395,14 +395,17 @@ With `CONFIG_P25_PARROT`, the `p25` section reports `p25parrot.built=1` and `sta
 2 recording, 3 playing, 4 done, 5 audio failed). While state is not off, it also reports `frames` (20 ms each), `input_db10`, `encoder_db10`,
 `output_db10` (RMS dBFS in tenths, -960 means no measurable signal), `input_peak`, `encoder_peak`,
 `output_peak` (absolute PCM samples), `gain_q16` (last software input gain, 65536 is unity), `agc`,
-`target_dbfs`, `mic_step` (recorded settings), `manual_gain_q16` (requested software manual gain, unity when the
+`target_dbfs` (P25 target; 0 means unavailable for AMBE), `mic_step` (recorded settings), `manual_gain_q16` (requested software manual gain, unity when the
 board applies it in hardware), `limiter` (peak protection active), `limited_blocks` (peak interventions in either
-mode) and `mode=P25/IMBE`. Whole-recording levels include pauses. While the diagnostic is active, its complete report replaces inactive engine
+mode) and `mode` (`P25/IMBE` or `DMR/AMBE+2`). Whole-recording levels include pauses. While the diagnostic is active, its complete report replaces inactive engine
 counters in this bounded section (`p25.on=0`). Additional fields are `mic_mean` (signed PCM units), `mic_dc_peak`
 (maximum absolute block mean), `mic_ac_db10` (block-mean-removed whole-capture RMS), `rail_samples` (input samples
 at either signed 16-bit rail), and `speech0_db10` / `speech0_blocks` through `speech2_db10` / `speech2_blocks`
 (microphone, encoder, decoded). Speech values share the receive estimator's gate, acquisition and energy average;
-check at least 15 qualifying blocks before comparing them. They retain the last estimate after playback. Without the switch it reports `p25parrot.built=0` when P25 is built.
+check at least 15 qualifying blocks before comparing them. They retain the last estimate after playback.
+`dc` records whether streaming DC removal was enabled; `cond_db10` is whole-capture RMS after that blocker,
+before gain. `codec_opts` is the applied AMBE option mask (noise reduction 1, tone frames 2, AGC 4);
+`codec_flags` is its codec-specific encode word, or 0 if the HAL does not provide it. P25 reports both as 0. Without the switch it reports `p25parrot.built=0` when P25 is built.
 
 ### 3.8 RADIO
 

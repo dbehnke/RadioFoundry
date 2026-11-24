@@ -75,8 +75,13 @@ int radio_mic_pcm_db(void)
 
 uint16_t radio_mic_pcm_q8(void)
 {
+	return radio_mic_pcm_gain_q8(radio_mic_gain(), mic_gain_on_board());
+}
+
+uint16_t radio_mic_pcm_gain_q8(uint8_t step, bool hardware_gain)
+{
 	int board_db = mic_gain_board_pcm_db();
-	uint8_t pcm_step = mic_gain_on_board() ? MIC_GAIN_UNITY : radio_mic_gain();
+	uint8_t pcm_step = hardware_gain ? MIC_GAIN_UNITY : step;
 	if (board_db == 0) {
 		return mic_gain_step_q8(pcm_step);
 	}

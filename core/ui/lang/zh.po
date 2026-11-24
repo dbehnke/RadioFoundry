@@ -3310,6 +3310,11 @@ msgid "Record up to 10 s"
 msgstr "录音最多10秒"
 
 #: core/ui/ui_menus.c
+msgctxt "CODEC_DIAG_AGC"
+msgid "Codec AGC"
+msgstr "编解码 AGC"
+
+#: core/ui/ui_menus.c
 msgctxt "P25_PARROT_AGC"
 msgid "Input AGC"
 msgstr "输入自动增益"
@@ -3418,6 +3423,36 @@ msgstr "编码语音 dBFS"
 msgctxt "P25_PARROT_DEC_SPEECH"
 msgid "Dec speech dBFS"
 msgstr "解码语音 dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "CODEC_DIAG_DC"
+msgid "DC removal"
+msgstr "消除 DC"
+
+#: core/ui/ui_menus.c
+msgctxt "CODEC_DIAG_TEST_DC"
+msgid "Test DC removal"
+msgstr "测试消除 DC"
+
+#: core/ui/ui_menus.c
+msgctxt "CODEC_DIAG_CONDITIONED"
+msgid "Cond RMS dBFS"
+msgstr "处理 RMS dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "CODEC_DIAG_TEST_MODE"
+msgid "Test mode"
+msgstr "测试模式"
+
+#: core/ui/ui_menus.c
+msgctxt "CODEC_DIAG_OPTIONS"
+msgid "Codec options"
+msgstr "编解码选项"
+
+#: core/ui/ui_menus.c
+msgctxt "CODEC_DIAG_FLAGS"
+msgid "Codec flags"
+msgstr "编解码标志"
 
 #: core/ui/ui_menus.c
 msgctxt "P25_PARROT_MIC_BLOCKS"

@@ -7,8 +7,12 @@
 enum { P25_PARROT_OFF, P25_PARROT_READY, P25_PARROT_RECORD, P25_PARROT_PLAY, P25_PARROT_DONE, P25_PARROT_ERROR,
 	P25_PARROT_OPENING, P25_PARROT_REFUSED, P25_PARROT_CLOSING };
 enum { P25_PARROT_OPEN, P25_PARROT_CAPTURE, P25_PARROT_STOP, P25_PARROT_CLOSE };
+enum { CODEC_DIAG_P25, CODEC_DIAG_AMBE };
 typedef struct {
-	uint8_t state;
+	uint8_t state, mode;
+	bool dc_block;
+	int16_t conditioned_db10;
+	uint32_t codec_options, codec_flags;
 	uint16_t frames;
 	int16_t input_db10, encoder_db10, output_db10;
 	uint16_t input_peak, encoder_peak, output_peak;

@@ -798,6 +798,7 @@ void ambeVoiceStop(void)
 		}
 	}
 	streaming = false;
+	cb_enc_opts_set = false; // another local codec user may change HAL options while stopped
 #if CONFIG_RX_AGC
 	rx_agc_end(&agc);
 	ambeVoiceRxIdentity(RX_AGC_DMR, 0, 0);

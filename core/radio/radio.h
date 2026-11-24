@@ -636,6 +636,7 @@ void radio_req_mode(uint8_t mode);
 void radio_req_p25_settings(const radio_p25_settings_t *s);
 #if CONFIG_P25_PARROT
 bool radio_req_p25_parrot(uint8_t command, bool agc, int8_t target_dbfs);
+bool radio_req_codec_diagnostic(uint8_t command, bool agc, int8_t target_dbfs, uint8_t mode, bool dc);
 uint8_t radio_p25_parrot_state(void);
 #endif
 #endif
