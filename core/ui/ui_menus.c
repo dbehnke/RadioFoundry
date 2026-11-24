@@ -6968,6 +6968,11 @@ _Static_assert(UI_KEY_ROLES == 9, "KEY_ROWS below");
 static char key_label[2 * UI_KEY_ROLES][20];
 static uint8_t key_label_lang = 0xFF;	// the language they were built in: rebuilt when the user picks another
 
+void ui_menus_keys_reset(void)
+{
+	key_label_lang = 0xFF;
+}
+
 static void key_labels(void)
 {
 	sbuf_t b;

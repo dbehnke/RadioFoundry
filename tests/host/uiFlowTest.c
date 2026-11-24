@@ -1569,6 +1569,17 @@ static const flow_t flows_f[] = {
 
 // The MD-9600's front panel alone on its 128x64 screen (information-architecture.md 7.4): no digits, P1 / P2 as QUICK /
 // CONTEXT and named so in the hints, the encoder, P3 / P4 / the orange key as side keys
+#if CONFIG_KEY_ASSIGN
+static const flow_t flows_mic[] = {
+	{ "Mic A press row follows existing panel roles", "ok 7 8", "down down down down down down down down down",
+	  "focus=Mic_A", 9, false },
+	{ "Mic A hold has its own row", "ok 7 8 down down down down down down down down down", "down",
+	  "focus=Mic_A_hold", 1, false },
+	{ "Mic D press is exposed", "ok 7 8 up", "up", "focus=Mic_D", 1, false },
+	{ "Mic D hold is exposed last", "ok 7 8", "up", "focus=Mic_D_hold", 1, false },
+};
+#endif
+
 static const flow_t flows_p[] = {
 	{ "P next channel", "", "up", "pos=4", 1, false },
 	{ "P next channel by the knob", "", "enc+", "pos=4", 1, false },
@@ -2431,6 +2442,10 @@ int main(void)
 		run_flow(&flows_mono[i], sim_geom_find("128x64"), SIM_MAP_M, "M GD-77");
 	for (size_t i = 0; i < sizeof flows_k / sizeof flows_k[0]; i++)
 		run_flow(&flows_k[i], sim_geom_find("160x120i5"), SIM_MAP_K, "K DM-1701");
+#if CONFIG_KEY_ASSIGN
+	for (size_t i = 0; i < sizeof flows_mic / sizeof flows_mic[0]; i++)
+		run_flow(&flows_mic[i], sim_geom_find("128x64"), SIM_MAP_V, "V MD-9600 microphone");
+#endif
 	for (size_t i = 0; i < sizeof flows_p / sizeof flows_p[0]; i++)
 		run_flow(&flows_p[i], sim_geom_find("128x64"), SIM_MAP_P, "P MD-9600 panel");
 	const sim_geom_t *gf = sim_geom_find("160x128");
