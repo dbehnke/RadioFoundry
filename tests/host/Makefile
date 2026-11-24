@@ -171,20 +171,20 @@ p25TrunkTest: p25TrunkTest.c $(P25TRUNK) $(wildcard $(CORE)/p25/*.h) $(wildcard 
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_AIR=1 -DCONFIG_P25=1 -DCONFIG_P25_TRUNK=1 -o $@ p25TrunkTest.c $(P25TRUNK) -lm
 
 # The P25 voice path: engine frames through the full-rate decoder to PCM blocks (core/p25/p25Voice.c)
-TESTS   += p25VoiceTest p25VoiceLevelTest p25VoiceParrotTest p25ViewTest txLevelTest
-p25VoiceLevelTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h $(CORE)/dsp/mic_gain.h $(CORE)/p25/p25_parrot.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(CORE)/dsp/tx_level.h $(MBE)
-	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -o $@ $(CORE)/audio/rx_agc.c p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm
-# Diagnostic leveling remains available with transmit AGC compiled out.
-p25VoiceParrotTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h $(CORE)/dsp/mic_gain.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(CORE)/p25/p25_parrot.h $(CORE)/dsp/tx_level.h $(MBE)
-	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=0 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -o $@ $(CORE)/audio/rx_agc.c p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm
-txLevelTest: txLevelTest.c $(CORE)/dsp/tx_level.h $(CORE)/dsp/mic_gain.h
+TESTS   += p25VoiceTest p25VoiceCodecTest p25VoiceLevelTest p25VoiceParrotTest p25ViewTest txLevelTest
+p25VoiceLevelTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h $(CORE)/dsp/mic_gain.h $(CORE)/p25/p25_parrot.h $(CORE)/dsp/dc_block.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(CORE)/dsp/tx_level.h $(MBE)
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=1 -DCONFIG_TX_DC_BLOCK=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -o $@ $(CORE)/audio/rx_agc.c p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm
+# Diagnostic leveling remains available with transmit AGC and DC removal compiled out.
+p25VoiceParrotTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h $(CORE)/dsp/mic_gain.h $(CORE)/dsp/dc_block.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(CORE)/p25/p25_parrot.h $(CORE)/dsp/tx_level.h $(MBE)
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=0 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_TX_DC_BLOCK=0 -DCONFIG_P25_PARROT=1 -o $@ $(CORE)/audio/rx_agc.c p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm
+txLevelTest: txLevelTest.c $(CORE)/dsp/dc_block.h $(CORE)/dsp/tx_level.h $(CORE)/dsp/mic_gain.h
 	$(CC) $(CFLAGS) -Wshadow -o $@ txLevelTest.c -lm
-p25VoiceTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h $(CORE)/dsp/mic_gain.h $(CORE)/dsp/tx_level.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(MBE) $(wildcard $(CORE)/mbe/*.h)
+p25VoiceTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h $(CORE)/dsp/mic_gain.h $(CORE)/dsp/tx_level.h $(CORE)/dsp/dc_block.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(MBE) $(wildcard $(CORE)/mbe/*.h)
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -o $@ $(CORE)/audio/rx_agc.c p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm
 P25VIEW := p25ViewTest.c $(CORE)/debuglink/debuglink_view_p25.c $(CORE)/debuglink/dl_fmt.c
 p25ViewTest: $(P25VIEW) $(wildcard $(CORE)/debuglink/*.h) $(CORE)/p25/p25Voice.h $(CORE)/p25/p25_parrot.h \
              $(CORE)/radio/radio_p25.h $(CORE)/settings/settings.h
-	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -DCONFIG_P25_PARROT=1 -o $@ $(P25VIEW)
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -DCONFIG_TX_DC_BLOCK=0 -DCONFIG_P25_PARROT=1 -o $@ $(P25VIEW)
 
 # The fixed-point kernels the signal code shares (core/dsp/fxp.h)
 TESTS   += fxpTest
@@ -275,6 +275,7 @@ run: $(TESTS)
 	./p25TrunkTest
 	./p25VoiceTest
 	./p25VoiceLevelTest
+	./p25VoiceCodecTest
 	./p25VoiceParrotTest
 	./p25ViewTest
 	./txLevelTest
@@ -355,13 +356,13 @@ RCP25   := $(RCORE) $(CORE)/radio/radio_p25.c $(CORE)/p25/p25_engine.c $(CORE)/a
 radioCoreTestP25: $(RCP25) $(wildcard $(CORE)/radio/*.h) $(wildcard $(CORE)/dmr/call/*.h) $(CORE)/dmr/dmrDataService.h \
                   $(CORE)/ui/ui_svc.h $(wildcard $(CORE)/p25/*.h) $(wildcard $(CORE)/air/*.h)
 	$(CC) $(CFLAGS) $(CORE_HAL) -I. -DDMR_RX_TRACE=0 -DCONFIG_DMR_IP_GATEWAY=0 -DCONFIG_SFR=1 -DCONFIG_APRS=0 \
-		-DCONFIG_P25=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -DCONFIG_P25_TX_AGC=1 -DCONFIG_AIR_RAW=1 -DCONFIG_SATELLITE_TLE=1 -DHAL_VOCODER_LEND_BYTES=0x4000 -o $@ $(RCP25) -lm
+		-DCONFIG_P25=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_TX_DC_BLOCK=1 -DCONFIG_P25_PARROT=1 -DCONFIG_P25_TX_AGC=1 -DCONFIG_AIR_RAW=1 -DCONFIG_SATELLITE_TLE=1 -DHAL_VOCODER_LEND_BYTES=0x4000 -o $@ $(RCP25) -lm
 
 TESTS   += radioCoreTestP25NoAgc
 radioCoreTestP25NoAgc: $(RCP25) $(wildcard $(CORE)/radio/*.h) $(wildcard $(CORE)/dmr/call/*.h) $(CORE)/dmr/dmrDataService.h \
                   $(CORE)/ui/ui_svc.h $(wildcard $(CORE)/p25/*.h) $(wildcard $(CORE)/air/*.h)
 	$(CC) $(CFLAGS) $(CORE_HAL) -I. -DDMR_RX_TRACE=0 -DCONFIG_DMR_IP_GATEWAY=0 -DCONFIG_SFR=1 -DCONFIG_APRS=0 \
-		-DCONFIG_P25=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -DCONFIG_P25_TX_AGC=0 -DCONFIG_AIR_RAW=1 -DCONFIG_SATELLITE_TLE=1 -DHAL_VOCODER_LEND_BYTES=0x4000 -o $@ $(RCP25) -lm
+		-DCONFIG_P25=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_TX_DC_BLOCK=1 -DCONFIG_P25_PARROT=1 -DCONFIG_P25_TX_AGC=0 -DCONFIG_AIR_RAW=1 -DCONFIG_SATELLITE_TLE=1 -DHAL_VOCODER_LEND_BYTES=0x4000 -o $@ $(RCP25) -lm
 
 # The same with P25 trunking (CONFIG_P25_TRUNK): a trunked site on the fake air, the follower in the radio core
 TESTS   += radioCoreTestP25T
@@ -742,11 +743,11 @@ TESTS   += uiFlowTest uiFlowTestNoColor uiSim
 TESTS   += uiFlowTestSatellite
 
 uiFlowTest: uiFlowTest.c $(UIDEPS) $(CORE)/p25/p25_parrot.h $(CORE)/dsp/tx_level.h
-	$(CC) $(UIFLAGS) -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -DCONFIG_P25_TRUNK=1 -DCONFIG_NXDN=1 -o $@ uiFlowTest.c $(UIAPP) -lz
+	$(CC) $(UIFLAGS) -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=1 -DCONFIG_TX_DC_BLOCK=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -DCONFIG_P25_TRUNK=1 -DCONFIG_NXDN=1 -o $@ uiFlowTest.c $(UIAPP) -lz
 
 TESTS   += uiFlowTestP25NoAgc
 uiFlowTestP25NoAgc: uiFlowTest.c $(UIDEPS) $(CORE)/p25/p25_parrot.h $(CORE)/dsp/tx_level.h
-	$(CC) $(UIFLAGS) -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=0 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -DCONFIG_P25_TRUNK=1 -DCONFIG_NXDN=1 -o $@ uiFlowTest.c $(UIAPP) -lz
+	$(CC) $(UIFLAGS) -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=0 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_TX_DC_BLOCK=1 -DCONFIG_P25_PARROT=1 -DCONFIG_P25_TRUNK=1 -DCONFIG_NXDN=1 -o $@ uiFlowTest.c $(UIAPP) -lz
 
 # The same flows built as a radio with only a monochrome screen builds them (CONFIG_UI_COLOR=n): no color rows;
 # without a translation (CONFIG_LANG_ES=n): the Language screen dims Spanish; and with the backlight tests
@@ -771,7 +772,7 @@ uiSim: uiSim.c $(UIDEPS) $(CJK)
 	$(CC) $(UIFLAGS) $(UI_LANG_FLAG) -DCONFIG_SATELLITE_TLE=1 -DCONFIG_P25=1 -o $@ uiSim.c $(UIAPP) $(CJK) -lz
 
 uiSimParrot: uiSim.c $(UIDEPS) $(CJK) $(CORE)/p25/p25_parrot.h $(CORE)/dsp/tx_level.h
-	$(CC) $(UIFLAGS) $(UI_LANG_FLAG) -DCONFIG_SATELLITE_TLE=1 -DCONFIG_P25=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -o $@ uiSim.c $(UIAPP) $(CJK) -lz
+	$(CC) $(UIFLAGS) $(UI_LANG_FLAG) -DCONFIG_SATELLITE_TLE=1 -DCONFIG_P25=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_TX_DC_BLOCK=1 -DCONFIG_P25_PARROT=1 -o $@ uiSim.c $(UIAPP) $(CJK) -lz
 
 # The beep reel (tools/beep_reel.py). BEEP_DIR picks the beep.c and beep.h to build with, so CI can build the base
 # commit's beeps for a before and after comparison. We copy that beep.h into out/beep/radio/ and put out/beep first on
@@ -1786,7 +1787,7 @@ UNET    := usrpNetTest.c $(CORE)/usbaudio/usrp_net.c $(CORE)/hostlink/hostlink_v
 TESTS   += usrpNetTest
 
 usrpNetTest: $(UNET) $(wildcard $(CORE)/usbaudio/*.h)
-	$(CC) $(CFLAGS) -DCONFIG_P25=1 -DCONFIG_P25_PARROT=1 $(CORE_HAL) -DCONFIG_NET_USRP=1 -o $@ $(UNET) -lm
+	$(CC) $(CFLAGS) -DCONFIG_P25=1 -DCONFIG_TX_DC_BLOCK=1 -DCONFIG_P25_PARROT=1 $(CORE_HAL) -DCONFIG_NET_USRP=1 -o $@ $(UNET) -lm
 
 run: run-usbaudio
 run-usbaudio: usrpTest usrpNetTest
@@ -1989,7 +1990,7 @@ run-rx-agc: rxAgcTest
 TESTS += ambeVoiceNoAgcTest p25VoiceNoAgcTest uiFlowTestNoAgc
 ambeVoiceNoAgcTest: ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/dmr/ambe/ambeFec.c
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_RX_AGC=0 -o $@ ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/radio/sigtone.c $(CORE)/radio/beep.c $(CORE)/dmr/ambe/ambeFec.c
-p25VoiceNoAgcTest: p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE)
+p25VoiceNoAgcTest: $(CORE)/dsp/dc_block.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE)
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -DCONFIG_RX_AGC=0 -o $@ p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm
 uiFlowTestNoAgc: uiFlowTest.c $(UIDEPS)
 	$(CC) $(UIFLAGS) -DCONFIG_RX_AGC=0 -DCONFIG_P25=1 -DCONFIG_NXDN=1 -o $@ uiFlowTest.c $(UIAPP) -lz
@@ -2009,3 +2010,6 @@ run: run-caller-name
 run-caller-name: callerNameTest
 	./callerNameTest
 .PHONY: run-caller-name
+
+p25VoiceCodecTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h $(CORE)/dsp/mic_gain.h $(CORE)/p25/p25_parrot.h $(CORE)/dsp/dc_block.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(CORE)/dsp/tx_level.h $(MBE)
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=1 -DCONFIG_TX_DC_BLOCK=1 -DCONFIG_TX_MIC_LIMITER=0 -DCONFIG_P25_PARROT=1 -o $@ $(CORE)/audio/rx_agc.c p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm

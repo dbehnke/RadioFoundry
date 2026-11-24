@@ -854,3 +854,44 @@ def test_p25_parrot_local_roundtrip(home):
         r.press("back", LONG)
         wait_screen(r, "home")
     r.wait_for(lambda v: v.get("p25parrot.state") == "0", sections=("p25",), what="parrot released")
+
+
+@pytest.mark.feature("tx_dc_block")
+@pytest.mark.feature("p25_parrot")
+@pytest.mark.needs_switch("TX_DC_BLOCK")
+@pytest.mark.needs_switch("UI_SETTINGS")
+def test_codec_dc_ab_capture(home):
+    """Owner-opt-in local captures verify the DC switch snapshot; never start RF."""
+    r = home
+    if r.view(["p25"]).get("p25parrot.built") != "1":
+        skip("not_built", "firmware without codec diagnostics")
+    try:
+        for key in "ok 7 up ok up".split():
+            r.press(key)
+        for _ in range(3):
+            r.press("ok")
+            page = r.view(["link"]).get("ui.screen")
+            if page == "p25parrot":
+                break
+            assert page in ("hwopt", "freq-trim"), page
+            r.press("back")
+            r.press("up")
+        wait_screen(r, "p25parrot")
+        r.wait_for(lambda v: v.get("p25parrot.state") == "1", sections=("p25",), what="diagnostic ready")
+        for enabled in (True, False):
+            r.press("ok")
+            r.wait_for(lambda v: as_int(v.get("p25parrot.frames"), 0) >= 25, sections=("p25",),
+                       what="local microphone capture")
+            r.press("ok")
+            v = r.wait_for(lambda v: v.get("p25parrot.state") == "4", sections=("p25",), what="playback done")
+            assert v.get("p25parrot.dc") == str(int(enabled)), v
+            assert -960 <= as_int(v.get("p25parrot.cond_db10"), -1000) <= 0, v
+            if not enabled:
+                assert v["p25parrot.cond_db10"] == v["p25parrot.input_db10"], v
+            else:
+                # Record is row 1. The read-only recorded-DC row is skipped while navigating.
+                for key in "up up up up up up ok down down down down down down".split():
+                    r.press(key)
+    finally:
+        r.press("back", LONG)
+        wait_screen(r, "home")

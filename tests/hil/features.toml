@@ -97,6 +97,11 @@ switch = "TX_MIC_LIMITER"
 spec = "docs/spec/radio-features.md"
 source = ["core/dsp/tx_level.h", "core/dmr/ambe/ambeVoice.c", "core/p25/p25Voice.c"]
 
+[feature.tx_dc_block]
+switch = "TX_DC_BLOCK"
+spec = "docs/spec/p25.md"
+source = ["core/dsp/dc_block.h", "core/p25/p25Voice.c"]
+
 [feature.p25_tx_agc]
 switch = "P25_TX_AGC"
 spec = "docs/spec/p25.md"

@@ -735,9 +735,14 @@ void radio_req_p25_settings(const radio_p25_settings_t *s)
 #if CONFIG_P25_PARROT
 bool radio_req_p25_parrot(uint8_t command, bool agc, int8_t target_dbfs)
 {
+	return radio_req_codec_diagnostic(command, agc, target_dbfs, CODEC_DIAG_P25, CONFIG_TX_DC_BLOCK);
+}
+
+bool radio_req_codec_diagnostic(uint8_t command, bool agc, int8_t target_dbfs, uint8_t mode, bool dc)
+{
 	if (requests == NULL) return false;
 	radio_req_t req = { .type = RREQ_P25_PARROT, .arg = command,
-		.arg2 = (uint8_t)target_dbfs | (agc ? 256u : 0u) };
+		.arg2 = (uint8_t)target_dbfs | (agc ? 256u : 0u) | ((uint32_t)mode << 9) | (dc ? 1024u : 0u) };
 	if (command == P25_PARROT_CLOSE) {
 		parrot_request_state = P25_PARROT_CLOSING;
 		// A full queue can delay exit, but the next radio turn must give the stream back.

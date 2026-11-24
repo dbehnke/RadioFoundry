@@ -11,6 +11,7 @@
 #include <string.h>
 #include "dsp/fxp.h"
 #include "dsp/tx_level.h"
+#include "dsp/dc_block.h"
 #if CONFIG_P25_PARROT
 #include "dsp/speech_meter.h"
 #endif
@@ -48,6 +49,9 @@ static uint8_t tx_gen;
 static uint8_t tx_head, tx_tail;
 static bool mic_agc;
 static tx_level_t input_level;
+#if CONFIG_TX_DC_BLOCK
+static dc_block_t input_dc;
+#endif
 static uint16_t mic_gain_q8 = 256;	// p25VoiceSetMicGain: the mic samples times this / 256 before encoding
 
 // Audio callback state
@@ -263,12 +267,21 @@ static void rx_block(int16_t *spk)
 }
 
 static uint16_t input_block(const int16_t *mic, int16_t *scaled, uint16_t gain, uint16_t target,
-			    tx_level_meter_t *input)
+			    tx_level_meter_t *input, bool remove_dc, tx_level_meter_t *conditioned)
 {
-	if (CONFIG_TX_MIC_LIMITER || target != 0) {
-		return tx_level_process(&input_level, mic, scaled, AUDIO_BLOCK_SAMPLES, (uint32_t)gain << 8, target, input);
-	}
 	if (input != NULL) *input = tx_level_measure(mic, AUDIO_BLOCK_SAMPLES, true);
+#if CONFIG_TX_DC_BLOCK
+	if (remove_dc) {
+		dc_block_process(&input_dc, mic, scaled, AUDIO_BLOCK_SAMPLES);
+		mic = scaled;
+	}
+#else
+	(void)remove_dc;
+#endif
+	if (conditioned != NULL) *conditioned = tx_level_measure(mic, AUDIO_BLOCK_SAMPLES, true);
+	if (CONFIG_TX_MIC_LIMITER || target != 0) {
+		return tx_level_process(&input_level, mic, scaled, AUDIO_BLOCK_SAMPLES, (uint32_t)gain << 8, target, NULL);
+	}
 	input_level.gain_q16 = (uint32_t)gain << 8;
 	uint16_t peak = 0;
 	for (unsigned i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
@@ -285,6 +298,19 @@ static uint16_t input_block(const int16_t *mic, int16_t *scaled, uint16_t gain, 
 #define PARROT_FRAMES 500u
 static uint8_t (*parrot_frames)[IMBE_BYTES], (*parrot_extra)[IMBE_BYTES];
 static unsigned parrot_split;
+static const hal_vocoder_t *parrot_vocoder;
+static uint8_t *parrot_ambe;
+static unsigned parrot_ambe_size;
+static uint32_t parrot_restore_options;
+static bool parrot_codec_used;
+
+static void parrot_restore(void)
+{
+	if (parrot_codec_used && parrot_vocoder->set_options != NULL)
+		parrot_vocoder->set_options(parrot_restore_options);
+	parrot_codec_used = false;
+}
+
 static uint8_t parrot_state, parrot_command;
 static bool parrot_agc, parrot_stop;
 static uint8_t parrot_lead;
@@ -293,7 +319,7 @@ static uint16_t parrot_gain_q8;
 static uint16_t parrot_progress;
 static p25_parrot_view_t parrot_view = { .input_db10 = -960, .encoder_db10 = -960, .output_db10 = -960,
 	.mic_ac_db10 = -960, .speech_db10 = { -960, -960, -960 } };
-static uint64_t parrot_power[3], parrot_ac_power;
+static uint64_t parrot_power[3], parrot_ac_power, parrot_conditioned_power;
 static int64_t parrot_mic_sum;
 static uint32_t parrot_speech_power[3];
 static uint16_t parrot_speech_blocks[3];
@@ -306,6 +332,11 @@ static uint8_t *parrot_frame(unsigned n)
 
 static void parrot_view_reset(void)
 {
+	STORE(parrot_view.mode, CODEC_DIAG_P25);
+	STORE(parrot_view.dc_block, false);
+	STORE(parrot_view.conditioned_db10, -960);
+	STORE(parrot_view.codec_options, 0);
+	STORE(parrot_view.codec_flags, 0);
 	STORE(parrot_view.mic_mean, 0);
 	STORE(parrot_view.mic_dc_peak, 0);
 	STORE(parrot_view.mic_ac_db10, -960);
@@ -379,26 +410,46 @@ static void parrot_block(const int16_t *mic, int16_t *spk)
 		memset(parrot_speech_power, 0, sizeof parrot_speech_power);
 		memset(parrot_speech_blocks, 0, sizeof parrot_speech_blocks);
 		parrot_mic_sum = 0;
-		parrot_ac_power = 0;
+		parrot_ac_power = parrot_conditioned_power = 0;
 		parrot_count = parrot_played = 0;
-		imbe_enc_init(&enc);
-		tx_level_reset(&input_level, parrot_agc ? TX_LEVEL_UNITY : manual);
+		if (parrot_view.mode == CODEC_DIAG_AMBE) {
+			parrot_vocoder->reset();
+			if (parrot_vocoder->set_options != NULL) parrot_vocoder->set_options(parrot_view.codec_options);
+			if (parrot_vocoder->encode_flags != NULL) STORE(parrot_view.codec_flags, parrot_vocoder->encode_flags());
+		} else imbe_enc_init(&enc);
+		tx_level_reset(&input_level, parrot_agc && parrot_view.mode == CODEC_DIAG_P25 ? TX_LEVEL_UNITY : manual);
+#if CONFIG_TX_DC_BLOCK
+		dc_block_reset(&input_dc);
+#endif
 		STORE(parrot_command, 0);
 	}
 	uint8_t state = p25VoiceParrotState();
 	if (state == P25_PARROT_RECORD && (parrot_count == PARROT_FRAMES || LOAD(parrot_stop))) {
-		imbe_dec_init(&dec);
+		if (parrot_view.mode == CODEC_DIAG_AMBE) parrot_vocoder->reset();
+		else imbe_dec_init(&dec);
 		STORE(parrot_state, P25_PARROT_PLAY);
 		speaker(true);
 		parrot_lead = aud != NULL ? (aud->speaker_lead_ms + AUDIO_BLOCK_MS - 1u) / AUDIO_BLOCK_MS : 0;
 		// Allow the amplifier to settle before the first decoded block.
 		silence(spk);
 	} else if (state == P25_PARROT_RECORD) {
-		tx_level_meter_t raw;
+		tx_level_meter_t raw, conditioned;
 		speaker(false);
 		// The driver consumes this buffer after the callback. Use it as scratch and return silence.
-		input_block(mic, spk, parrot_gain_q8, parrot_agc ? parrot_target : 0, &raw);
-		imbe_enc_frame(&enc, spk, parrot_frame(parrot_count++));
+		input_block(mic, spk, parrot_gain_q8,
+			parrot_agc && parrot_view.mode == CODEC_DIAG_P25 ? parrot_target : 0,
+			&raw, parrot_view.dc_block, &conditioned);
+		if (parrot_view.mode == CODEC_DIAG_AMBE) {
+			uint8_t bits[VOCODER_BITS];
+			parrot_vocoder->encode(spk, bits);
+			uint8_t *frame = parrot_ambe + parrot_count * 7u;
+			memset(frame, 0, 7);
+			for (unsigned i = 0; i < VOCODER_BITS; i++) frame[i / 8] |= (bits[i] & 1u) << (7 - i % 8);
+			if (parrot_vocoder->encode_flags != NULL) STORE(parrot_view.codec_flags, parrot_vocoder->encode_flags());
+		} else imbe_enc_frame(&enc, spk, parrot_frame(parrot_count));
+		parrot_count++;
+		parrot_conditioned_power += conditioned.power;
+		STORE(parrot_view.conditioned_db10, tx_level_db10((uint32_t)(parrot_conditioned_power / parrot_count)));
 		parrot_speech(0, mic);
 		parrot_speech(1, spk);
 		parrot_meter(0, raw);
@@ -411,7 +462,13 @@ static void parrot_block(const int16_t *mic, int16_t *spk)
 		parrot_lead--;
 		silence(spk);
 	} else if (state == P25_PARROT_PLAY && parrot_played < parrot_count) {
-		imbe_dec_frame(&dec, parrot_frame(parrot_played++), 0, spk);
+		if (parrot_view.mode == CODEC_DIAG_AMBE) {
+			uint8_t bits[VOCODER_BITS];
+			const uint8_t *frame = parrot_ambe + parrot_played * 7u;
+			for (unsigned i = 0; i < VOCODER_BITS; i++) bits[i] = (frame[i / 8] >> (7 - i % 8)) & 1u;
+			parrot_vocoder->decode(bits, spk);
+		} else imbe_dec_frame(&dec, parrot_frame(parrot_played), 0, spk);
+		parrot_played++;
 		parrot_speech(2, spk);
 		parrot_meter(2, tx_level_measure(spk, AUDIO_BLOCK_SAMPLES, true));
 	} else {
@@ -432,7 +489,7 @@ static void tx_block(uint8_t g, const int16_t *mic, int16_t *scaled)
 {
 	uint32_t limited = input_level.limited_blocks;
 	uint16_t target = p25VoiceAgc() ? P25_TX_TARGET_RMS : 0;
-	uint16_t peak = input_block(mic, scaled, LOAD(mic_gain_q8), target, NULL);
+	uint16_t peak = input_block(mic, scaled, LOAD(mic_gain_q8), target, NULL, true, NULL);
 	stats.tx_gain_q16 = input_level.gain_q16;
 	stats.tx_limited_blocks += input_level.limited_blocks - limited;
 	if (peak > stats.tx_mic_peak) {
@@ -483,6 +540,9 @@ void p25VoiceAudioBlock(const int16_t *mic, int16_t *spk, void *ctx)
 			imbe_enc_init(&enc);
 			uint32_t initial = p25VoiceAgc() ? TX_LEVEL_UNITY : (uint32_t)LOAD(mic_gain_q8) << 8;
 			tx_level_reset(&input_level, initial);
+#if CONFIG_TX_DC_BLOCK
+			dc_block_reset(&input_dc);
+#endif
 		}
 		// The speaker block doubles as the encoder input scratch while transmitting.
 		tx_block(g, mic, spk);
@@ -543,21 +603,54 @@ void p25VoiceParrotReady(uint8_t (*frames)[IMBE_BYTES], unsigned count, uint8_t 
 	STORE(parrot_state, P25_PARROT_READY);
 	STORE(parrot_command, 0);
 }
+void p25VoiceParrotVocoder(const hal_vocoder_t *v, uint8_t *recording, unsigned size, uint32_t restore_options)
+{
+	parrot_vocoder = v;
+	parrot_ambe = recording;
+	parrot_ambe_size = size;
+	parrot_restore_options = restore_options;
+}
+
 bool p25VoiceParrotCapture(bool agc_on, int8_t target_dbfs, uint8_t mic_step, bool hardware_gain)
+{
+	return p25VoiceParrotCaptureMode(CODEC_DIAG_P25, CONFIG_TX_DC_BLOCK, agc_on, target_dbfs, mic_step, hardware_gain, 256);
+}
+
+bool p25VoiceParrotCaptureMode(uint8_t mode, bool dc, bool agc_on, int8_t target_dbfs,
+	uint8_t mic_step, bool hardware_gain, uint16_t ambe_gain_q8)
 {
 	uint8_t state = p25VoiceParrotState();
 	if (state != P25_PARROT_READY && state != P25_PARROT_DONE && state != P25_PARROT_ERROR) return false;
-	if (LOAD(mem) == NULL) return false;
+	if (LOAD(mem) == NULL || mode > CODEC_DIAG_AMBE) return false;
+	if (mode == CODEC_DIAG_AMBE && (parrot_vocoder == NULL || parrot_vocoder->present == NULL ||
+	    !parrot_vocoder->present() || parrot_vocoder->reset == NULL || parrot_vocoder->encode == NULL ||
+	    parrot_vocoder->decode == NULL || parrot_ambe == NULL || parrot_ambe_size < PARROT_FRAMES * 7u)) {
+		p25VoiceParrotFail();
+		return false;
+	}
 	if (streaming) { aud->stop(); streaming = false; } // synchronizes with the audio callback before changing its parameters
+	parrot_restore();
+	// The previous P25 frames can be in owned RAM too; erase them before AMBE reclaims any lent workspace.
+	if (mode == CODEC_DIAG_AMBE && parrot_view.mode == CODEC_DIAG_P25 && parrot_frames != NULL)
+		memset(parrot_frames, 0, parrot_split * IMBE_BYTES);
 	static const uint16_t rms[] = { 583, 654, 734, 823, 924, 1036, 1163, 1305, 1464, 1642, 1843, 2068, 2320, 2603, 2920, 3277, 3677, 4125, 4629, 5193, 5827 };
 	int target = target_dbfs < -35 ? -35 : target_dbfs > -15 ? -15 : target_dbfs;
-	parrot_agc = agc_on;
 	parrot_target = rms[target + 35];
 	parrot_gain_q8 = mic_gain_step_q8(hardware_gain ? 5 : mic_step);
 	parrot_view_reset();
+	STORE(parrot_view.mode, mode);
+	STORE(parrot_view.dc_block, dc && CONFIG_TX_DC_BLOCK);
+	if (mode == CODEC_DIAG_AMBE) {
+		uint32_t supported = parrot_vocoder->options != NULL && parrot_vocoder->set_options != NULL ? parrot_vocoder->options() : 0;
+		agc_on = agc_on && (supported & VOCODER_OPT_AGC) != 0;
+		parrot_gain_q8 = ambe_gain_q8;
+		STORE(parrot_view.codec_options, ((parrot_restore_options & ~VOCODER_OPT_AGC) | (agc_on ? VOCODER_OPT_AGC : 0)) & supported);
+		parrot_codec_used = true;
+	}
+	parrot_agc = agc_on;
 	STORE(parrot_view.agc, agc_on);
-	STORE(parrot_view.limiter, agc_on || CONFIG_TX_MIC_LIMITER);
-	STORE(parrot_view.target_dbfs, (int8_t)target);
+	STORE(parrot_view.limiter, (mode == CODEC_DIAG_P25 && agc_on) || CONFIG_TX_MIC_LIMITER);
+	STORE(parrot_view.target_dbfs, mode == CODEC_DIAG_AMBE ? 0 : (int8_t)target);
 	STORE(parrot_view.mic_step, mic_step > 10 ? 10 : mic_step);
 	STORE(parrot_view.manual_gain_q16, (uint32_t)parrot_gain_q8 << 8);
 	STORE(parrot_stop, false);
@@ -576,6 +669,7 @@ void p25VoiceParrotFail(void)
 		streaming = false;
 	}
 	if (aud != NULL && aud->speaker_pcm != NULL) aud->speaker_pcm(false);
+	parrot_restore();
 	STORE(parrot_command, 0);
 	STORE(parrot_state, P25_PARROT_ERROR);
 }
@@ -585,6 +679,11 @@ uint16_t p25VoiceParrotProgress(void) { return LOAD(parrot_progress); }
 
 void p25VoiceParrotView(p25_parrot_view_t *out)
 {
+	out->mode = LOAD(parrot_view.mode);
+	out->dc_block = LOAD(parrot_view.dc_block);
+	out->conditioned_db10 = LOAD(parrot_view.conditioned_db10);
+	out->codec_options = LOAD(parrot_view.codec_options);
+	out->codec_flags = LOAD(parrot_view.codec_flags);
 	out->mic_mean = LOAD(parrot_view.mic_mean);
 	out->mic_ac_db10 = LOAD(parrot_view.mic_ac_db10);
 	out->mic_dc_peak = LOAD(parrot_view.mic_dc_peak);
@@ -684,9 +783,13 @@ void p25VoiceEnd(void)
 	rx_agc_end(&agc);
 #endif
 #if CONFIG_P25_PARROT
+	parrot_restore();
 	STORE(parrot_state, P25_PARROT_OFF);
-	if (parrot_frames != NULL) memset(parrot_frames, 0, parrot_split * IMBE_BYTES);
+	if (parrot_view.mode != CODEC_DIAG_AMBE && parrot_frames != NULL) memset(parrot_frames, 0, parrot_split * IMBE_BYTES);
 	if (parrot_extra != NULL) memset(parrot_extra, 0, (PARROT_FRAMES - parrot_split) * IMBE_BYTES);
+	if (parrot_ambe != NULL) memset(parrot_ambe, 0, parrot_ambe_size);
+	parrot_vocoder = NULL;
+	parrot_ambe = NULL;
 	parrot_frames = parrot_extra = NULL;
 #endif
 	STORE(mem, (p25_voice_mem_t *)NULL);

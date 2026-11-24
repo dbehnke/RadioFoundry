@@ -309,6 +309,8 @@
  "screen.p25_parrot_levels": "Livelli del test P25",
  "screen.p25_parrot_report": "Risultati del test P25",
  "screen.p25_parrot_speech": "Livelli CC e voce della prova P25",
+ "screen.p25_parrot_conditioning": "Filtro CC della diagnostica codec",
+ "screen.p25_parrot_ambe": "Opzioni della diagnostica AMBE+2",
  "screen.freq_trim": "Trim di frequenza",
  "screen.freq_trim_typing": "Digitazione di un trim di frequenza",
  "screen.crash_log": "Log dei crash",

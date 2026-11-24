@@ -25,6 +25,7 @@
 #include "settings/settings.h"
 #include "radio/ref_trim.h"
 #include "radio/mic_gain.h"
+#include "dsp/mic_gain.h"
 #include "dmr/dmr_data_api.h"
 #include "dmr/dmr_emergency.h"
 #include "ui/ui_svc.h"
@@ -4251,6 +4252,13 @@ uint32_t radio_view_serial(void) { return sm.serial; }
 void radio_get_settings(radio_settings_t *s) { *s = sm.set; }
 void radio_set_settings(const radio_settings_t *s) { radio_sm_set_settings(&sm, s, now); }
 #if CONFIG_P25_PARROT
+bool radio_req_codec_diagnostic(uint8_t command, bool agc, int8_t target, uint8_t mode, bool dc)
+{
+	radio_req_t r = { .type = RREQ_P25_PARROT, .arg = command,
+		.arg2 = (uint8_t)target | (agc ? 256u : 0u) | ((uint32_t)mode << 9) | (dc ? 1024u : 0u) };
+	radio_sm_request(&sm, &r, now);
+	return true;
+}
 bool radio_req_p25_parrot(uint8_t command, bool agc, int8_t target)
 {
 	radio_req_t r = { .type = RREQ_P25_PARROT, .arg = command, .arg2 = (uint8_t)target | (agc ? 256u : 0u) };
@@ -8830,6 +8838,54 @@ static void test_p25_parrot(void)
 	req(RREQ_P25_PARROT, P25_PARROT_CLOSE);
 	CHECK(parrot_pcm_offset == 0 && !parrot_mic_route && !aud.started && !aud.pcm && radio_p25_running());
 
+	// AMBE diagnostics keep the board calibration, use codec AGC only when supported, and never key RF.
+	codec_present = true;
+	fake_radio.mic_pcm_db = 12;
+	CHECK(radio_req_p25_parrot(P25_PARROT_OPEN, false, -25));
+	CHECK(ui_svc_codec_diagnostic(P25_PARROT_CAPTURE, true, -25, CODEC_DIAG_AMBE, true));
+	run(40);
+	p25VoiceParrotView(&v);
+	CHECK(v.mode == CODEC_DIAG_AMBE && v.agc && v.codec_options == 7 && v.frames == 2);
+	CHECK(v.manual_gain_q16 == (uint32_t)mic_gain_db_q8(12) << 8 && parrot_pcm_offset == 0 && parrot_mic_route);
+	req(RREQ_P25_PARROT, P25_PARROT_STOP);
+	run(200);
+	CHECK(p25VoiceParrotState() == P25_PARROT_DONE && !parrot_mic_route && hw.tx_calls == tx_before);
+	v_agc_supported = false;
+	CHECK(ui_svc_codec_diagnostic(P25_PARROT_CAPTURE, true, -25, CODEC_DIAG_AMBE, false));
+	run(20);
+	p25VoiceParrotView(&v);
+	CHECK(v.mode == CODEC_DIAG_AMBE && !v.agc && !v.dc_block && v.codec_options == 3);
+	CHECK(v.manual_gain_q16 == (uint32_t)mic_gain_db_q8(12) << 8 && parrot_pcm_offset == 6);
+	req(RREQ_P25_PARROT, P25_PARROT_CLOSE);
+	v_agc_supported = true;
+	fake_radio.mic_pcm_db = 0;
+	CHECK(!parrot_mic_route && !aud.started && !hw.keyed && hw.tx_calls == tx_before);
+
+	// Each gain hook is optional. A P25 manual test must not leave its ADC step under AMBE software gain.
+	CHECK(ui_svc_setting_set(UI_SET_MIC_GAIN, 3));
+	for (unsigned hooks = 0; hooks < 4; hooks++) {
+		fake_radio.mic_gain = hooks & 1u ? r_mic_gain : NULL;
+		fake_radio.pcm_mic_gain = hooks & 2u ? r_pcm_mic_gain : NULL;
+		radio_set_mic_gain(3);
+		CHECK(radio_req_p25_parrot(P25_PARROT_OPEN, false, -25));
+		CHECK(ui_svc_codec_diagnostic(P25_PARROT_CAPTURE, false, -25, CODEC_DIAG_P25, true));
+		run(20);
+		req(RREQ_P25_PARROT, P25_PARROT_STOP);
+		run(200);
+		if (hooks & 2u) CHECK(parrot_pcm_offset == (hooks & 1u ? -4 : 0));
+		CHECK(ui_svc_codec_diagnostic(P25_PARROT_CAPTURE, false, -25, CODEC_DIAG_AMBE, true));
+		run(20);
+		p25VoiceParrotView(&v);
+		CHECK(v.manual_gain_q16 == (hooks == 3 ? 65536u : 161u << 8));
+		if (hooks & 2u) CHECK(parrot_pcm_offset == (hooks == 3 ? -4 : 0));
+		req(RREQ_P25_PARROT, P25_PARROT_CLOSE);
+		CHECK(!aud.started && !parrot_mic_route && !hw.keyed && hw.tx_calls == tx_before);
+	}
+	fake_radio.mic_gain = r_mic_gain;
+	fake_radio.pcm_mic_gain = r_pcm_mic_gain;
+	CHECK(ui_svc_setting_set(UI_SET_MIC_GAIN, 8));
+	radio_set_mic_gain(5);
+
 	// A failed PCM start leaves the session available for a retry and restores the hardware gain immediately.
 	CHECK(radio_req_p25_parrot(P25_PARROT_OPEN, false, -25));
 	aud.fail = true;
@@ -8918,7 +8974,8 @@ static void test_p25_mic_gain(void)
 		p25VoiceGetStats(&after);
 		CHECK(after.tx_encoded == before.tx_encoded + 1);
 		if (CONFIG_P25_TX_AGC)
-			CHECK(after.tx_mic_peak <= 1843 && after.tx_gain_q16 < 65536u);
+			CHECK(CONFIG_TX_DC_BLOCK ? after.tx_mic_peak == 0 && after.tx_gain_q16 == 65536u :
+				after.tx_mic_peak <= 1843 && after.tx_gain_q16 < 65536u);
 		else
 			CHECK(after.tx_gain_q16 == (hardware ? 65536u : 511u << 8));
 		req(RREQ_PTT, 0);

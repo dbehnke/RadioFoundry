@@ -700,6 +700,12 @@ static int run_parrot_gallery(const char *dir)
 		if (!sim_run("down down down down down down", err, sizeof err)) return 1;
 		snprintf(path, sizeof path, "%s/%s/p25_parrot_speech.png", dir, sim_geoms[g].name);
 		if (!sim_save_png(path, 2)) return 1;
+		if (!sim_run("down down down down down down down", err, sizeof err)) return 1;
+		snprintf(path, sizeof path, "%s/%s/p25_parrot_conditioning.png", dir, sim_geoms[g].name);
+		if (!sim_save_png(path, 2)) return 1;
+		if (!sim_run("back ok up ok down ok ok up up up", err, sizeof err)) return 1;
+		snprintf(path, sizeof path, "%s/%s/p25_parrot_ambe.png", dir, sim_geoms[g].name);
+		if (!sim_save_png(path, 2)) return 1;
 	}
 	return 0;
 }

@@ -562,6 +562,7 @@ bool ui_svc_key_offered(uint8_t id, int32_t value);
 
 #if CONFIG_P25_PARROT
 bool ui_svc_p25_parrot(uint8_t command, bool agc, int8_t target);
+bool ui_svc_codec_diagnostic(uint8_t command, bool agc, int8_t target, uint8_t mode, bool dc);
 uint8_t ui_svc_p25_parrot_state(void);
 void ui_svc_p25_parrot_view(p25_parrot_view_t *out);
 #endif

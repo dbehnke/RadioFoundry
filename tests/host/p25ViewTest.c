@@ -110,6 +110,7 @@ int main(void)
 	running = false;
 	parrot = (p25_parrot_view_t){
 		.state = P25_PARROT_DONE, .frames = 400,
+		.dc_block = true, .conditioned_db10 = -960,
 		.input_db10 = -541, .encoder_db10 = -351, .output_db10 = -410,
 		.input_peak = 4189, .encoder_peak = 28000, .output_peak = 21393,
 		.gain_q16 = 181963, .manual_gain_q16 = 164619, .limited_blocks = 104,
@@ -136,6 +137,22 @@ int main(void)
 	}
 	CHECK(strstr(text, "p25.on=0\n") != NULL);
 	CHECK(!t.full);
+	parrot.mode = CODEC_DIAG_AMBE;
+	parrot.target_dbfs = 0;
+	parrot.codec_options = 7;
+	parrot.codec_flags = UINT32_MAX;
+	parrot.gain_q16 = parrot.manual_gain_q16 = 1038676;
+	parrot.limited_blocks = parrot.frames = 500;
+	parrot.input_peak = parrot.encoder_peak = parrot.output_peak = 32768;
+	render(&t, text, sizeof text);
+	CHECK(!t.full);
+	CHECK(strstr(text, "p25parrot.mode=DMR/AMBE+2\n") != NULL);
+	CHECK(strstr(text, "p25parrot.target_dbfs=0\n") != NULL);
+	CHECK(strstr(text, "p25parrot.dc=1\n") != NULL);
+	CHECK(strstr(text, "p25parrot.cond_db10=-960\n") != NULL);
+	CHECK(strstr(text, "p25parrot.codec_opts=7\n") != NULL);
+	CHECK(strstr(text, "p25parrot.codec_flags=4294967295\n") != NULL);
+	CHECK(strstr(text, "p25.on=0\n") != NULL);
 	printf("p25ViewTest: RX %zu bytes, RX with load %zu bytes, diagnostic %zu bytes, %d failures\n",
 	       without_load, with_load, t.len, failures);
 	return failures != 0;

@@ -1148,8 +1148,13 @@ def test_p25_parrot_level_report(radio):
         skip("not_built", "CONFIG_P25_PARROT is off")
     if int(values.get("p25parrot.state", 0)) != 4:
         skip("state", "owner must finish a local codec diagnostic capture first")
-    if "p25parrot.mic_mean" not in values:
+    if "p25parrot.dc" not in values:
         skip("not_built", "firmware predates the extended codec level report")
+    assert values["p25parrot.mode"] in ("P25/IMBE", "DMR/AMBE+2")
+    assert values["p25parrot.dc"] in ("0", "1")
+    assert -960 <= int(values["p25parrot.cond_db10"]) <= 1
+    assert 0 <= int(values["p25parrot.codec_opts"]) <= 7
+    assert 0 <= int(values["p25parrot.codec_flags"]) <= 0xffffffff
     frames = int(values["p25parrot.frames"])
     assert 0 <= frames <= 500
     assert -32768 <= int(values["p25parrot.mic_mean"]) <= 32767

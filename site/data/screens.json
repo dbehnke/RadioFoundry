@@ -926,6 +926,18 @@
     "P25_PARROT"
    ]
   },
+  "p25_parrot_conditioning": {
+   "group": "settings",
+   "needs": [
+    "P25_PARROT"
+   ]
+  },
+  "p25_parrot_ambe": {
+   "group": "settings",
+   "needs": [
+    "P25_PARROT"
+   ]
+  },
   "freq_trim": {
    "group": "settings",
    "needs": [

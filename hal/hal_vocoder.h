@@ -36,7 +36,7 @@ typedef struct {
 	const char *(*profile)(void);
 	// Optional (both NULL without encode options): the VOCODER_OPT_* bits this codec takes, and the options for every
 	// encode from now on (bits it doesn't take are ignored). Kept across reset(); VOCODER_OPT_DEFAULT until set. Same
-	// task as encode(), so one frame is always encoded with one set of options
+	// task as encode(), or the exclusive owner after synchronously stopping that stream, so each frame uses one set of options
 	uint32_t (*options)(void);
 	void (*set_options)(uint32_t opts);
 	// Optional: the codec's own word for the options in force, for the debug link only (its meaning is per codec,

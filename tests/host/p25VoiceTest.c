@@ -416,7 +416,7 @@ static void testTxManualCeiling(void)
 	for (unsigned i = 0; i < AUDIO_BLOCK_SAMPLES; i++) mic[i] = 1000;
 	p25VoiceAudioBlock(mic, out, NULL);
 	p25VoiceGetStats(&s);
-	CHECK(s.tx_mic_peak == 1000 * 810 / 256 && s.tx_gain_q16 == 810u << 8 && s.tx_limited_blocks == 0,
+	CHECK(s.tx_mic_peak == (CONFIG_TX_DC_BLOCK ? 0 : 1000 * 810 / 256) && s.tx_gain_q16 == 810u << 8 && s.tx_limited_blocks == 0,
 	      "manual gain did not reset on new TX (%u/%u/%u)", s.tx_mic_peak, s.tx_limited_blocks, s.tx_gain_q16);
 	p25VoiceSetMicGain(5);
 	p25VoiceEnd();
@@ -435,6 +435,76 @@ static bool feed_tone(int amplitude, unsigned count)
 	}
 	return heard;
 }
+static unsigned codec_encoded, codec_decoded, codec_resets;
+static uint32_t codec_opts, codec_supported = 7;
+static bool codec_present = true, codec_bits_ok;
+static bool fake_codec_present(void) { return codec_present; }
+static void fake_codec_reset(void) { codec_resets++; memset(&vmem, 0xa5, sizeof vmem); }
+static uint32_t fake_codec_options(void) { return codec_supported; }
+static void fake_codec_set_options(uint32_t options) { codec_opts = options; }
+static uint32_t fake_codec_flags(void) { return codec_opts + 100; }
+static void fake_codec_encode(const int16_t *pcm, uint8_t *bits)
+{
+	CHECK(tx_level_measure(pcm, 160, true).peak >= 990 && tx_level_measure(pcm, 160, true).peak <= 1010,
+	      "AMBE applied a P25 RMS target or missed conditioning");
+	for (unsigned i = 0; i < VOCODER_BITS; i++) bits[i] = ((codec_encoded * 13 + i * 7) >> (i % 8)) & 1u;
+	codec_encoded++;
+}
+static void fake_codec_decode(const uint8_t *bits, int16_t *pcm)
+{
+	for (unsigned i = 0; i < VOCODER_BITS; i++)
+		if (bits[i] != (((codec_decoded * 13 + i * 7) >> (i % 8)) & 1u)) codec_bits_ok = false;
+	for (unsigned i = 0; i < 160; i++) pcm[i] = i & 1u ? 1000 : -1000;
+	codec_decoded++;
+}
+static const hal_vocoder_t fake_codec = { .present = fake_codec_present, .reset = fake_codec_reset,
+	.encode = fake_codec_encode, .decode = fake_codec_decode, .options = fake_codec_options,
+	.set_options = fake_codec_set_options, .encode_flags = fake_codec_flags };
+
+static void testAmbeDiagnostic(void)
+{
+	static uint8_t recording[3502];
+	p25_parrot_view_t v;
+	begin();
+	// Model a codec that overwrites all lent RAM on every reset. The recording must survive both resets.
+	p25VoiceParrotReady((uint8_t (*)[IMBE_BYTES])&vmem, 217, (uint8_t (*)[IMBE_BYTES])(recording + 1));
+	recording[0] = recording[3501] = 0x5a;
+	p25VoiceParrotVocoder(&fake_codec, recording + 1, 3500, VOCODER_OPT_NOISE_REDUCTION);
+	codec_encoded = codec_decoded = codec_resets = 0;
+	codec_bits_ok = true;
+	CHECK(p25VoiceParrotCaptureMode(CODEC_DIAG_AMBE, true, true, -15, 5, false, 512), "AMBE refused");
+	int16_t mic[160], out[160];
+	for (unsigned b = 0; b < 500; b++) {
+		for (unsigned i = 0; i < 160; i++) mic[i] = (CONFIG_TX_DC_BLOCK ? 2400 : 0) + (int16_t)lrint(500 * cos(2 * M_PI * i / 40));
+		p25VoiceAudioBlock(mic, out, NULL);
+	}
+	p25VoiceParrotView(&v);
+	CHECK(v.mode == CODEC_DIAG_AMBE && v.dc_block == CONFIG_TX_DC_BLOCK && v.agc && v.limiter == CONFIG_TX_MIC_LIMITER && v.codec_options == 5 && v.codec_flags == 105,
+	      "AMBE recorded settings");
+	CHECK(abs(v.conditioned_db10 + 393) <= 2 && abs(v.encoder_db10 + 333) <= 2,
+	      "AMBE conditioning/gain %d/%d", v.conditioned_db10, v.encoder_db10);
+	feed_tone(0, 502);
+	CHECK(codec_encoded == 500 && codec_decoded == 500 && codec_resets == 2 && codec_bits_ok,
+	      "AMBE packed frame round trip %u/%u/%u", codec_encoded, codec_decoded, codec_resets);
+	CHECK(recording[0] == 0x5a && recording[3501] == 0x5a, "AMBE recording overrun");
+	CHECK(p25VoiceParrotCaptureMode(CODEC_DIAG_P25, false, false, -25, 5, false, 256), "return to P25 failed");
+	CHECK(codec_opts == VOCODER_OPT_NOISE_REDUCTION, "AMBE options not restored on codec change");
+	feed_tone(500, 2);
+	p25VoiceParrotView(&v);
+	CHECK(v.mode == CODEC_DIAG_P25 && !v.dc_block && abs(v.conditioned_db10 - v.input_db10) <= 1,
+	      "P25 DC bypass/report");
+	p25VoiceParrotFail();
+	codec_present = false;
+	CHECK(!p25VoiceParrotCaptureMode(CODEC_DIAG_AMBE, true, false, -25, 5, false, 512), "absent codec accepted");
+	codec_present = true;
+	CHECK(p25VoiceParrotCaptureMode(CODEC_DIAG_AMBE, true, true, -25, 5, false, 512), "AMBE retry failed");
+	for (unsigned i = 0; i < 160; i++) mic[i] = (int16_t)lrint(500 * cos(2 * M_PI * i / 40));
+	p25VoiceAudioBlock(mic, out, NULL);
+	p25VoiceEnd();
+	CHECK(codec_opts == VOCODER_OPT_NOISE_REDUCTION && !running, "AMBE exit did not restore options/stream");
+	for (unsigned i = 1; i <= 3500; i++) CHECK(recording[i] == 0, "recording not erased");
+}
+
 static void testParrot(void)
 {
 	static uint8_t frames[500][IMBE_BYTES];
@@ -625,6 +695,36 @@ static void testParrotMeters(void)
 	p25VoiceEnd();
 }
 
+// A steady microphone bias must not consume the encoder AGC target.
+static void testParrotBiasedSpeech(void)
+{
+#if CONFIG_TX_DC_BLOCK
+	static uint8_t frames[500][IMBE_BYTES];
+	p25_parrot_view_t v;
+	int16_t mic[160], out[160];
+	int16_t reference = -960;
+	for (int dc = -2400; dc <= 2400; dc += 2400) {
+		begin();
+		p25VoiceParrotReady(frames, 217, frames + 217);
+		CHECK(p25VoiceParrotCapture(true, -25, 5, false), "biased capture refused");
+		for (unsigned b = 0; b < 300; b++) {
+			for (unsigned i = 0; i < 160; i++) mic[i] = dc + (int16_t)lrint(500 * cos(2 * M_PI * i / 40));
+			p25VoiceAudioBlock(mic, out, NULL);
+		}
+		p25VoiceParrotView(&v);
+		CHECK(abs(v.mic_mean - dc) <= 1, "raw DC lost");
+		CHECK(abs(v.speech_db10[1] + 250) < 10, "DC stole speech target: dc=%d enc=%d", dc, v.speech_db10[1]);
+		p25VoiceParrotStop();
+		feed_tone(0, 302);
+		p25VoiceParrotView(&v);
+		if (reference == -960) reference = v.speech_db10[2];
+		CHECK(v.speech_blocks[2] >= 15 && abs(v.speech_db10[2] - reference) <= 10,
+		      "decoded biased speech differs from zero-offset case %d/%d", v.speech_db10[2], reference);
+		p25VoiceEnd();
+	}
+#endif
+}
+
 static void testParrotDrain(void)
 {
 	static uint8_t frames[500][IMBE_BYTES];
@@ -729,10 +829,12 @@ int main(void)
 	testTxAgc();
 #endif
 #if CONFIG_P25_PARROT
+	testAmbeDiagnostic();
 	testParrot();
 	testParrotMatchesTx();
 	testParrotMeters();
 	testParrotAgcMatchesTx();
+	testParrotBiasedSpeech();
 	testParrotDrain();
 	testParrotFailure();
 #endif

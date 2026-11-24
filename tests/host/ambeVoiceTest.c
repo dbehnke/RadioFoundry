@@ -535,6 +535,17 @@ static void testEncodeOptions(void)
 	src->end(src->ctx);
 	while (src->next(frame, src->ctx))
 		;
+	// A local diagnostic can change HAL options while voice is stopped; the cached word is no longer authoritative.
+	ambeVoiceStop();
+	opt_set(VOCODER_OPT_NOISE_REDUCTION);
+	ncalls = 0;
+	src->begin(src->ctx);
+	block();
+	CHECK(ncalls == 2 && calls_flags[0] == 0x1840u && calls_flags[1] == 0x1840u,
+	      "stopped-stream option cache hid diagnostic changes");
+	src->end(src->ctx);
+	while (src->next(frame, src->ctx))
+		;
 	ambeVoiceSetEncodeOptions(VOCODER_OPT_DEFAULT);
 	ambeVoiceInit(&audio, &vocoder);
 }
@@ -873,10 +884,11 @@ int main(void)
 #if CONFIG_VOICE_CAPTURE
 	testCapture();
 #endif
+	int previous_stops = stops, previous_starts = starts;
 	ambeVoiceStop();
-	CHECK(stops == 1 && !speaker_on, "stop");
+	CHECK(stops == previous_stops + 1 && !speaker_on, "stop");
 	ambeVoiceSink()->begin(NULL, NULL);
-	CHECK(starts == 2, "restarted after stop");
+	CHECK(starts == previous_starts + 1, "restarted after stop");
 #if CONFIG_RX_AGC
 	testReceiveAgc();
 #endif

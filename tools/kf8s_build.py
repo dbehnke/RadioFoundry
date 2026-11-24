@@ -250,8 +250,12 @@ def package_readme(version, parrot, without_aes):
     diagnostic = ('Codec diagnostic enabled wherever P25 is built. See build.json for each image configuration.\n'
                   'Images that exceed RAM with the diagnostic disable the DMR IP gateway.\n'
                   'Open Settings > Advanced > Codec diagnostic and press OK on Record to capture up to 10 seconds.\n'
-                  'Wait for playback to show Done, then report the mode, duration, Test AGC and its target or mic step,\n'
-                  'the mic, encoder and decoded RMS and peaks, Last PCM gain, and Limited blocks.\n'
+                  'Mode selects P25/IMBE or installed DMR/AMBE+2. AMBE uses codec AGC and has no P25 target.\n'
+                  'DC removal is a local A/B control; live P25 removes computed bias before gain.\n'
+                  'Wait for playback to show Done, then report Test mode, duration, Test AGC and its target or mic step,\n'
+                  'the mic, conditioned, encoder and decoded RMS and peaks, Last PCM gain, and Limited blocks.\n'
+                  'Also report Test DC removal, Mic DC mean, Max block DC, Mic AC and speech levels/active blocks.\n'
+                  'For AMBE also report Codec options and Codec flags. No audio is saved to flash; no RF is sent.\n'
                   if parrot else 'The codec diagnostic is off. The DMR IP gateway retains its board defaults.\n')
     return (
         f'{version}\nPrivate KF8S test build based on RadioFoundry. Contact: dbehnke (KF8S).\n'

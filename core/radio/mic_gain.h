@@ -56,6 +56,8 @@ static inline int8_t mic_gain_board_pcm_db(void)
 // the board doesn't take the step in its audio path. radio_set_mic_gain sets it through ambeVoiceSetMicGainQ8.
 int radio_mic_pcm_db(void);
 uint16_t radio_mic_pcm_q8(void);
+// The same board calibration and exact step rounding for a local PCM route.
+uint16_t radio_mic_pcm_gain_q8(uint8_t step, bool hardware_gain);
 // The step last set (MIC_GAIN_UNITY until the first call)
 uint8_t radio_mic_gain(void);
 

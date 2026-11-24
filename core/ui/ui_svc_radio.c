@@ -562,6 +562,10 @@ bool ui_svc_p25_parrot(uint8_t command, bool agc, int8_t target)
 {
 	return radio_req_p25_parrot(command, agc, target);
 }
+bool ui_svc_codec_diagnostic(uint8_t command, bool agc, int8_t target, uint8_t mode, bool dc)
+{
+	return radio_req_codec_diagnostic(command, agc, target, mode, dc);
+}
 uint8_t ui_svc_p25_parrot_state(void) { return radio_p25_parrot_state(); }
 void ui_svc_p25_parrot_view(p25_parrot_view_t *out)
 {
@@ -571,7 +575,7 @@ void ui_svc_p25_parrot_view(p25_parrot_view_t *out)
 	} else {
 		memset(out, 0, sizeof *out);
 		out->state = state;
-		out->input_db10 = out->encoder_db10 = out->output_db10 = -960;
+		out->input_db10 = out->encoder_db10 = out->output_db10 = out->conditioned_db10 = -960;
 	}
 }
 #endif
