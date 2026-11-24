@@ -1050,41 +1050,6 @@
    "needs": [
     "TX_POWER_MENU"
    ]
-  },
-  "rx_signal": {
-   "group": "calls",
-   "needs": [
-    "DMR",
-    "RX_SIGNAL_MENU"
-   ]
-  },
-  "rx_signal_held": {
-   "group": "calls",
-   "needs": [
-    "DMR",
-    "RX_SIGNAL_MENU"
-   ]
-  },
-  "rx_signal_unavailable": {
-   "group": "calls",
-   "needs": [
-    "DMR",
-    "RX_SIGNAL_MENU"
-   ]
-  },
-  "settings_rx_details": {
-   "group": "settings",
-   "needs": [
-    "UI_SETTINGS",
-    "RX_SIGNAL_MENU"
-   ]
-  },
-  "home_dual_signal": {
-   "group": "home",
-   "needs": [
-    "DUAL_WATCH",
-    "RX_SIGNAL_MENU"
-   ]
   }
  }
 }

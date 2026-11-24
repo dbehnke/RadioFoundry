@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
-// Copyright (c) 2026 David Behnke
 // DB25-D radio: the main transceiver and the LO on one bit-banged 3-wire bus, the superhet's RX paths and analog FM
 // receive (docs/spec/hardware-db25d.md 3.2, 4). The chips are the PRO's two BK4819 or an older batch's FD6818 with its
 // LO (4.8); rfchip_db25d.c drives whichever pair the radio has, the sequences here are the same for all.
@@ -679,7 +678,6 @@ static bool tx_tone_key(bool down)
 
 static void status(radio_status_t *st)
 {
-	st->rssi_valid = st->rssi_fresh = supported && have_rx && !transmitting;
 	if (!supported) {
 		st->rssi_dbm = -160;
 		st->noise = UINT8_MAX;		// all noise: 0 reads as a quiet channel, the squelch opens and the screen says receiving

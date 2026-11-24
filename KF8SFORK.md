@@ -13,7 +13,8 @@ Documentation for testers:
 - [Fork changelog](docs/kf8sfork/CHANGELOG.md): changes from the first fork feature through November 24, 2026.
 
 Current additions include digital RX AGC, P25 microphone AGC and DC removal, optional P25 caller lookup,
-caller/RF display improvements, full TX power controls, and configurable microphone keys. The temporary P25
+caller/dual-display improvements, full TX power controls, and configurable microphone keys. The recent expanded
+RF meter display was reverted to restore the earlier layout. The temporary P25
 calibration is optional and off in the standard package. The guide identifies the current tagged firmware.
 
 ## Build and package

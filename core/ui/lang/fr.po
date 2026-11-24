@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 The RadioFoundry Authors
-# Copyright (c) 2026 David Behnke
 #
 # The radio's strings in Français (fr; docs/dev/translating.md). Kept in step with the source by
 # tools/i18n.py --sync: translate the empty msgstr lines; an empty one shows the English.
@@ -4079,16 +4078,6 @@ msgid "Idle steps"
 msgstr "Étapes de repos"
 
 #: core/ui/ui_menus.c
-msgctxt "SET_VALUE_RX_CALLER"
-msgid "Caller"
-msgstr "Appelant"
-
-#: core/ui/ui_menus.c
-msgctxt "SET_VALUE_RX_SIGNAL"
-msgid "Signal"
-msgstr "Signal"
-
-#: core/ui/ui_menus.c
 msgctxt "SET_LABEL_BRIGHTNESS"
 msgid "Brightness"
 msgstr "Luminosité"
@@ -4127,11 +4116,6 @@ msgstr "Ligne d'aide"
 msgctxt "SET_LABEL_RX_AUDIO_LEVELS"
 msgid "RX audio levels"
 msgstr "Niveaux audio RX"
-
-#: core/ui/ui_menus.c
-msgctxt "SET_LABEL_RX_DETAILS"
-msgid "RX details"
-msgstr "Détails RX"
 
 #: core/ui/ui_menus.c
 msgctxt "SET_LABEL_LANGUAGE"
@@ -5054,26 +5038,6 @@ msgid "Broadcast FM"
 msgstr "FM Commerciale"
 
 #: core/ui/ui_screens.c
-msgctxt "SIGNAL_STATE_CURRENT"
-msgid "Current"
-msgstr "Actuel"
-
-#: core/ui/ui_screens.c
-msgctxt "SIGNAL_STATE_HELD"
-msgid "Held"
-msgstr "Mémorisé"
-
-#: core/ui/ui_screens.c
-msgctxt "SIGNAL_STATE_EXPIRED"
-msgid "Expired"
-msgstr "Expiré"
-
-#: core/ui/ui_screens.c
-msgctxt "SIGNAL_STATE_UNAVAILABLE"
-msgid "Unavailable"
-msgstr "Indisponible"
-
-#: core/ui/ui_screens.c
 msgctxt "HW_BODY_RESTART_TO_APPLY"
 msgid "Restart to apply"
 msgstr "Effet au redémarrage"
@@ -5329,11 +5293,6 @@ msgid "Phone line"
 msgstr "Ligne téléphonique"
 
 #: core/ui/ui_screens.c
-msgctxt "STATE_RECEIVING"
-msgid "Receiving"
-msgstr "Réception"
-
-#: core/ui/ui_screens.c
 msgctxt "CALL_VALUE_PRIVATE_TO_YOU"
 msgid "Private to you"
 msgstr "Privé pour vous"
@@ -5587,6 +5546,11 @@ msgstr "MON: moniteur num."
 msgctxt "ACTIVITY_STATE_SQUELCH_OPEN"
 msgid "Squelch open"
 msgstr "Squelch ouvert"
+
+#: core/ui/ui_screens.c
+msgctxt "STATE_RECEIVING"
+msgid "Receiving"
+msgstr "Réception"
 
 #: core/ui/ui_screens.c
 msgctxt "STATE_SENDING"

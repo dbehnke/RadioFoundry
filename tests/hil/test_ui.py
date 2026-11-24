@@ -900,31 +900,3 @@ def test_p25_calibration_local_roundtrip(home):
     after = r.core()
     for key in ("mode", "rx_hz", "tx_hz", "channel_number"):
         assert after[key] == before[key], (key, before, after)
-
-
-@pytest.mark.feature("rx_signal_menu")
-@pytest.mark.needs_switch("UI_SETTINGS")
-def test_receive_details_setting(home):
-    """The remembered receive-details choice changes only its own presentation bit; no RF is keyed."""
-    r = home
-    before = r.link.view(["signal"])
-    original = as_int(before.get("signal.details"), 0)
-    try:
-        for key, screen in (("ok", "hub"), ("7", "settings"), ("2", "group")):
-            r.press(key)
-            wait_screen(r, screen)
-        count = as_int(ui(r).get("ui.count"))
-        for _ in range(count - 2):
-            r.press("down")
-        r.press("ok")
-        r.wait_for(lambda x: as_int(x.get("signal.details")) == 1 - original,
-                   sections=("signal",), what="receive detail choice changed")
-        r.press("ok")
-        r.wait_for(lambda x: as_int(x.get("signal.details")) == original,
-                   sections=("signal",), what="receive detail choice restored")
-    finally:
-        # The setting cycles in place. Restore after a failed assertion as well.
-        if as_int(r.link.view(["signal"]).get("signal.details"), original) != original:
-            r.press("ok")
-        r.press("back", LONG)
-        wait_screen(r, "home")

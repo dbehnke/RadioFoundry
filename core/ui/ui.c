@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
-// Copyright (c) 2026 David Behnke
 // The UI task: boot splash, the frame pacing, the backlight, and the glue between the RTOS and the UI's behavior in
 // ui_app.c (which the host simulator runs without an RTOS). Reads the radio view and posts requests; never touches
 // the radio hardware.
@@ -123,9 +122,10 @@ static void ui_task(void *arg)
 	vTaskDelay(pdMS_TO_TICKS(SPLASH_MS));
 	while (input_next(&ev, 0))
 		;	// keys pressed during the splash are dropped
-	uint32_t serial, signal_serial;
-	radio_get_view_serials(&view, &serial, &signal_serial);
+	radio_get_view(&view);
 	ui_app_status(&status);
+
+	uint32_t serial = radio_view_serial() - 1u;
 	uint32_t last_draw = 0;
 	uint32_t rested = hal_millis();	// the last time this task waited
 	bool dirty = true;
@@ -147,7 +147,8 @@ static void ui_task(void *arg)
 		// the core drops on a channel)
 		uint32_t s = radio_view_serial();
 		if (s != serial) {
-			radio_get_view_serials(&view, &serial, &signal_serial);
+			serial = s;
+			radio_get_view(&view);
 		}
 		if (got) {
 			bool was_off = backlight_now == 0;
@@ -162,11 +163,12 @@ static void ui_task(void *arg)
 		now = hal_millis();
 		s = radio_view_serial();
 		if (s != serial) {	// and after it: what the key changed shows in this pass
-			radio_get_view_serials(&view, &serial, &signal_serial);
+			serial = s;
+			radio_get_view(&view);
 		}
 		if (radio_view_wakes(&view))
 			radio_active_ms = now;
-		if (ui_app_tick_serials(&view, now, serial, signal_serial))
+		if (ui_app_tick(&view, now))
 			dirty = true;
 		if (ui_app_take_wake())
 			radio_active_ms = now;

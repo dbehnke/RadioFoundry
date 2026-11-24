@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 The RadioFoundry Authors
-# Copyright (c) 2026 David Behnke
 #
 # The radio's strings in 中文 (zh; docs/dev/translating.md). Kept in step with the source by
 # tools/i18n.py --sync: translate the empty msgstr lines; an empty one shows the English.
@@ -4081,16 +4080,6 @@ msgid "Idle steps"
 msgstr "空闲步骤"
 
 #: core/ui/ui_menus.c
-msgctxt "SET_VALUE_RX_CALLER"
-msgid "Caller"
-msgstr "呼叫者"
-
-#: core/ui/ui_menus.c
-msgctxt "SET_VALUE_RX_SIGNAL"
-msgid "Signal"
-msgstr "信号"
-
-#: core/ui/ui_menus.c
 msgctxt "SET_LABEL_BRIGHTNESS"
 msgid "Brightness"
 msgstr "亮度"
@@ -4129,11 +4118,6 @@ msgstr "提示行"
 msgctxt "SET_LABEL_RX_AUDIO_LEVELS"
 msgid "RX audio levels"
 msgstr "接收音频电平"
-
-#: core/ui/ui_menus.c
-msgctxt "SET_LABEL_RX_DETAILS"
-msgid "RX details"
-msgstr "接收详情"
 
 #: core/ui/ui_menus.c
 msgctxt "SET_LABEL_LANGUAGE"
@@ -5056,26 +5040,6 @@ msgid "Broadcast FM"
 msgstr "调频广播"
 
 #: core/ui/ui_screens.c
-msgctxt "SIGNAL_STATE_CURRENT"
-msgid "Current"
-msgstr "当前"
-
-#: core/ui/ui_screens.c
-msgctxt "SIGNAL_STATE_HELD"
-msgid "Held"
-msgstr "保持"
-
-#: core/ui/ui_screens.c
-msgctxt "SIGNAL_STATE_EXPIRED"
-msgid "Expired"
-msgstr "过期"
-
-#: core/ui/ui_screens.c
-msgctxt "SIGNAL_STATE_UNAVAILABLE"
-msgid "Unavailable"
-msgstr "不可用"
-
-#: core/ui/ui_screens.c
 msgctxt "HW_BODY_RESTART_TO_APPLY"
 msgid "Restart to apply"
 msgstr "请重启电台"
@@ -5331,11 +5295,6 @@ msgid "Phone line"
 msgstr "电话"
 
 #: core/ui/ui_screens.c
-msgctxt "STATE_RECEIVING"
-msgid "Receiving"
-msgstr "接收中"
-
-#: core/ui/ui_screens.c
 msgctxt "CALL_VALUE_PRIVATE_TO_YOU"
 msgid "Private to you"
 msgstr "发给你的个呼"
@@ -5589,6 +5548,11 @@ msgstr "MON：数字监听"
 msgctxt "ACTIVITY_STATE_SQUELCH_OPEN"
 msgid "Squelch open"
 msgstr "静噪打开"
+
+#: core/ui/ui_screens.c
+msgctxt "STATE_RECEIVING"
+msgid "Receiving"
+msgstr "接收中"
 
 #: core/ui/ui_screens.c
 msgctxt "STATE_SENDING"

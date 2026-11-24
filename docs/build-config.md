@@ -277,9 +277,3 @@ most boards are `CONFIG_AUDIO_PROBE` (a bench diagnostic) and the ones that need
 
 `CONFIG_RX_AGC` follows `CONFIG_DMR`. It builds shared receive speech normalization for digital modes.
 Each mode defaults to Off at run time. FM is unchanged. See [receive AGC](spec/rx-agc.md).
-
-## Digital receive signal details
-
-`CONFIG_RX_SIGNAL_MENU` enables the digital receive signal presentation and the remembered
-Settings > Display > RX details choice. Off keeps the legacy activity layout. It does not change
-RF sampling, squelch, scan decisions or audio gain. The added flash cost has not been measured.

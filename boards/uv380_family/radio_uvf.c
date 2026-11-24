@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
-// Copyright (c) 2026 David Behnke
 // UV380 family radio: AT1846S (I2C3) + HR_C6000 (bit-banged config SPI, voice SPI2) + RF path GPIOs + APC DAC +
 // calibration. FM receive and transmit (docs/spec/hardware-dm1701.md 4-8, 12; docs/spec/modem-hrc6000.md 3, 8), and the
 // RF side of DMR (modem-hrc6000.md 3.1, 4.3; hardware-dm1701.md 5.3, 6): set_mode(DMR) puts both chips in DMR and starts
@@ -1136,21 +1135,18 @@ static void status(radio_status_t *st)
 {
 	if (stm32_hrc_dmr_tx_active() || r.afsk) {
 		*st = r.last_status;	// keep I2C3 free for the per-burst switching / the AFSK tone switching
-		st->rssi_fresh = false;
 		return;
 	}
 	uint8_t rssi, noise;
 	uint16_t flags, value;
 	at1846s_tone_t type = rf_tone(&r.rx_tone, &value);
 	if (!at1846s_read_signal(&r.rf, &rssi, &noise) || !at1846s_read_flags(&r.rf, &flags)) {
-		st->rssi_valid = st->rssi_fresh = false;
 		st->rssi_dbm = -140;
 		st->noise = 255;
 		st->carrier = false;
 		st->tone_ok = type == AT1846S_TONE_NONE;
 		return;
 	}
-	st->rssi_valid = st->rssi_fresh = r.rx_valid && !r.tx_on;
 	r.diag.rssi = rssi;
 	r.diag.noise = noise;
 	r.diag.flags = flags;

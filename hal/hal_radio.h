@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
-// Copyright (c) 2026 David Behnke
 // Radio: what the core asks of the RF side, whatever chips the board has.
 // The board composes its RF chip, modem / audio chip, band and PA switching and calibration behind this.
 #ifndef HAL_RADIO_H
@@ -28,8 +27,6 @@ typedef struct {
 
 typedef struct {
 	int16_t rssi_dbm;
-	bool rssi_valid;	// receiver measurement available; never inferred from its numerical strength
-	bool rssi_fresh;	// measured by this status call, false for a retained sample
 	uint8_t noise;		// chip noise reading, larger = more noise (1 dB units where the chip allows); UINT8_MAX when it can't hear
 	bool carrier;		// the chip's own squelch says carrier (if it has one)
 	bool tone_ok;		// the RX sub-audio tone or code matches (true when none is set)

@@ -18,6 +18,10 @@ stub/USER-GUIDE.md the stub guide's per-radio entry steps (to move into each rad
 tools/rfoundry/README.md the flasher guide's examples and per-radio routes
 AGENTS.md the owner has uncommitted edits to it; fix after those land
 
+# Fork release records intentionally identify packaged images and model-specific tester instructions.
+docs/kf8sfork/CHANGELOG.md owner-requested fork release history, including models used for calibration
+docs/kf8sfork/README.md owner-requested package inventory and model-specific testing guide
+
 # Owned by the workflows work in this pull request: fix there.
 .github/ISSUE_TEMPLATE/radio_request.yml the request form's placeholder example
 tools/ci.sh usage examples and the per-board skip notes

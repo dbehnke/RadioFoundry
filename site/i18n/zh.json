@@ -2421,10 +2421,5 @@
  "screen.caller_database_dual_p25": "双守候中的 P25 呼叫者身份",
  "screen.channel_power_default": "信道编辑器：使用电台默认功率",
  "screen.power_default": "设置：选择默认发射功率",
- "screen.power_quick": "快捷设置：选择任意支持的发射功率",
- "screen.rx_signal": "数字接收信号详情",
- "screen.rx_signal_held": "保持的接收信号测量",
- "screen.rx_signal_unavailable": "接收信号不可用",
- "screen.settings_rx_details": "接收详情设置",
- "screen.home_dual_signal": "双接收信号详情"
+ "screen.power_quick": "快捷设置：选择任意支持的发射功率"
 }

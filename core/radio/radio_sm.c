@@ -175,126 +175,10 @@ static void step_update(radio_sm_t *sm)
 	sm->view.vfo_step_auto = sm->vfo_step_set == 0;
 }
 
-// The APRS job's phases (aprs_phase)
-enum { APRS_RF_OFF = 0, APRS_RF_LISTEN, APRS_RF_KEYUP, APRS_RF_SEND };
-
-#if CONFIG_RX_SIGNAL_MENU
-static void signal_clear(radio_sm_t *sm)
-{
-	memset(&sm->view.signal, 0, sizeof(sm->view.signal));
-	memset(sm->signal_ring, 0, sizeof(sm->signal_ring));
-	sm->signal_pos = 0;
-}
-
-static bool signal_compatible(const radio_sm_t *sm)
-{
-	if (sm->ptt || sm->view.state == RS_TX || sm->hotspot || sm->view.rx_sleeping)
-		return false;
-#if CONFIG_APRS_AFSK
-	if (sm->aprs_phase != APRS_RF_OFF)
-		return false;
-#endif
-#if CONFIG_AIR_RAW
-	if (sm->air_bench)
-		return false;
-#endif
-	return true;
-}
-
-static void signal_age(radio_sm_t *sm, uint32_t now_ms)
-{
-	radio_signal_t *s = &sm->view.signal;
-	uint8_t old = s->state;
-	if (!signal_compatible(sm))
-		signal_clear(sm);
-	else if (s->state != RADIO_SIGNAL_UNAVAILABLE)
-		s->state = radio_signal_state_at(s, now_ms);
-	if (old != s->state) {
-		sm->serial++;
-		sm->signal_serial++;
-	}
-}
-
-static void signal_poll(radio_sm_t *sm, const radio_status_t *st, uint32_t now_ms)
-{
-	if (!signal_compatible(sm)) {
-		signal_age(sm, now_ms);
-		return;
-	}
-	radio_signal_t previous = sm->view.signal;
-	if (!st->rssi_valid)
-		signal_clear(sm);	// a failed read is unavailable, not a freshly measured floor
-	radio_signal_t next = sm->view.signal;
-	bool digital = false;
-#if CONFIG_DMR
-	digital = sm->dmr_running || sm->sfr_rpt;
-#endif
-	if (st->rssi_valid && st->rssi_fresh) {
-		radio_signal_t raw = { .sampled_ms = now_ms, .rx_hz = sm->view.ch.rx_hz,
-			.dbm = st->rssi_dbm, .state = RADIO_SIGNAL_CURRENT, .source = RADIO_SIGNAL_SOURCE_RF };
-#if CONFIG_BCAST_FM
-		if (sm->view.bcast)
-			raw.source = RADIO_SIGNAL_SOURCE_BCAST;
-#endif
-		sm->signal_ring[sm->signal_pos] = raw;
-		sm->signal_pos = (uint8_t)((sm->signal_pos + 1u) % RADIO_RSSI_HOLD_POLLS);
-		next = raw;
-	}
-	if (digital) {
-		// Only valid measurements enter this peak window; a failed read cannot look like a weak signal.
-		bool found = false;
-		for (uint8_t i = 0; i < RADIO_RSSI_HOLD_POLLS; i++) {
-			const radio_signal_t *r = &sm->signal_ring[i];
-			if (r->state == RADIO_SIGNAL_UNAVAILABLE || now_ms - r->sampled_ms > RADIO_RSSI_HOLD_MS)
-				continue;
-			if (!found || r->dbm >= next.dbm) {
-				next = *r;
-				found = true;
-			}
-		}
-#if CONFIG_DMR
-		const dmr_call_view_t *cv = dmr_call_view();
-		// Zero is this modem protocol's explicit unknown marker, not a strength threshold.
-		if ((sm->view.dmr.state == RDMR_RX || sm->view.dmr.state == RDMR_RX_OTHER) &&
-		    cv->rssi_dbm != 0 && (int32_t)(cv->rssi_ms - cv->call_start_ms) >= 0 &&
-		    now_ms - cv->rssi_ms <= RADIO_RSSI_HOLD_MS) {
-			next = (radio_signal_t){ .sampled_ms = cv->rssi_ms, .rx_hz = sm->view.ch.rx_hz,
-				.dbm = cv->rssi_dbm, .state = RADIO_SIGNAL_CURRENT, .source = RADIO_SIGNAL_SOURCE_DMR };
-		}
-#endif
-	}
-	if (!st->rssi_fresh && next.source != RADIO_SIGNAL_SOURCE_DMR && next.state == RADIO_SIGNAL_CURRENT)
-		next.state = RADIO_SIGNAL_HELD;
-	if (next.source != RADIO_SIGNAL_SOURCE_NONE)
-		next.state = radio_signal_state_at(&next, now_ms);
-	if (previous.dbm != next.dbm || previous.state != next.state || previous.source != next.source) {
-		sm->serial++;
-		sm->signal_serial++;
-	}
-	sm->view.signal = next;
-}
-#else
-#define signal_clear(sm) ((void)(sm))
-#define signal_age(sm, now) ((void)(sm), (void)(now))
-#endif
-
 static void changed(radio_sm_t *sm)
 {
-	signal_age(sm, sm->led_now);
 	step_update(sm);	// every change that can move the width comes here
 	sm->serial++;
-}
-
-static void signal_changed(radio_sm_t *sm)
-{
-#if CONFIG_RX_SIGNAL_MENU
-	uint32_t before = sm->serial;
-	uint32_t signal_before = sm->signal_serial;
-#endif
-	changed(sm);
-#if CONFIG_RX_SIGNAL_MENU
-	sm->signal_serial = signal_before + (sm->serial - before);
-#endif
 }
 
 void radio_settings_default(radio_settings_t *s)
@@ -679,6 +563,9 @@ static void reset_tone(radio_sm_t *sm)
 	sm->tone_count = 0;
 }
 
+// The APRS job's phases (aprs_phase)
+enum { APRS_RF_OFF = 0, APRS_RF_LISTEN, APRS_RF_KEYUP, APRS_RF_SEND };
+
 // A broadcast station is listened to, not squelched: the state stays RX (so the screen shows the level; the LED stays
 // off, outputs()) whatever the signal, and the audio plays. A scan keeps the squelch to stop on stations
 static bool bcast_listening(const radio_sm_t *sm)
@@ -893,7 +780,6 @@ static void outputs(radio_sm_t *sm)
 
 static void end_reception(radio_sm_t *sm, uint32_t now_ms)
 {
-	signal_clear(sm);
 	if (sm->view.state == RS_RX) {
 		sm->view.state = RS_IDLE;
 		sm->view.last_rx_ms = now_ms != 0 ? now_ms : 1;
@@ -953,7 +839,6 @@ static void bcast_status(radio_sm_t *sm, radio_status_t *st)
 	bool got = sm->bcast_on && board.bcast->status(&bs);
 	uint8_t rssi = got ? bs.rssi : 0;
 	sm->view.bcast_khz = got ? bs.khz : 0;
-	st->rssi_valid = st->rssi_fresh = got;
 	st->rssi_dbm = (int16_t)(rssi + RADIO_BCAST_DBUV_DBM);
 	st->noise = radio_bcast_noise(rssi);
 	st->carrier = false;
@@ -2368,19 +2253,7 @@ static void dmr_publish(radio_sm_t *sm, uint32_t now_ms)
 	if (cv->serial == sm->dmr_serial) {
 		return;
 	}
-#if CONFIG_RX_SIGNAL_MENU
-	bool signal_only = cv->serial - sm->dmr_serial == cv->signal_serial - sm->dmr_signal_serial;
-	sm->dmr_signal_serial = cv->signal_serial;
-#endif
 	sm->dmr_serial = cv->serial;
-#if CONFIG_RX_SIGNAL_MENU
-	bool receiving = cv->phase == DMR_CALL_PHASE_RX_VOICE || cv->phase == DMR_CALL_PHASE_RX_BUSY;
-	bool was_receiving = d->state == RDMR_RX || d->state == RDMR_RX_OTHER;
-	if ((receiving && (!was_receiving || sm->signal_call_ms != cv->call_start_ms)) ||
-	    (!receiving && was_receiving))
-		signal_clear(sm);
-	sm->signal_call_ms = cv->call_start_ms;
-#endif
 	switch (cv->phase) {
 	case DMR_CALL_PHASE_RX_VOICE: d->state = RDMR_RX; break;
 	case DMR_CALL_PHASE_RX_BUSY: d->state = RDMR_RX_OTHER; break;
@@ -2434,12 +2307,7 @@ static void dmr_publish(radio_sm_t *sm, uint32_t now_ms)
 		d->last_ms = cv->last_heard_ms;
 	}
 	d->underruns = cv->tx_underruns;
-#if CONFIG_RX_SIGNAL_MENU
-	if (signal_only)
-		signal_changed(sm);
-	else
-#endif
-		changed(sm);
+	changed(sm);
 }
 
 // Follow the stack: release the board's TX arming once the stack is off the air (after the modem's TX done), PTT
@@ -9904,8 +9772,7 @@ static int16_t rssi_held(radio_sm_t *sm, int16_t rssi_dbm)
 
 void radio_sm_poll(radio_sm_t *sm, uint32_t now_ms)
 {
-	radio_status_t st = { 0 };
-	signal_age(sm, now_ms);
+	radio_status_t st;
 	sm->led_now = now_ms;
 #if CONFIG_P25_PARROT
 	if (sm->p25_parrot) {
@@ -9994,9 +9861,6 @@ void radio_sm_poll(radio_sm_t *sm, uint32_t now_ms)
 		st.tone_ok = true;	// no sub-audio in AM; the board gives the AM squelch value (hal_radio.h rx_am)
 	}
 #endif
-#if CONFIG_RX_SIGNAL_MENU
-	signal_poll(sm, &st, now_ms);
-#endif
 	sm->view.rssi_dbm = rssi_held(sm, st.rssi_dbm);
 	sm->view.noise = st.noise;
 #if CONFIG_DMR
@@ -10008,14 +9872,14 @@ void radio_sm_poll(radio_sm_t *sm, uint32_t now_ms)
 		int move = level - sm->view.dmr.rssi_dbm;
 		if (sm->view.dmr.rssi_dbm == 0 || move >= RADIO_RSSI_DEADBAND_DB || move <= -RADIO_RSSI_DEADBAND_DB) {
 			sm->view.dmr.rssi_dbm = level;
-			signal_changed(sm);
+			changed(sm);
 		}
 	}
 #endif
 	int drift = sm->view.rssi_dbm - sm->rssi_published;
 	if (drift >= RADIO_RSSI_DEADBAND_DB || drift <= -RADIO_RSSI_DEADBAND_DB) {
 		sm->rssi_published = sm->view.rssi_dbm;
-		signal_changed(sm);
+		changed(sm);
 	}
 #if CONFIG_APRS_AFSK
 	if (sm->aprs_phase != APRS_RF_OFF) {
@@ -10247,7 +10111,6 @@ static void t3_kv_retry(radio_sm_t *sm)
 
 void radio_sm_tick(radio_sm_t *sm, uint32_t now_ms)
 {
-	signal_age(sm, now_ms);
 	sm->led_now = now_ms;
 #if CONFIG_P25_PARROT
 	if (sm->p25_parrot) return;

@@ -14,7 +14,6 @@
 #include "sim/ui_sim.h"
 #include "ui/ui_app.h"
 #include "ui/ui_svc.h"
-#include "ui/ui_nav.h"
 #include "ui/ui_screens.h"
 #include "ui/gfx.h"
 #include "ui/i18n.h"
@@ -62,40 +61,6 @@ typedef struct {
 #define TALK_BACK	"ok 7 3 down down down down down down down down down ok long:back quick 7 ctx 3 5 ok "	// on, and A 3 / B 5
 
 static const flow_t flows[] = {
-#if CONFIG_RX_SIGNAL_MENU
-	{ "Receive details setting opens", "", "ok 7 2 up up",
-	  "screen=group focus=RX_details", 6, false },
-	{ "Receive details selects signal mode", "ok 7 2 up up", "ok",
-	  "screen=group focus=RX_details", 2, false },
-	{ "DMR keeps identity and numeric signal", "rx:9991234,91,g", "signal:-145",
-	  "shows=Q1ABC shows=-145_dBm", 0, false },
-	{ "DMR keeps above-scale numeric signal", "rx:9991234,91,g", "signal:-35",
-	  "shows=Q1ABC shows=-35_dBm", 0, false },
-	{ "DMR missing caller keeps numeric identity", "rx:9991999,91,g", "signal:-84",
-	  "shows=9991999 shows=-84_dBm", 0, false },
-	{ "DMR unreadable name falls back to numeric identity", "rx:9991234,91,g", "rxname:☃ signal:-84",
-	  "shows=9991234 shows=-84_dBm", 0, false },
-	{ "DMR long name retains caller and signal", "worst rx:9999999,91,g", "signal:-84",
-	  "shows=Christo shows=-84_dBm", 0, false },
-	{ "Dual Caller mode marks held strength", "receivers:2 quick 7 ctx 3 5 ok rxa:9991234,91,g", "signala:-85,2",
-	  "shows=Q1ABC shows=-85~_dBm", 0, false },
-	{ "DMR Caller mode marks held strength", "rx:9991234,91,g", "signal:-85,2",
-	  "shows=Q1ABC shows=-85~_dBm", 0, false },
-	{ "DMR signal mode keeps caller", "rxdetails:1 rx:9991234,91,g", "signal:-84",
-	  "shows=Q1ABC shows=-84_dBm", 0, false },
-	{ "DMR unavailable strength has no invented reading", "rx:9991234,91,g", "signal:0,0",
-	  "shows=Q1ABC shows=--_dBm hides=0_dBm", 0, false },
-	{ "DMR expired strength has no stale number", "rx:9991234,91,g", "signal:-71,3",
-	  "shows=Q1ABC shows=--_dBm hides=-71_dBm", 0, false },
-#if CONFIG_P25
-	{ "P25 compact keeps caller and signal", "dlmode:p25 p25rx:1234,1", "signal:-84",
-	  "shows=1234 shows=-84_dBm", 0, false },
-#endif
-#if CONFIG_NXDN
-	{ "NXDN compact keeps caller and signal", "dlmode:nxdn nxdnrx:1234,1", "signal:-84",
-	  "shows=1234 shows=-84_dBm", 0, false },
-#endif
-#endif
 	{ "Context Select opens Home menu", "", "selectab", "screen=hub", 1, false },
 	{ "Context Select opens menu row", "selectab", "selectab", "screen=contacts", 1, false },
 	{ "Context Select hold in channel Home explains A/B", "", "long:selectab",
@@ -246,9 +211,9 @@ static const flow_t flows[] = {
 	{ "NXDN channel shows its mode", "dlmode:nxdn", "", "mode=nxdn screen=home shows=NXDN shows=RAN_1_9600 shows=TG_1 hides=No_tone hides=SQ5", 0, false },
 	{ "NXDN home: scrambled call on a stored channel",
 	  "chkind:3,nxdn,COUNTY_NXDN dlpos:3 dlmode:nxdn", "nxdnrx:1234,7,p",
-	  "screen=home shows=ENC shows=ID_1234 shows=TG_7 hides=Encrypted:_not_played", 0, false },
+	  "screen=home shows=COUNTY_NXDN shows=ENC shows=ID_1234 shows=TG_7 hides=Encrypted:_not_played", 0, false },
 	{ "NXDN home: scrambled call without a matching key", "dlmode:nxdn", "nxdnrx:1234,7,e",
-	  "screen=home shows=Encrypted:_not_played shows=ID_1234", 0, false },
+	  "screen=home shows=Encrypted:_not_played hides=ID_1234", 0, false },
 	{ "NXDN channel: bandwidth is FM only", "dlmode:nxdn", "quick 8", "mode=nxdn toast=FM_only:_this_is_NXDN", 2, false },
 #endif
 	{ "P25 channel: bandwidth is FM only", "dlmode:p25", "quick 8", "mode=p25 toast=FM_only:_this_is_a_P25_channel",
@@ -286,19 +251,13 @@ static const flow_t flows[] = {
 #if CONFIG_RX_AGC
 #if CONFIG_CALLER_DETAILS
 #if CONFIG_P25_ID_LOOKUP
-#if CONFIG_RX_SIGNAL_MENU
-	{ "P25 signal preference keeps database caller and AGC", "p25 dlmode:p25 p25names:on callerdb:on rxdetails:1 p25rx:9991234,7 agc:1,2,3277", "",
-	  "screen=home shows=Q1ABC shows=Joe shows=Current hides=ID_9991234 shows=AGC_-20_>_-33_dBFS shows=-84_dBm", 0, false },
-	{ "Dual P25 signal preference keeps database caller and AGC", "p25 chkind:3,p25 up down p25names:on callerdb:on rxdetails:1 quick 7 tune:a", "p25rx:9991234,7 agc:1,2,3277",
-	  "screen=home dual=1 shows=Q1ABC shows=Joe shows=Current hides=ID_9991234 shows=AGC_-20_>_-33_dBFS shows=-84_dBm", 0, false },
-#endif
 	{ "P25 database caller with AGC", "p25 dlmode:p25 p25names:on callerdb:on p25rx:9991234,7 agc:1,2,3277", "",
-	  "screen=home shows=Q1ABC shows=Joe shows=ID_9991234 shows=AGC_-20_>_-33_dBFS shows=TG_7 shows=-84_dBm", 0, false },
+	  "screen=home shows=Q1ABC shows=Joe shows=ID_9991234 shows=AGC_-20_>_-33_dBFS shows=TG_7", 0, false },
 	{ "Dual P25 database caller with AGC", "p25 chkind:3,p25 up down p25names:on callerdb:on quick 7 tune:a", "p25rx:9991234,7 agc:1,2,3277",
-	  "screen=home dual=1 shows=Q1ABC shows=Joe shows=ID_9991234 shows=AGC_-20_>_-33_dBFS shows=TG_7 shows=-84_dBm", 0, false },
+	  "screen=home dual=1 shows=Q1ABC shows=Joe shows=ID_9991234 shows=AGC_-20_>_-33_dBFS shows=TG_7", 0, false },
 #endif
 	{ "Dual DMR database caller with AGC", "callerdb:on quick 7 wait:3000 tune:a", "rx:9991234,91,g agc:0,2,3277",
-	  "screen=home dual=1 shows=Q1ABC shows=Joe shows=ID_9991234 shows=AGC_-20_>_-33_dBFS shows=TG_91 shows=-71_dBm", 0, false },
+	  "screen=home dual=1 shows=Q1ABC shows=Joe shows=ID_9991234 shows=AGC_-20_>_-33_dBFS shows=TG_91", 0, false },
 #endif
 	{ "P25 receive AGC levels", "dlmode:p25 p25rx:3101234,7 agc:1,5,464", "",
 	  "screen=home shows=AGC_-37_>_-25_dBFS shows=ID_3101234 shows=TG_7", 0, false },
@@ -309,7 +268,7 @@ static const flow_t flows[] = {
 #endif
 	{ "P25 home: the caller", "dlmode:p25", "p25rx:3101234,7", "screen=home shows=ID_3101234 shows=TG_7", 0, false },
 	{ "P25 home: a unit call", "dlmode:p25", "p25rx:3101234,3105555,u", "shows=Private_to_3105555", 0, false },
-	{ "P25 home: encrypted", "dlmode:p25", "p25rx:3101234,7,e", "shows=Encrypted:_not_played shows=ID_3101234", 0,
+	{ "P25 home: encrypted", "dlmode:p25", "p25rx:3101234,7,e", "shows=Encrypted:_not_played hides=ID_3101234", 0,
 	  false },
 	{ "P25 home: another talk group", "dlmode:p25", "p25rx:3101234,7,o", "shows=Other_TG:_not_played", 0, false },
 	{ "P25 home: the call ends", "dlmode:p25 p25rx:3101234,7", "p25rxend", "screen=home hides=ID_3101234", 0, false },
@@ -2629,106 +2588,6 @@ static void audio_annotation_checks(void)
 }
 #endif
 
-#if CONFIG_RX_SIGNAL_MENU
-static void signal_geometry_checks(void)
-{
-	static const char *scripts[] = {
-		"rx:9991999,91,g signal:-145 expect:shows=9991999 expect:shows=-145_dBm",
-		"rx:9991999,91,g signal:-85,2 expect:shows=9991999 expect:shows=-85~_dBm",
-#if CONFIG_P25
-		"dlmode:p25 p25rx:1234,7 signal:-35 expect:shows=1234 expect:shows=-35_dBm",
-#endif
-#if CONFIG_NXDN
-		"dlmode:nxdn nxdnrx:1234,7 signal:-84 expect:shows=1234 expect:shows=-84_dBm",
-#endif
-	};
-	char err[300], issues[SIM_LAYOUT_MAX][160];
-	for (int g = 0; g < sim_geom_count; g++) {
-		for (unsigned i = 0; i < sizeof scripts / sizeof scripts[0]; i++) {
-			for (int large = 0; large < 2; large++) {
-				sim_reset(&sim_geoms[g], SIM_MAP_K);
-				ui_svc_setting_set(UI_SET_LARGE_TEXT, large);
-				ui_apply_setting(UI_SET_LARGE_TEXT, large);
-				bool ok = sim_run(scripts[i], err, sizeof err);
-				int n = sim_layout_issues(issues, SIM_LAYOUT_MAX);
-				if (!ok || n) {
-					printf("FAIL signal geometry [%s large=%d mode=%u]: %s\n", sim_geoms[g].name,
-						large, i, ok ? issues[0] : err);
-					fails++;
-				}
-			}
-		}
-	}
-}
-
-static void signal_snapshot_checks(void)
-{
-	char err[200];
-	sim_reset(&sim_geoms[0], SIM_MAP_K);
-	bool ok = sim_run("rx:9991234,91,g", err, sizeof err);
-	radio_view_t older = *sim_view(), newer = older;
-	uint32_t serial, signal;
-	radio_view_serials(&serial, &signal);
-	ui_app_tick_serials(&older, sim_now(), serial, signal);
-	ui_app_draw();
-	// The core publishes a caller detail after the UI copied its view. An old snapshot must not consume it.
-	strcpy(newer.dmr.alias, "New caller detail");
-	sim_publish_view(&newer);
-	ui_app_tick_serials(&older, sim_now() + 1, serial, signal);
-	ui_app_draw();
-	ok = ok && ui_app_tick_serials(&newer, sim_now() + 2, serial + 1u, signal);
-	ui_app_draw();
-	if (!ok) {
-		printf("FAIL atomic view snapshot must retain future essential generations\n");
-		fails++;
-	}
-}
-
-static void signal_commit_checks(void)
-{
-	radio_signal_t shown = { 0 };
-	radio_signal_t next = { .dbm = -80, .rx_hz = 446000000, .source = RADIO_SIGNAL_SOURCE_RF,
-		.state = RADIO_SIGNAL_CURRENT };
-	uint32_t committed = 0;
-	bool ok = ui_signal_commit(&shown, &next, 1000, &committed, true);
-	next.dbm = -60;
-	next.state = RADIO_SIGNAL_HELD;
-	ok = ok && !ui_signal_commit(&shown, &next, 1100, &committed, false) && shown.dbm == -80;
-	next.state = RADIO_SIGNAL_CURRENT;
-	ok = ok && !ui_signal_commit(&shown, &next, 1150, &committed, false) && committed == 1000;
-	next.state = RADIO_SIGNAL_HELD;
-	ok = ok && !ui_signal_commit(&shown, &next, 1200, &committed, false) && committed == 1000;
-	ok = ok && ui_signal_commit(&shown, &next, 1250, &committed, false) && shown.dbm == -60;
-	next.state = RADIO_SIGNAL_EXPIRED;
-	ok = ok && ui_signal_commit(&shown, &next, 1260, &committed, false) && shown.state == RADIO_SIGNAL_EXPIRED;
-	next.state = RADIO_SIGNAL_CURRENT;
-	ok = ok && ui_signal_commit(&shown, &next, 1270, &committed, false);
-	next.rx_hz++;
-	ok = ok && ui_signal_commit(&shown, &next, 1280, &committed, false);
-	next.dbm = -95;
-	ok = ok && ui_signal_commit(&shown, &next, 1290, &committed, true) && shown.dbm == -95;
-	char err[200];
-	sim_reset(&sim_geoms[0], SIM_MAP_K);
-	ok = ok && sim_run("rx:9991234,91,g signal:-80,1,300", err, sizeof err);
-	ui_app_status_t before, after;
-	ui_app_status(&before);
-	ok = ok && sim_run("signal:-60,2,50 signal:-61,1,50", err, sizeof err);
-	ui_app_status(&after);
-	ok = ok && after.draws == before.draws;
-	ok = ok && sim_run("signal:-61,3,50 expect:shows=--_dBm", err, sizeof err);
-	ui_app_status(&after);
-	ok = ok && after.draws > before.draws;
-	before = after;
-	ok = ok && sim_run("pttdown", err, sizeof err);
-	ui_app_status(&after);
-	ok = ok && after.draws > before.draws && sim_view()->state == RS_TX;
-	if (!ok) {
-		printf("FAIL signal presentation cadence or immediate invalidation\n");
-		fails++;
-	}
-}
-#endif
-
 int main(void)
 {
 #if !CONFIG_RX_AGC
@@ -2785,11 +2644,6 @@ int main(void)
 	audio_annotation_checks();
 #endif
 	about_checks();
-#if CONFIG_RX_SIGNAL_MENU
-	signal_commit_checks();
-	signal_geometry_checks();
-	signal_snapshot_checks();
-#endif
 	call_screen_checks();
 #if CONFIG_DMR_TRUNK
 	t3_other_checks();

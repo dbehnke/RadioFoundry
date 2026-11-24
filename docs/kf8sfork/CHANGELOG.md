@@ -25,6 +25,15 @@ The local ZIP is not automatically uploaded to GitHub by pushing this tag.
 
 ## November 24, 2026
 
+### Receive display rollback after the tagged test build
+
+- Removed the digital RF signal-display enhancement because the added information crowded the display.
+- Restored the earlier caller/dual layouts and removed the added RX details preference and measurement metadata.
+- Preserved the earlier caller lookup/display improvements, RX/TX AGC, power controls and microphone keys.
+- This source rollback is newer than the firmware tag above. The existing ZIP still has the meter enhancement;
+  no replacement firmware was built for this change. The original feature branch is retained.
+
+
 ### Microphone input and P25 calibration
 
 - Added streaming microphone DC-offset removal before P25 gain and level measurement. The estimate is computed
@@ -56,7 +65,7 @@ Key commits: [`6121f678`](https://github.com/dbehnke/RadioFoundry/commit/6121f67
 Key commits: [`897aea14`](https://github.com/dbehnke/RadioFoundry/commit/897aea14),
 [`dc8b2fe2`](https://github.com/dbehnke/RadioFoundry/commit/dc8b2fe2).
 
-### Digital RF signal display
+### Digital RF signal display (later reverted)
 
 - Standardized the existing **-120 to -60 dBm bar** and actual numeric dBm reading across digital caller,
   compact, large-text, dual and receive-audio layouts where space permits. Numbers can extend beyond the bar range.

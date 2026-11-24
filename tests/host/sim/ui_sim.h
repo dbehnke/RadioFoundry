@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
-// Copyright (c) 2026 David Behnke
 // Host simulator for the UI (docs/spec/ui.md 7): the real core/ui code against a simulated board (any display
 // geometry, any of the reference key maps), radio core, codeplug (the usability-test codeplug) and the services of
 // other packages. Key sequences are scripts of logical actions; screens are saved as PNG.
@@ -96,8 +95,6 @@ typedef struct {
 } sim_record_t;
 extern sim_record_t sim_rec;
 const radio_view_t *sim_view(void);
-// Publish a radio-task update without running a UI tick, for deterministic snapshot interleavings.
-void sim_publish_view(const radio_view_t *view);
 uint32_t sim_now(void);
 
 #endif

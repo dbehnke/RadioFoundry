@@ -1355,16 +1355,6 @@ static uint32_t check_due, check_id;
 const radio_view_t *sim_view(void) { return &view; }
 void radio_get_view(radio_view_t *v) { *v = view; }
 uint32_t radio_view_serial(void) { return serial; }
-void sim_publish_view(const radio_view_t *next) { view = *next; serial++; }
-#if CONFIG_RX_SIGNAL_MENU
-static uint32_t signal_serial;
-uint32_t radio_view_signal_serial(void) { return signal_serial; }
-void radio_view_serials(uint32_t *all, uint32_t *signal)
-{
-	*all = serial;
-	*signal = signal_serial;
-}
-#endif
 static int32_t sim_step;	// UI_SET_VFO_STEP: 0 auto (the width's), else 10 Hz units
 static void changed(void)
 {
@@ -2642,18 +2632,8 @@ void sim_set_shot_dir(const char *dir, const char *prefix) { shot_dir = dir; sho
 static void (*tick_hook)(uint32_t now_ms);
 void sim_set_tick_hook(void (*hook)(uint32_t now_ms)) { tick_hook = hook; }
 
-#if CONFIG_RX_SIGNAL_MENU
-static bool signal_override;
-#endif
 static void step(void)
 {
-#if CONFIG_RX_SIGNAL_MENU
-	if (!signal_override) {
-		view.signal = (radio_signal_t){ .sampled_ms = now_ms, .rx_hz = view.ch.rx_hz,
-			.dbm = view.rssi_dbm, .state = view.state == RS_TX ? RADIO_SIGNAL_UNAVAILABLE : RADIO_SIGNAL_CURRENT,
-			.source = RADIO_SIGNAL_SOURCE_RF };
-	}
-#endif
 	now_ms += TICK_MS;
 	if (view.state == RS_TX)
 		view.tx_elapsed_ms += TICK_MS;
@@ -2768,9 +2748,6 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	gfx_invalidate();
 	ui_layout_init();
 	memset(&view, 0, sizeof view);
-#if CONFIG_RX_SIGNAL_MENU
-	signal_override = false;
-#endif
 	memset(&sim_rec, 0, sizeof sim_rec);
 #if CONFIG_DMR_AES
 	sim_aes_keys = false;
@@ -2862,9 +2839,6 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	ui_svc_setting_set(UI_SET_VOLUME, RADIO_VOLUME_DEFAULT);
 	ui_svc_setting_set(UI_SET_HINTS, 1);
 	ui_svc_setting_set(UI_SET_LARGE_TEXT, 0);
-#if CONFIG_RX_SIGNAL_MENU
-	ui_svc_setting_set(UI_SET_RX_DETAILS, 0);
-#endif
 	ui_svc_setting_set(UI_SET_BRIGHTNESS, 100);
 	ui_svc_setting_set(UI_SET_TOT_S, 180);
 	ui_svc_setting_set(UI_SET_BACKLIGHT_S, 30);
@@ -3398,42 +3372,6 @@ static bool run_token(char *t, char *err, size_t len)
 		}
 		return true;
 	}
-#if CONFIG_RX_SIGNAL_MENU
-	if (strcmp(t, "rxname") == 0 && arg != NULL) {
-		str_copy(view.dmr.call.src_name, sizeof view.dmr.call.src_name, arg);
-		changed();
-		advance(300);
-		return true;
-	}
-	if ((strcmp(t, "signal") == 0 || strcmp(t, "signala") == 0 || strcmp(t, "signalb") == 0) && arg != NULL) {
-		int dbm = 0, state = RADIO_SIGNAL_CURRENT;
-		unsigned delay = 300;
-		if (sscanf(arg, "%d,%d,%u", &dbm, &state, &delay) < 1 || state < 0 || state > RADIO_SIGNAL_EXPIRED) {
-			snprintf(err, len, "bad %s", t);
-			return false;
-		}
-		bool pane = t[6] != 0;
-		if (pane) {
-			radio_signal_t *s = &sim_drx[t[6] == 'b'].signal;
-			s->dbm = (int16_t)dbm;
-			s->state = (uint8_t)state;
-			s->sampled_ms = now_ms;
-		} else {
-			signal_override = true;
-			view.signal = (radio_signal_t){ .sampled_ms = now_ms, .rx_hz = view.ch.rx_hz,
-				.dbm = (int16_t)dbm, .state = (uint8_t)state, .source = RADIO_SIGNAL_SOURCE_RF };
-		}
-		serial++;
-		signal_serial++;
-		advance(delay);
-		return true;
-	}
-	if (strcmp(t, "rxdetails") == 0 && arg != NULL) {
-		ui_svc_setting_set(UI_SET_RX_DETAILS, atoi(arg));
-		advance(300);
-		return true;
-	}
-#endif
 	if (strcmp(t, "receivers") == 0 && arg != NULL) {
 		sim_receivers = (uint8_t)atoi(arg);
 		return true;
@@ -3453,10 +3391,6 @@ static bool run_token(char *t, char *err, size_t len)
 		x->src = src;
 		x->dst = dst;
 		x->rssi_dbm = t[2] == 'b' ? -92 : -71;
-#if CONFIG_RX_SIGNAL_MENU
-		x->signal = (radio_signal_t){ .sampled_ms = now_ms, .rx_hz = t[2] == 'b' ? 446500000 : 446000000,
-			.dbm = x->rssi_dbm, .state = RADIO_SIGNAL_CURRENT, .source = RADIO_SIGNAL_SOURCE_RX2 };
-#endif
 		strncpy(x->src_name, contact_name(src, false), sizeof x->src_name - 1);
 		changed();
 		advance(300);

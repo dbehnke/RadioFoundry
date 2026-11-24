@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
-// Copyright (c) 2026 David Behnke
 // The UI's behavior without the RTOS: one navigation stack of screens, logical actions in, drawing out
 // (docs/ux/information-architecture.md, docs/spec/ui.md). ui.c runs it in the UI task; the host simulator
 // (tests/host/sim/ui_sim.c) runs the same code against a simulated radio, codeplug and display.
@@ -20,8 +19,6 @@ void ui_app_key(const input_event_t *ev);
 bool ui_app_key_while_dark(const input_event_t *ev);
 // Time passes and the radio view may have changed: timeouts, banners, Recent. True if the screen should be redrawn
 bool ui_app_tick(const radio_view_t *v, uint32_t now_ms);
-// Concurrent producers: these counters must come from the same atomic copy as v (radio_get_view_serials).
-bool ui_app_tick_serials(const radio_view_t *v, uint32_t now_ms, uint32_t serial, uint32_t signal_serial);
 // Draw the current screen into the frame buffer (no flush)
 void ui_app_draw(void);
 // Backlight percent the user chose (Quick settings / Settings > Display); the dim and off times are the radio's

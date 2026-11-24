@@ -21,7 +21,8 @@ commit `eb02cb21`, including upstream main `dd67ecd6`.
 | Baofeng DM1701 | `rfoundry-dm1701-` | Uses this radio's own image and manifest |
 | Baofeng DM32 | `rfoundry-dm32-` | Uses this radio's own image and manifest |
 
-This package includes AES, TX/RX AGC, power controls, RF display and microphone-key changes. The temporary P25
+This previously built package includes AES, TX/RX AGC, power controls, RF display and microphone-key changes.
+The branch has since reverted the RF display changes; that rollback is not in this existing ZIP. The temporary P25
 calibration/parrot is **off**. The Git tag is a source reference, not a ZIP download; obtain the ZIP from the
 maintainer. Its SHA-256 is:
 
@@ -36,7 +37,7 @@ A radio without a working codec still needs the normal supported codec installat
 ## Suggested test order
 
 1. Confirm the build identity in **Settings > Advanced > About** and check ordinary channel/menu operation.
-2. Test RF display and RX AGC while receiving familiar calls.
+2. Test RX AGC and the restored caller display while receiving familiar calls.
 3. Check power selection and inheritance without transmitting first.
 4. Test microphone mappings and navigation on the MD9600.
 5. Compare transmit audio and power only on a suitable permitted test channel or bench setup.
@@ -78,37 +79,16 @@ clarity and average level, or measure decoded audio with a consistent receiver s
 (internal or speaker mic), distance, mode, gain/AGC, RX AGC on the receiving end and any clipping or distortion.
 Test DMR separately; it does not use the P25 PCM target. Software cannot repair an input already clipped in hardware.
 
-## RF signal bar and dBm
+## Restored receive display
 
-Digital reception keeps caller identity visible with a numeric RF signal reading. Larger layouts add the existing
-**-120 to -60 dBm bar**. Compact, dual and large-text views prioritize identity and the number; a short bar appears
-where it fits. There is no automatic rotation between identity and strength.
+The recent digital RF signal-display enhancement has been removed from the branch because it crowded the screen.
+The earlier caller and dual-display layouts are restored. The added **RX details** setting, held-reading markers
+and expanded digital numeric RF meter are removed. Existing signal displays from before that enhancement remain.
+Digital RX AGC and its optional **RX audio levels** setting remain available.
 
-Open **Settings > Display > RX details**:
-
-| Choice | Secondary information |
-|---|---|
-| Caller details | Additional caller information where available; the default |
-| Signal details | More room for the signal bar and measurement status |
-
-The preference is saved. Primary identity and numeric RF strength remain visible in both choices.
-
-| Reading | Meaning |
-|---|---|
-| `-97 dBm` | A current RF measurement |
-| `-97~ dBm` | A retained recent measurement, not a new instantaneous sample |
-| Dashes in place of the number | No usable current/held reading, or the reading expired |
-
-A less negative number is stronger: -80 dBm is stronger than -110 dBm. The number can extend beyond the bar range.
-DMR burst handling avoids showing the empty timeslot as a repeated drop. A dual-watch reading belongs to the
-receiver/pane sampled; a held value is not proof of simultaneous reception. RSSI is radio-dependent and is not a
-calibrated laboratory measurement. A repeater downlink reading measures the repeater at your radio, not the
-original operator's uplink. RF dBm is separate from audio dBFS and does not measure decoding quality.
-
-Test both detail choices during short and long calls, with long names, large text, RX audio levels on/off, and
-single/dual displays. Change channels and stop receiving: look for stale readings, wrong-pane readings, missing
-caller identity or overlapping text. Meter movement is normally limited to four updates per second; call, menu
-and other essential changes should respond immediately.
+Check caller names, destinations and dual panes in normal and large text, with RX audio levels on/off.
+Confirm that text has the earlier spacing and that caller identity remains readable. RF dBm measures received
+signal strength; audio dBFS measures audio level. Report which one a reading represents.
 
 ## Transmit power: radio default, channel override and temporary choice
 
@@ -138,7 +118,7 @@ from private contacts or the installed DMR ID database. Unknown IDs stay numeric
 P25 and DMR IDs can identify different people, so do not treat a lookup as verified identity.
 
 Test a known ID, an unknown ID and a long name with lookup On/Off. Check the active caller and destination in
-single and dual views, including while RF Signal details or RX audio levels are enabled. Report missing,
+single and dual views, including with RX audio levels enabled. Report missing,
 misattributed or stale caller information, with the numeric ID and lookup source.
 
 ## MD9600 microphone keys

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
-// Copyright (c) 2026 David Behnke
 // The second receiver's link: frames, payloads, and both ends' state machines (rx2_link.h)
 #include <string.h>
 #include "rx2_link.h"
@@ -158,7 +157,7 @@ uint8_t rx2_pack_status(const rx2_status_t *st, uint8_t *out)
 {
 	memset(out, 0, RX2_STATUS_LEN);
 	out[0] = (uint8_t)((st->tuned ? 1u : 0u) | (st->active ? 2u : 0u) | (st->dmr ? 4u : 0u) | (st->group ? 8u : 0u) |
-			   (st->heard ? 16u : 0u) | (st->rssi_valid ? 32u : 0u));
+			   (st->heard ? 16u : 0u));
 	out[1] = (uint8_t)st->rssi_dbm;
 	out[2] = (uint8_t)((uint16_t)st->rssi_dbm >> 8);
 	out[3] = st->noise;
@@ -178,7 +177,6 @@ bool rx2_unpack_status(const uint8_t *p, uint8_t len, rx2_status_t *st)
 	st->dmr = (p[0] & 4u) != 0;
 	st->group = (p[0] & 8u) != 0;
 	st->heard = (p[0] & 16u) != 0;
-	st->rssi_valid = (p[0] & 32u) != 0;
 	st->rssi_dbm = (int16_t)(uint16_t)(p[1] | p[2] << 8);
 	st->noise = p[3];
 	st->src = get32(&p[4]);
@@ -261,22 +259,12 @@ void rx2_main_rx(rx2_main_t *m, uint8_t b, uint32_t now_ms)
 		break;
 	case RX2_STATUS:
 		if (m->up) {
-			if (rx2_unpack_status(p->buf, p->len, &m->st)) {
-				m->st.rssi_valid = m->st.rssi_valid && m->tune_acked;
-				if (m->st.rssi_valid)
-					m->st.rssi_sample_ms = now_ms;
-			}
+			rx2_unpack_status(p->buf, p->len, &m->st);
 		}
 		break;
 	case RX2_ACK:
 		if (p->len >= 2 && p->buf[0] == m->tune_seq) {
-			bool was_acked = m->tune_acked;
 			m->tune_acked = p->buf[1] == 0;
-			if (!was_acked && m->tune_acked) {
-				// A queued STATUS before this ACK may belong to the previous channel.
-				m->st.rssi_valid = false;
-				m->st.rssi_sample_ms = 0;
-			}
 		}
 		break;
 	default:
@@ -312,7 +300,6 @@ bool rx2_main_tune(rx2_main_t *m, const rx2_tune_t *t, uint32_t now_ms)
 	m->tune = *t;
 	m->want_rx = true;
 	if (!same) {
-		memset(&m->st, 0, sizeof(m->st));	// old channel samples must not survive a new tune
 		m->tunes++;
 		main_send_tune(m, now_ms);
 	}
@@ -336,7 +323,7 @@ void rx2_main_status(const rx2_main_t *m, rx2_status_t *st)
 	st->up = m->up;
 	st->tuned = m->up && m->want_rx && m->tune_acked && m->st.tuned;
 	if (!st->tuned) {
-		st->active = st->heard = st->rssi_valid = false;
+		st->active = st->heard = false;
 	}
 }
 
@@ -498,7 +485,7 @@ static bool status_changed(const rx2_status_t *a, const rx2_status_t *b)
 {
 	int d = a->rssi_dbm - b->rssi_dbm;
 	return a->tuned != b->tuned || a->active != b->active || a->dmr != b->dmr || a->group != b->group ||
-	       a->heard != b->heard || a->rssi_valid != b->rssi_valid || a->src != b->src || a->dst != b->dst || d > 3 || d < -3;
+	       a->heard != b->heard || a->src != b->src || a->dst != b->dst || d > 3 || d < -3;
 }
 
 void rx2_recv_poll(rx2_recv_t *r, uint32_t now_ms)

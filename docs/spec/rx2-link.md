@@ -57,18 +57,14 @@ On DMR, B decodes the calls itself. It plays a call to one of the groups, to the
 
 | Offset | Size | Field |
 |---|---|---|
-| 0 | 1 | bit 0 on its settings, 1 active (FM: squelch open with the right tone; DMR: a call for us), 2 DMR, 3 a group call, 4 heard (active and its audio on), 5 explicit valid RSSI measurement |
+| 0 | 1 | bit 0 on its settings, 1 active (FM: squelch open with the right tone; DMR: a call for us), 2 DMR, 3 a group call, 4 heard (active and its audio on) |
 | 1 | 2 | RSSI (dBm, signed) |
 | 3 | 1 | noise |
 | 4 | 4 | DMR source ID |
 | 8 | 4 | DMR destination ID |
 | 12 | 1 | reserved |
 
-B sends one on every change, and at least every 500 ms. Bit 5 explicitly qualifies the RSSI measurement;
-its absence means unavailable for display, so older peers remain supported without fabricated signal readings.
-A records the arrival timestamp using its own clock. Reading retained status never refreshes that timestamp.
-The display treats it as Current through 500 ms, Held through 620 ms, then Expired. A new tune clears previous
-measurement ownership. The wire length, version, and reporting cadence stay unchanged.
+B sends one on every change, and at least every 500 ms.
 
 ## 3. Timing
 

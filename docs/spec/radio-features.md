@@ -836,33 +836,3 @@ On the radio (`docs/testing/on-air-coverage.md`, HIL 2026-10-10): zone scan stop
 watch, the battery saver, the 1750 Hz burst and the roger beep on air; TX inhibit and the TOT warning on the radio's
 state; VOX only in silence (the `mic_level` hook is unverified); whether PCM beeps play in FM mode is still open
 (`beep.no_stream` / `beep.blocks` answer that).
-
-## 8. RF signal display metadata
-
-With `CONFIG_RX_SIGNAL_MENU`, display RSSI is separate from the numeric RSSI used by squelch, scan, roaming
-and audio decisions. `radio_status_t.rssi_valid` reports whether the receiver measured a level. `rssi_fresh`
-distinguishes a new read from retained status. No strength threshold determines validity: a measured -140 dBm
-or 0 dBm can be valid. A read failure immediately clears the RF fallback history and marks that source unavailable.
-An independently valid modem measurement can still supply the display.
-
-| Source | Current through | Held through | After the hold |
-|---|---|---|---|
-| Main RF or broadcast receiver | 25 ms | 120 ms | Expired |
-| DMR modem burst | 25 ms | 120 ms | Fall back to a valid RF measurement, otherwise Expired |
-| Second receiver status | 500 ms | 620 ms | Expired |
-
-The bounds follow the main receiver poll interval, the existing DMR 120 ms peak window, and the second receiver's
-500 ms report cadence plus that hold interval. Retained valid status does not refresh its timestamp. DMR prefers
-the modem burst RSSI with its actual arrival timestamp, then the maximum valid RF sample in the hold window.
-Only the modem's established protocol uses a zero RSSI field to mean unknown; this is not a generic threshold.
-`radio_signal_state_at` applies wrap-safe timestamp aging for every consumer.
-
-Retuning, call ownership changes, PTT, receiver sleep, hotspot use, APRS borrowing the receiver, and bench use clear
-incompatible display ownership. Single-receiver dual watch shows no RF measurement on an untuned pane. A true
-second receiver supplies its own independently timestamped metadata. Network-only streams have no RF reading.
-
-The second-receiver wire format is documented in [rx2-link.md](rx2-link.md). Its report cadence does not change.
-`radio_get_view_serials` returns the view and total and signal-only change counters from the same publication
-under the view lock. Reading a newer generation cannot consume an essential update before its view is drawn. The UI can pace
-signal-only meter updates without delaying call, PTT, navigation or other essential changes. Presentation policy
-and the remembered RX details choice are in [ui.md](ui.md#9-digital-receive-identity-and-rf-signal).

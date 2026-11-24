@@ -118,23 +118,6 @@ setting is left at its start value, the codeplug's hang time applies. Without a 
 lasts 10 s. **Back** on Home ends the
 window ("Reply ended").
 
-## Received signal details
-
-Digital reception keeps the caller name or ID and the local received RF level in dBm visible.
-The signal bar spans -120 to -60 dBm; the number still shows measurements outside that range.
-These are RF levels, separate from any decoded audio levels. A repeater downlink shows the repeater signal
-received by your radio, not the remote caller's signal at the repeater.
-
-A tilde beside the numeric value (`-85~ dBm`) marks a retained recent measurement. The marker is shown
-in both RX details choices and on compact and dual layouts. It disappears when the measurement expires.
-
-Settings > Display > RX details remembers your choice. Caller details uses secondary space for caller
-information. Signal details uses it for a wider bar and measurement status. Identity stays visible in both.
-A missing or expired measurement shows no numeric reading. Single-receiver dual watch shows RF strength only
-for the channel currently receiving; the untuned pane has no numeric reading. It does not measure both channels
-simultaneously. The same presentation applies to other
-digital voice modes. The exact layout follows the screen size and Large text setting.
-
 ## Calling back later
 
 On Home, **#** opens the actions for the current or last caller. A digit picks an action.

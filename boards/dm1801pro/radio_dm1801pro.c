@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
-// Copyright (c) 2026 David Behnke
 // DM-1801 Pro radio: FD6818 RF transceiver (bit-banged, its own register set), the HR_C7000 baseband for analog FM,
 // separate RX and TX band paths and the PA drive on DAC channel B (docs/spec/hardware-dm1801pro.md 5; modem-hrc7000.md
 // 4, 5.1, 8) for analog FM and DMR. The DMR slot engine, RF-burst task and PCM audio are the shared HR_C7000 glue
@@ -615,7 +614,6 @@ static bool tx_dtmf(char digit)
 
 static void status(radio_status_t *st)
 {
-	st->rssi_valid = st->rssi_fresh = have_rx && !transmitting && !asleep;
 	uint16_t r67 = fd6818_read(&fd, FD_REG_RSSI);
 	uint16_t r65 = fd6818_read(&fd, FD_REG_NOISE);
 	last_rssi_raw = fd6818_rssi_raw(r67);

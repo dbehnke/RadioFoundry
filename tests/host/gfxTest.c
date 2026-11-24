@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
-// Copyright (c) 2026 David Behnke
 // UI drawing on the host: text helpers, row-change flushing, and Home / quick settings rendered at each display
 // class (160x120 and 160x128 color, 128x64 mono, 240x320 layout only), written to out/*.ppm for a look. The 16-color
 // frame buffer (bpp 4: palette, reuse, nearest color, captures) and anti-aliased text.
@@ -83,10 +82,6 @@ static void base_view(radio_view_t *v)
 	v->power = 4;
 	v->squelch = 5;
 	v->rssi_dbm = -112;
-#if CONFIG_RX_SIGNAL_MENU
-	v->signal = (radio_signal_t){ .dbm = -112, .rx_hz = v->ch.rx_hz,
-		.state = RADIO_SIGNAL_CURRENT, .source = RADIO_SIGNAL_SOURCE_RF };
-#endif
 	v->last_rx_ms = 1000;
 	v->tot_s = 180;
 	v->vfo_step_hz = 12500;
@@ -107,9 +102,6 @@ static void render_set(const char *cls)
 	snprintf(name, sizeof name, "%s_home_idle", cls); save(name);
 
 	v.state = RS_RX; v.rssi_dbm = -71;
-#if CONFIG_RX_SIGNAL_MENU
-	v.signal.dbm = -71;
-#endif
 	ui_draw_home(&v, &s);
 	snprintf(name, sizeof name, "%s_home_rx", cls); save(name);
 
@@ -165,10 +157,6 @@ static void render_set(const char *cls)
 	ui_draw_home(&v, &s);
 	snprintf(name, sizeof name, "%s_dmr_nocodec", cls); save(name);
 	v.state = RS_RX; v.dmr.state = RDMR_RX; v.dmr.rssi_dbm = -71;
-#if CONFIG_RX_SIGNAL_MENU
-	v.signal.dbm = -71;
-	v.signal.source = RADIO_SIGNAL_SOURCE_DMR;
-#endif
 	v.dmr.call.src = 9991234; strcpy(v.dmr.call.src_name, "JOE SMITH"); v.dmr.call.dst = 201; v.dmr.call.group = true;
 	strcpy(v.dmr.call.dst_name, "Main Ops");
 	strcpy(v.dmr.alias, "Joe - Boston, MA");
@@ -861,32 +849,10 @@ int main(void)
 	gfx_flush();
 	CHECK(flushes == 0);
 	v.rssi_dbm = -80;
-#if CONFIG_RX_SIGNAL_MENU
-	v.signal.dbm = -80;
-#endif
 	ui_draw_home(&v, &s);
 	flushes = flushed_rows = 0;
 	gfx_flush();
 	CHECK(flushes == 1 && flushed_rows > 0 && flushed_rows <= ui_layout.strip_h);
-#if CONFIG_RX_SIGNAL_MENU
-	// Invalid metadata clears the icon, regardless of the retained legacy numeric strength.
-	v.signal.state = RADIO_SIGNAL_UNAVAILABLE;
-	ui_draw_home(&v, &s);
-	flushes = flushed_rows = 0;
-	gfx_flush();
-	CHECK(flushes == 1 && flushed_rows > 0 && flushed_rows <= ui_layout.strip_h);
-	v.rssi_dbm = -40;
-	v.signal.state = RADIO_SIGNAL_EXPIRED;
-	ui_draw_home(&v, &s);
-	flushes = flushed_rows = 0;
-	gfx_flush();
-	CHECK(flushes == 0);
-	v.signal.state = RADIO_SIGNAL_HELD;
-	ui_draw_home(&v, &s);
-	flushes = flushed_rows = 0;
-	gfx_flush();
-	CHECK(flushes == 1 && flushed_rows > 0 && flushed_rows <= ui_layout.strip_h);
-#endif
 #if CONFIG_NET_WEBCTL
 	// The web control's copy: the rows that changed, kept until taken; not readable while a frame is drawn
 	uint32_t seq, seq2;

@@ -223,9 +223,6 @@
 #ifndef CONFIG_UI_COLOR
 #define CONFIG_UI_COLOR			1
 #endif
-#ifndef CONFIG_RX_SIGNAL_MENU
-#define CONFIG_RX_SIGNAL_MENU		1
-#endif
 #ifndef CONFIG_UI_SETTINGS
 #define CONFIG_UI_SETTINGS		1
 #endif
