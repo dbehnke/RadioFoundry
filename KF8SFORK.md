@@ -7,12 +7,14 @@
 `kf8sfork` combines unmerged changes for listening tests. Feature branches stay separate for upstream review.
 This is a private test build based on RadioFoundry. Contact: dbehnke (KF8S).
 
-Current features:
+Documentation for testers:
 
-- Receive audio AGC for DMR, P25 and NXDN, with per-mode targets and optional input/output dBFS display.
-- Optional P25 caller names from private contacts and the installed DMR ID database. Enable
-  **Settings > Talk & listen > P25 contact lookup**. The default is Off. Matching names are local labels;
-  P25 and DMR IDs can identify different people.
+- [Usage and testing guide](docs/kf8sfork/README.md): settings, expected behavior, and a report template.
+- [Fork changelog](docs/kf8sfork/CHANGELOG.md): changes from the first fork feature through November 24, 2026.
+
+Current additions include digital RX AGC, P25 microphone AGC and DC removal, optional P25 caller lookup,
+caller/RF display improvements, full TX power controls, and configurable microphone keys. The temporary P25
+calibration is optional and off in the standard package. The guide identifies the current tagged firmware.
 
 ## Build and package
 
