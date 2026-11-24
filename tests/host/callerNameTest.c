@@ -28,7 +28,7 @@ bool storage_job_post(storage_job_fn fn, void *ctx)
 bool codeplug_contact_find(uint32_t id, bool group, contact_t *out)
 {
 	contacts++;
-	if ((id == 100 && !group) || (id == 200 && group)) {
+	if (((id == 100 || id == 0xFFFFFCu) && !group) || (id == 200 && group)) {
 		memset(out, 0, sizeof(*out));
 		strcpy(out->name, group ? "Group only" : "Local caller");
 		return true;
@@ -38,11 +38,11 @@ bool codeplug_contact_find(uint32_t id, bool group, contact_t *out)
 bool dmr_iddb_lookup(uint32_t id, char *out, size_t len)
 {
 	database++;
-	if (id != 100 && id != 200) return false;
-	snprintf(out, len, "DB caller %u", (unsigned)id);
+	if (id != 100 && id != 200 && id != 800) return false;
+	snprintf(out, len, id == 800 ? "Q1ABC Joe Smith Springfield Massachusetts" : "DB caller %u", (unsigned)id);
 	return true;
 }
-static void poll(void) { ui_svc_p25_names_poll(&view); }
+static void poll(void) { ui_svc_caller_poll(&view); }
 static void finish(void)
 {
 	CHECK(pending != NULL);
@@ -127,6 +127,37 @@ int main(void)
 	unsigned db_reads = database;
 	contact_name_lookup(200, true, name); CHECK(strcmp(name, "Group only") == 0 && database == db_reads);
 	contact_name_lookup(300, true, name); CHECK(name[0] == 0 && database == db_reads);
+	// DMR needs the complete database label even while the P25 preference is off.
+	enabled = false;
+	view.ch.mode = RADIO_MODE_DMR;
+	view.dmr.state = RDMR_RX;
+	view.dmr.call.src = 800;
+	poll(); finish();
+	bool from_database;
+	CHECK(strcmp(ui_svc_caller_text(RADIO_MODE_DMR, 800, &from_database),
+		"Q1ABC Joe Smith Springfield Massachusetts") == 0 && from_database);
+	CHECK(named(800, ""));
+	view.dmr.call.src = 100;
+	poll(); finish();
+	CHECK(strcmp(ui_svc_caller_text(RADIO_MODE_DMR, 100, &from_database), "Local caller") == 0 && !from_database);
+	// A second receiver queues its own identity; cache hits and unsupported modes never read flash.
+	ui_svc_caller_request(RADIO_MODE_DMR, 800);
+	CHECK(!busy);
+	ui_svc_caller_request(RADIO_MODE_DMR, 200);
+	CHECK(busy); finish();
+	CHECK(strcmp(ui_svc_caller_text(RADIO_MODE_DMR, 200, &from_database), "DB caller 200") == 0);
+	ui_svc_caller_request(RADIO_MODE_P25, 700);
+	ui_svc_caller_request(RADIO_MODE_FM, 700);
+	CHECK(!busy);
+	// Sharing the cache never turns a reserved P25 unit ID into a caller label.
+	ui_svc_caller_request(RADIO_MODE_DMR, 0xFFFFFCu);
+	finish();
+	view.dmr.call.src = 0xFFFFFCu;
+	enabled = true; poll(); // changing the policy invalidates this entry
+	ui_svc_caller_request(RADIO_MODE_DMR, 0xFFFFFCu);
+	finish();
+	CHECK(strcmp(ui_svc_caller_text(RADIO_MODE_DMR, 0xFFFFFCu, &from_database), "Local caller") == 0);
+	CHECK(named(0xFFFFFCu, ""));
 	printf("callerNameTest: %u checks, %u failures\n", checks, fails);
 	return fails != 0;
 }

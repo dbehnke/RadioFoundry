@@ -12,6 +12,7 @@
 #include <string.h>
 #include "sim/ui_sim.h"
 #include "ui/ui_app.h"
+#include "ui/ui_svc.h"
 #include "ui/ui_screens.h"
 #include "ui/gfx.h"
 #include "ui/i18n.h"
@@ -139,7 +140,11 @@ static const flow_t flows[] = {
 	{ "Receive AGC: measured input and output", "rx:9991234,91,g agc:0,5,464", "",
 	  "screen=home shows=AGC_-37_>_-25_dBFS shows=TG_91", 0, false },
 	{ "Receive AGC: explicit bypass", "rx:9991234,91,g agc:0,0", "",
+	  #if CONFIG_CALLER_DETAILS
+	  "screen=home hides=AGC shows=TG_91", 0, false },
+#else
 	  "screen=home shows=AGC_Off shows=TG_91", 0, false },
+#endif
 #endif
 	{ "P25 channel shows its mode", "dlmode:p25", "", "mode=p25 screen=home shows=P25 hides=No_tone hides=12.5k hides=25k hides=SQ5", 0, false },
 #if CONFIG_NXDN
@@ -158,11 +163,23 @@ static const flow_t flows[] = {
 	{ "P25 lookup setting is opt in", "", "ok 7 3 up",
 	  "screen=group focus=P25_contact_lookup shows=Off", 4, false },
 	{ "P25 lookup enabled through its menu", "p25 dlmode:p25 p25rx:9991234,1 ok 7 3 up",
-	  "ok back back back", "screen=home shows=Q1ABC hides=ID_9991234", 4, false },
+	  "ok back back back", "screen=home shows=Q1ABC shows=ID_9991234", 4, false },
 	{ "P25 caller names default off", "p25 dlmode:p25 p25rx:9991234,1", "",
 	  "screen=home shows=ID_9991234 hides=Q1ABC", 0, false },
+	{ "P25 full database caller and numeric ID", "p25 dlmode:p25 p25names:on callerdb:on p25rx:9991234,1", "",
+	  "screen=home shows=Q1ABC shows=Joe shows=ID_9991234", 0, false },
+	{ "Dual DMR without codec does not expand as heard", "callerdb:on quick 7 wait:3000 tune:a rx:9991234,91,g", "rxcodec:off",
+	  "screen=home dual=1 hides=ID_9991234", 0, false },
+	{ "Dual filtered DMR does not expand as heard", "callerdb:on quick 7 wait:3000 tune:a rx:9991234,91,g", "rxfiltered",
+	  "screen=home dual=1 hides=ID_9991234", 0, false },
+	{ "DMR full database caller and numeric ID", "callerdb:on rx:9991234,91,g", "",
+	  "screen=home shows=Q1ABC shows=Joe shows=ID_9991234", 0, false },
+	{ "P25 dual caller uses P25 source", "p25 chkind:3,p25 up down p25names:on callerdb:on quick 7 tune:a", "p25rx:9991234,7",
+	  "screen=home dual=1 shows=Q1ABC shows=Joe shows=ID_9991234", 0, false },
+	{ "P25 caller is unknown before link control", "p25 dlmode:p25 p25rx:0,7", "",
+	  "screen=home shows=TG_7 hides=ID_0", 0, false },
 	{ "P25 caller contact name", "p25 dlmode:p25 p25names:on p25rx:9991234,1", "",
-	  "screen=home shows=Q1ABC hides=ID_9991234", 0, false },
+	  "screen=home shows=Q1ABC shows=ID_9991234", 0, false },
 	{ "P25 unknown caller keeps number", "p25 dlmode:p25 p25names:on p25rx:1234567,1", "",
 	  "screen=home shows=ID_1234567", 0, false },
 	{ "P25 caller lookup disabled during call", "p25 dlmode:p25 p25names:on p25rx:9991234,1", "p25names:off",
@@ -172,6 +189,16 @@ static const flow_t flows[] = {
 	// P25 on Home: what PTT calls on the talk line, the NAC in the chips, the caller while a call comes in
 	{ "P25 home: talk group and NAC", "dlmode:p25", "", "screen=home shows=TG_1 shows=NAC_293", 0, false },
 #if CONFIG_RX_AGC
+#if CONFIG_CALLER_DETAILS
+#if CONFIG_P25_ID_LOOKUP
+	{ "P25 database caller with AGC", "p25 dlmode:p25 p25names:on callerdb:on p25rx:9991234,7 agc:1,2,3277", "",
+	  "screen=home shows=Q1ABC shows=Joe shows=ID_9991234 shows=AGC_-20_>_-33_dBFS shows=TG_7", 0, false },
+	{ "Dual P25 database caller with AGC", "p25 chkind:3,p25 up down p25names:on callerdb:on quick 7 tune:a", "p25rx:9991234,7 agc:1,2,3277",
+	  "screen=home dual=1 shows=Q1ABC shows=Joe shows=ID_9991234 shows=AGC_-20_>_-33_dBFS shows=TG_7", 0, false },
+#endif
+	{ "Dual DMR database caller with AGC", "callerdb:on quick 7 wait:3000 tune:a", "rx:9991234,91,g agc:0,2,3277",
+	  "screen=home dual=1 shows=Q1ABC shows=Joe shows=ID_9991234 shows=AGC_-20_>_-33_dBFS shows=TG_91", 0, false },
+#endif
 	{ "P25 receive AGC levels", "dlmode:p25 p25rx:3101234,7 agc:1,5,464", "",
 	  "screen=home shows=AGC_-37_>_-25_dBFS shows=ID_3101234 shows=TG_7", 0, false },
 #if CONFIG_NXDN
@@ -195,6 +222,21 @@ static const flow_t flows[] = {
 	  0, false },
 	{ "P25 trunked home: following a call", "dlmode:p25", "p25t:3,201", "screen=home shows=Following_TG_201", 0,
 	  false },
+#endif
+#if CONFIG_CHANNEL_EDIT && CONFIG_DMR_AES
+	// The AES key row (dmr-voice.md 5.1): shown on a DMR channel once the codeplug holds AES keys; OK steps through
+	// them (system / key ID) and None, Save keeps the choice
+	{ "AES key row: hidden without keys", "", "ok 5 ok", "screen=channel hides=AES_key", 3, false },
+	{ "AES key row: none set", "aeskeys", "ok 5 ok down down down down down down down",
+	  "screen=channel focus=AES_key shows=None", 10, false },
+	{ "AES key row: steps the keys", "aeskeys ok 5 ok down down down down down down down", "ok",
+	  "focus=AES_key shows=3/0", 1, false },
+	{ "AES key row: the next key", "aeskeys ok 5 ok down down down down down down down", "ok ok",
+	  "focus=AES_key shows=3/7", 2, false },
+	{ "AES key row: back to none", "aeskeys ok 5 ok down down down down down down down", "ok ok ok",
+	  "focus=AES_key shows=None", 3, false },
+	{ "AES key row: saved with the channel", "aeskeys ok 5 ok down down down down down down down ok", "long:ok",
+	  "writes=1 toast=Saved_channel_3 focus=AES_key shows=3/0", 1, true },
 #endif
 #if CONFIG_CHANNEL_EDIT
 	// A channel saved from P25 (New from current): P25 and its NAC, no FM or DMR-only rows, talkaround automatic
@@ -1345,30 +1387,36 @@ static const flow_t flows_k[] = {
 	  "screen=group shows=SK1 shows=SK1_hold shows=SK2", 3, false },
 	{ "K side key 1: the next choice", "ok 7 8", "down down down ok", "set42=1 shows=Nothing", 4, false },
 #if CONFIG_FM_TX_TONES
-	{ "K side key 1: tone burst", "ok 7 8 down down down ok ok ok ok ok ok ok ok ok", "ok",
+	{ "K side key 1: tone burst", "ok 7 8 down down down ok ok ok ok ok ok ok ok ok ok", "ok",
 	  "set42=18 shows=Tone_burst", 1, false },
 #endif
 	{ "K side key 1: monitor", "ok 7 8 down down down ok", "ok", "set42=2", 1, false },
 	{ "K side key 1 hold while it monitors (DMR)", "ok 7 8", "down down down down ok", "set43=1", 5, false },
 	{ "K side key 1 hold once it doesn't", "ok 7 8 down down down ok down", "ok", "set43=1", 1, false },
 	{ "K side key 2 hold", "ok 7 8", "down down down down down down ok", "set45=1", 7, false },
-	{ "K top key hold: emergency after scan", "ok 7 8 up ok ok ok ok ok ok", "ok", "set47=8 shows=Emergency", 1,
+	{ "K top key hold: emergency after scan", "ok 7 8 up ok ok ok ok ok ok ok", "ok", "set47=8 shows=Emergency", 1,
 	  false },
-	{ "K top key hold: copy to VFO", "ok 7 8 up ok ok ok ok ok ok ok ok ok", "ok", "set47=14 shows=Copy_to_VFO", 1,
+	{ "K top key hold: copy to VFO", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok", "ok", "set47=14 shows=Copy_to_VFO", 1,
 	  false },
-	{ "K top key hold: VFO/Channel after copy to VFO", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok", "ok",
+	{ "K top key hold: VFO/Channel after copy to VFO", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok", "ok",
 	  "set47=17 shows=VFO/Channel", 1, false },
-	{ "K top key hold: call back last", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=12 shows=Call_back",
+	{ "K top key hold: call back last", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=12 shows=Call_back",
 	  1, false },
-	{ "K top key hold wraps to default", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=0", 1,
+	{ "K top key hold wraps to default", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=0", 1,
 	  false },
-	{ "K top key hold: TG name / number after call back", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok", "ok",
+	{ "K top key hold: TG name / number after call back", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok",
 	  "set47=19 shows=TG_name", 1, false },
 	{ "K a key set to power", "", "powerkey", "power=5", 1, false },
 	{ "K a key set to power, long", "", "long:powerkey", "power=5", 1, false },
 	{ "K a key set to the next zone", "", "zone+", "zone=1", 1, false },
 	{ "K a key set to the previous zone", "", "zone-", "zone=2", 1, false },
 	{ "K a key set to scan, from a menu", "ok 7", "scankey", "scanning=1", 1, false },
+	// Scan skip (KEYFN_SCAN_SKIP): "Skip channel for now" on a key, a press or a long press, only while scanning
+	{ "K a key set to scan skip, not scanning", "", "skipkey", "scanning=0 toast=Not_scanning", 1, false },
+	{ "K a key set to scan skip, scanning", "scankey", "skipkey", "scanning=1 toast=Skipped_until_the_scan_stops", 1,
+	  false },
+	{ "K a key set to scan skip, long, scanning", "scankey", "long:skipkey",
+	  "scanning=1 toast=Skipped_until_the_scan_stops", 1, false },
 	// VFO/Channel (KEYFN_VFO_TOGGLE) sends what a VFO/MR key does, on a press or a long press, on any screen
 	{ "K a key set to VFO/Channel", "", "vfokey", "vfo=1 toast=VFO", 1, false },
 	{ "K a key set to VFO/Channel, back", "vfokey", "vfokey", "vfo=0 toast=Back_to_channels", 1, false },
@@ -2332,8 +2380,42 @@ static int check_satellite_path_endpoint_colors(void)
 }
 #endif
 
+#if CONFIG_RX_AGC
+static void audio_annotation_checks(void)
+{
+	char out[48], err[128];
+	sim_reset(sim_geom_find("128x64"), SIM_MAP_M);
+	if (ui_svc_rx_audio_text(RADIO_MODE_P25, out, sizeof out)) {
+		printf("FAIL audio annotation: disabled levels must be omitted\n");
+		fails++;
+	}
+	if (!sim_run("agc:1,2,3277", err, sizeof err) ||
+	    !ui_svc_rx_audio_text(RADIO_MODE_P25, out, sizeof out) || strcmp(out, "AGC -20 > -33 dBFS") != 0) {
+		printf("FAIL audio annotation: P25 -20 to -33, got '%s'\n", out);
+		fails++;
+	}
+	if (ui_svc_rx_audio_text(RADIO_MODE_DMR, out, sizeof out) ||
+	    ui_svc_rx_audio_text(RADIO_MODE_FM, out, sizeof out)) {
+		printf("FAIL audio annotation: off mode or FM must be omitted\n");
+		fails++;
+	}
+	ui_svc_setting_set(UI_SET_RX_AGC_P25, 0);
+	if (ui_svc_rx_audio_text(RADIO_MODE_P25, out, sizeof out)) {
+		printf("FAIL audio annotation: target Off must be omitted\n");
+		fails++;
+	}
+}
+#endif
+
 int main(void)
 {
+#if !CONFIG_RX_AGC
+	char annotation[8] = "stale";
+	if (ui_svc_rx_audio_text(RADIO_MODE_P25, annotation, sizeof annotation) || annotation[0]) {
+		printf("FAIL audio annotation: absent AGC must return false and clear text\n");
+		return 1;
+	}
+#endif
 	if (check_name_is_id() != 0)
 		return 1;
 #if CONFIG_SATELLITE_TLE
@@ -2373,6 +2455,9 @@ int main(void)
 	for (size_t i = 0; i < sizeof flows_s / sizeof flows_s[0]; i++)
 		run_flow(&flows_s[i], sim_geom_find("128x64"), SIM_MAP_S, "S side keys");
 	printf("# %d flows run\n", flows_run);
+#if CONFIG_RX_AGC
+	audio_annotation_checks();
+#endif
 	about_checks();
 	call_screen_checks();
 #if CONFIG_DMR_TRUNK

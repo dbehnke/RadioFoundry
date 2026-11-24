@@ -839,7 +839,7 @@ static void caller_text(char *out, size_t len, const ui_dual_pane_t *p, bool dmr
 {
 	sbuf_t b;
 	sb_init(&b, out, len);
-	if (!dmr || (!src && !dst)) {
+	if ((!dmr && p->mode != RADIO_MODE_P25) || (!src && !dst)) {
 		sb_str(&b, signal_word(p, dmr));
 		return;
 	}
@@ -1125,10 +1125,20 @@ __attribute__((noinline)) bool ui_dual_tick(const radio_view_t *v, uint32_t now)
 			x->rssi_dbm = v->rssi_dbm;
 			x->dmr = shown_mode(&v->ch) == RADIO_MODE_DMR;	// a P25 or NXDN record keeps DMR
 #if CONFIG_DMR
+			if (x->dmr)
+				x->heard = v->dmr.state == RDMR_RX && v->dmr.codec;
 			x->src = v->dmr.call.src;
 			x->dst = v->dmr.call.dst;
 			x->group = v->dmr.call.group;
 			strncpy(x->src_name, v->dmr.call.src_name, sizeof x->src_name - 1);
+#endif
+#if CONFIG_P25
+			if (shown_mode(&v->ch) == RADIO_MODE_P25) {
+				x->src = v->p25.src;
+				x->dst = v->p25.dst;
+				x->group = (v->p25.flags & RADIO_P25_UNIT) == 0;
+				x->heard = (v->p25.flags & RADIO_P25_PLAYED) != 0;
+			}
 #endif
 		}
 	}
@@ -1143,6 +1153,14 @@ __attribute__((noinline)) bool ui_dual_tick(const radio_view_t *v, uint32_t now)
 				talk_back(d, i, now);
 		}
 		if (x->active) {
+			if (p->mode == RADIO_MODE_P25)
+				str_copy(x->src_name, sizeof x->src_name, ui_svc_p25_name(x->src));
+			if (x->heard)
+				ui_svc_caller_request(p->mode, x->src);
+			p->src = x->src;
+			p->dst = x->dst;
+			p->group = x->group;
+			str_copy(p->src_name, sizeof p->src_name, x->src_name);
 			caller_text(caller_buf, sizeof caller_buf, p, x->dmr, x->src, x->src_name, x->dst, x->group);
 			if (strcmp(caller_buf, p->caller) != 0) {
 				strcpy(p->caller, caller_buf);

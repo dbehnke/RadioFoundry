@@ -1734,6 +1734,15 @@
  "editor.mode_name.DMR_TRUNK": "DMR Tier III troncalizado",
  "editor.mode_name.P25": "P25",
  "editor.mode_name.P25_TRUNK": "P25 troncalizado",
+ "editor.mode_name.DMR_AES": "DMR AES-256",
+ "editor.aes.network": "ID de red",
+ "editor.aes.id": "ID de clave PI",
+ "editor.aes.keys": "Claves de tráfico",
+ "editor.aes.add": "Añadir clave AES-256",
+ "editor.aes.key": "Clave AES-256",
+ "editor.aes.show_keys": "Mostrar claves AES",
+ "editor.aes.generate": "Generar",
+ "editor.aes.sharing_help": "Compartir zonas puede incluir el registro del sistema. Las claves AES se quedan en el equipo.",
  "editor.mode_name.NXDN": "NXDN",
  "editor.modes.add": "Añadir sistema",
  "editor.modes.add_title": "Nuevo sistema {type}",
@@ -2392,5 +2401,8 @@
  "screen.rx_agc": "Niveles de audio recibido antes y después del AGC",
  "screen.rx_agc_off": "AGC de audio recibido desactivado",
  "screen.p25_caller_names": "Nombre del llamante P25 de los contactos o de la base de datos de ID DMR",
- "screen.p25_caller_numeric": "Llamante P25 con ID numérico"
+ "screen.p25_caller_numeric": "Llamante P25 con ID numérico",
+ "screen.caller_database_dmr": "Llamante DMR con indicativo, nombre e ID",
+ "screen.caller_database_dual": "Identidad del llamante DMR en doble escucha",
+ "screen.caller_database_dual_p25": "Identidad del llamante P25 en doble escucha"
 }

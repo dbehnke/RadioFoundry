@@ -954,8 +954,11 @@ static void test_settings_layout(void)
 		{ offsetof(settings_t, sig_fm), 403 },
 		{ offsetof(settings_t, caller_flags), 406 },
 		{ offsetof(settings_t, reserved11), 407 },
+		{ offsetof(settings_t, aes_mi_res), 408 },
+		{ offsetof(settings_t, rx_agc), 412 },
+		{ offsetof(settings_t, rx_audio_levels), 415 },
 	};
-	CHECK(sizeof(settings_t) == 412);
+	CHECK(sizeof(settings_t) == 416);
 	for (unsigned i = 0; i < sizeof(offs) / sizeof(offs[0]); i++) {
 		if (offs[i].got != offs[i].want) {
 			printf("FAIL settings_t field %u at %zu, layout 1 has it at %zu\n", i, offs[i].got, offs[i].want);
@@ -1285,7 +1288,7 @@ static void test_settings_receive_agc(void)
 	old.rx_agc[2] = 9;
 	old.rx_audio_levels = 1;
 	sim_flash_create(FLASH_SIZE, &map);
-	// The immediately preceding firmware wrote 408 bytes, without the four preferences.
+	// Firmware predating AES wrote 408 bytes, without the appended fields.
 	put_record(&map, 0, 0, 1, SETTINGS_LAYOUT | (1u << SETTINGS_PAGE_SHIFT),
 		   408 - SETTINGS_PAGE_BYTES, (const uint8_t *)&old + SETTINGS_PAGE_BYTES, true, true);
 	put_record(&map, 0, 1, 2, SETTINGS_LAYOUT, SETTINGS_PAGE_BYTES, &old, true, true);

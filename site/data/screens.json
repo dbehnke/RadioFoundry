@@ -959,6 +959,26 @@
    "needs": [
     "P25"
    ]
+  },
+  "caller_database_dmr": {
+   "group": "calls",
+   "needs": [
+    "CALLER_DETAILS"
+   ]
+  },
+  "caller_database_dual": {
+   "group": "calls",
+   "needs": [
+    "CALLER_DETAILS"
+   ]
+  },
+  "caller_database_dual_p25": {
+   "group": "calls",
+   "needs": [
+    "CALLER_DETAILS",
+    "P25",
+    "P25_ID_LOOKUP"
+   ]
   }
  }
 }

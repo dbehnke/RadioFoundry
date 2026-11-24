@@ -93,6 +93,12 @@ def self_test():
     print('kf8s build: branch guards and daily sequence passed')
 
 
+def require_release_ready():
+    # Both legacy branches used layout 1 / 412 bytes for different fields. Do not publish this integration snapshot.
+    raise ValueError('kf8sfork packaging is blocked pending legacy AGC/AES settings migration; '
+                     'see docs/spec/settings-store.md, Receive audio preferences')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--self-test', action='store_true')
@@ -102,6 +108,7 @@ def main():
         self_test()
         return
     require_branch(git('branch', '--show-current'))
+    require_release_ready()
     if git('status', '--porcelain', '--untracked-files=normal'):
         raise ValueError('commit or preserve pending changes before building')
     subprocess.run(['git', 'fetch', 'origin', 'main'], cwd=ROOT, check=True)

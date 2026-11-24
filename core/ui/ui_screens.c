@@ -1137,6 +1137,9 @@ static void draw_talk(const radio_view_t *v, bool label_first)
 		if (v->p25.trunk == RADIO_P25_TRUNK_HUNT) {
 			sb_str(&b, TR(HOME_STATE_P25T_HUNT, "Finding system"));
 			c = ui_col.dim;
+		} else if (v->p25.trunk == RADIO_P25_TRUNK_CONTROL && v->p25.treg == P25_REG_BLOCKED) {
+			sb_str(&b, TR(HOME_STATE_P25T_BLOCKED, "Blocked system"));
+			c = ui_col.warn;
 		} else if (v->p25.trunk == RADIO_P25_TRUNK_CONTROL && txs && v->p25.treq == P25_REQ_WAIT) {
 			sb_str(&b, TR(HOME_STATE_P25T_WAIT, "Wait"));
 		} else if (v->p25.trunk == RADIO_P25_TRUNK_CONTROL && txs && v->p25.treq == P25_REQ_QUEUED) {
@@ -1381,6 +1384,8 @@ static const char *deny_reason(const radio_view_t *v, char *buf, size_t len)
 	case TXDENY_TIMEOUT: sb_str(&b, TR(DENY_WHY_TIMEOUT, "TX time-out reached")); break;
 	case TXDENY_CEASED: sb_str(&b, TR(DENY_WHY_SYSTEM_STOPPED, "System stopped TX")); break;
 	case TXDENY_NO_FREQ: sb_str(&b, TR(DENY_WHY_NO_TX_FREQ, "No TX frequency set")); break;
+	case TXDENY_AES_KEY: sb_str(&b, TR(WHY_AES_KEY, "AES key or TX disabled")); break;
+	case TXDENY_AES_WAIT: sb_str(&b, TR(WHY_AES_WAIT, "AES: saving, try again")); break;
 	case TXDENY_MODE: sb_str(&b, TR(WHY_MODE_NOT_IN_BUILD, "Mode: not in this build")); break;
 	case TXDENY_NO_CODEC: sb_str(&b, TR(WHY_NO_CODEC, "No codec: voice off")); break;
 	case TXDENY_NO_DMR: sb_str(&b, TR(DENY_WHY_MODEM_NOT_RUNNING, "DMR modem not running")); break;
@@ -1404,6 +1409,7 @@ static const char *deny_reason(const radio_view_t *v, char *buf, size_t len)
 		case RADIO_TRUNK_WHY_DENIED: sb_str(&b, TR(DENY_WHY_P25T_DENIED, "System denied the call")); break;
 		case RADIO_TRUNK_WHY_NO_ANSWER: sb_str(&b, TR(DENY_WHY_P25T_NO_ANSWER, "No answer from system")); break;
 		case RADIO_TRUNK_WHY_NO_CHAN: sb_str(&b, TR(DENY_WHY_P25T_NO_CHAN, "Voice channel unusable")); break;
+		case RADIO_TRUNK_WHY_BLOCKED: sb_str(&b, TR(DENY_WHY_P25T_WACN_BLOCKED, "Blocked system: no TX")); break;
 		case RADIO_TRUNK_WHY_OTHER_SYS: sb_str(&b, TR(DENY_WHY_TRUNK_OTHER_SYS, "Another system heard")); break;
 		case RADIO_TRUNK_WHY_OTHER_KIND: sb_str(&b, TR(DENY_WHY_TRUNK_OTHER_KIND, "Incompatible system")); break;
 		case RADIO_TRUNK_WHY_REG_REFUSED: sb_str(&b, TR(DENY_WHY_TRUNK_REG_REFUSED, "Registration refused")); break;
@@ -1996,6 +2002,64 @@ static void rx_audio_text(rx_agc_mode_t mode, char *buf, size_t len)
 	}
 	sb_str(&b, " dBFS");
 }
+bool ui_svc_rx_audio_text(uint8_t mode, char *out, size_t len)
+{
+	rx_agc_mode_t agc;
+	switch (mode) {
+	case RADIO_MODE_DMR: agc = RX_AGC_DMR; break;
+	case RADIO_MODE_P25: agc = RX_AGC_P25; break;
+	case RADIO_MODE_NXDN: agc = RX_AGC_NXDN; break;
+	default: if (len) out[0] = 0; return false;
+	}
+	if (!rx_audio_levels() || ui_svc_setting_get((uint8_t)(UI_SET_RX_AGC_DMR + agc)) == 0) {
+		if (len) out[0] = 0;
+		return false;
+	}
+	rx_audio_text(agc, out, len);
+	return true;
+}
+#endif
+
+
+#if CONFIG_CALLER_DETAILS && CONFIG_DMR
+// UI-owned scratch: a full database label must not enlarge the deepest drawing stack on small tasks.
+static char caller_label[49], caller_fit[49];
+
+// A database record starts with a callsign; private contact names are free text. Keep the numeric ID independent
+// of either label. Two rows combine the callsign and name; three rows give each its own line.
+static int draw_caller_identity(uint8_t mode, uint32_t id, const char *fallback, int x, int y, int rows, const char *destination, color_t color)
+{
+	const ui_layout_t *L = &ui_layout;
+	bool database;
+	const char *text = ui_svc_caller_text(mode, id, &database);
+	if (!text[0])
+		text = fallback;
+	const font_t *f = rows >= 3 ? L->large : L->small;
+	if (text[0]) {
+		str_copy(caller_label, sizeof caller_label, text);
+		char *name = database && rows >= 3 ? strchr(caller_label, ' ') : NULL;
+		if (name)
+			*name++ = 0;
+		if (f != L->small && gfx_text_width(f, caller_label) > (gfx_width() - x))
+			f = L->medium;
+		gfx_text_fit(f, caller_label, (gfx_width() - x), caller_fit, sizeof caller_fit);
+		gfx_text(f, x, y, caller_fit, color);
+		y += f->h;
+		if (name && *name) {
+			gfx_text_fit(L->medium, name, (gfx_width() - x), caller_fit, sizeof caller_fit);
+			gfx_text(L->medium, x, y, caller_fit, color);
+			y += L->medium->h;
+		}
+	}
+	sbuf_t b;
+	sb_init(&b, caller_label, sizeof caller_label);
+	sb_str(&b, "ID ");
+	sb_u32(&b, id, 1);
+	if (destination)
+		sb_str(&b, destination);
+	gfx_text(L->small, x, y, caller_label, text[0] ? ui_col.dim : color);
+	return y + L->small->h;
+}
 #endif
 
 // Receiving and Transmitting: the call takes the screen below the status strip
@@ -2072,10 +2136,25 @@ static void draw_dmr_call(const radio_view_t *v, const ui_state_t *s)
 		return;
 	}
 
-	#if CONFIG_RX_AGC
+	#if CONFIG_RX_AGC && !CONFIG_CALLER_DETAILS
 	bool levels = rx_audio_levels() && d->state == RDMR_RX && d->codec;
 	bool compact_levels = levels && gfx_height() <= 64;
 #endif
+#if CONFIG_CALLER_DETAILS
+	bool caller_levels = d->state == RDMR_RX && d->codec &&
+		ui_svc_rx_audio_text(RADIO_MODE_DMR, buf, sizeof buf);
+#endif
+
+#if CONFIG_CALLER_DETAILS
+	sb_init(&b, buf, sizeof buf);
+	if (!d->call.src_name[0] && ui_sb_gw_caller(&b, d->call.src)) {
+		y = call_line(L->medium, y, buf, ui_col.fg);
+	} else {
+		y = draw_caller_identity(RADIO_MODE_DMR, d->call.src, d->call.src_name, 0, y,
+			gfx_height() > 64 ? 3 : 2, NULL, d->call.emergency ? ui_col.warn : ui_col.fg);
+	}
+	sb_init(&b, buf, sizeof buf);
+#else
 	// Receiving: the caller large, then ID, alias, talkgroup, signal
 	sb_init(&b, buf, sizeof buf);
 	sb_caller(&b, &d->call);
@@ -2089,6 +2168,7 @@ static void draw_dmr_call(const radio_view_t *v, const ui_state_t *s)
 		sb_u32(&b, d->call.src, 1);
 		sb_chr(&b, ' ');
 	}
+#endif
 	sb_str(&b, "TS");
 	sb_u32(&b, d->rx_ts ? d->rx_ts : d->ts, 1);
 	if (d->hear_all && d->rx_cc != d->cc) {	// found by digital monitor: the code to set to talk to them
@@ -2103,7 +2183,9 @@ static void draw_dmr_call(const radio_view_t *v, const ui_state_t *s)
 		sb_str(&b, TR(CALL_CHIP_EMERGENCY, " EMERGENCY"));
 	y = call_line(L->small, y, buf, d->call.emergency ? ui_col.warn : ui_col.dim);
 	if (d->alias[0] != '\0' && s->alias_show
-#if CONFIG_RX_AGC
+#if CONFIG_CALLER_DETAILS
+	    && (!caller_levels || gfx_height() > 64)
+#elif CONFIG_RX_AGC
 	    && !compact_levels
 #endif
 	) {
@@ -2114,7 +2196,10 @@ static void draw_dmr_call(const radio_view_t *v, const ui_state_t *s)
 		sb_str(&b, d->alias);
 		sb_chr(&b, '"');
 		int room = (L->hint_y - y) / L->small->h - 2;
-#if CONFIG_RX_AGC
+#if CONFIG_CALLER_DETAILS
+		if (caller_levels)
+			room--;
+#elif CONFIG_RX_AGC
 		if (levels)
 			room--;
 #endif	// the talkgroup and signal lines stay
@@ -2123,7 +2208,9 @@ static void draw_dmr_call(const radio_view_t *v, const ui_state_t *s)
 			y = call_line(L->small, y, lines[i], ui_col.fg);
 	}
 	if (d->call.gps_valid
-#if CONFIG_RX_AGC
+#if CONFIG_CALLER_DETAILS
+	    && (!caller_levels || y + 3 * L->small->h <= L->hint_y)
+#elif CONFIG_RX_AGC
 	    && !compact_levels
 #endif
 	) {	// the caller's ETSI GPS Info: how far and which way, else where
@@ -2149,7 +2236,10 @@ static void draw_dmr_call(const radio_view_t *v, const ui_state_t *s)
 		sb_call_dst(&b, &d->call);
 		y = call_line(L->small, y, buf, ui_col.fg);
 	}
-#if CONFIG_RX_AGC
+#if CONFIG_CALLER_DETAILS
+	if (caller_levels && ui_svc_rx_audio_text(RADIO_MODE_DMR, buf, sizeof buf))
+		y = call_line(L->small, y, buf, ui_col.rx);
+#elif CONFIG_RX_AGC
 	if (levels && y + 2 * L->small->h > L->hint_y) {
 		rx_audio_text(RX_AGC_DMR, buf, sizeof buf);
 		y = call_line(L->small, y, buf, ui_col.dim);
@@ -2165,7 +2255,7 @@ static void draw_dmr_call(const radio_view_t *v, const ui_state_t *s)
 		gfx_text(L->small, w - tw, y, buf, ui_col.fg);
 		draw_meter(0, y + L->small->h / 4, w - tw - L->small->w, L->small->h / 2, dbm);
 	}
-#if CONFIG_RX_AGC
+#if CONFIG_RX_AGC && !CONFIG_CALLER_DETAILS
 	if (levels) {
 		rx_audio_text(RX_AGC_DMR, buf, sizeof buf);
 		call_line(L->small, y + L->small->h, buf, ui_col.dim);
@@ -2536,11 +2626,49 @@ static void draw_home_large(const radio_view_t *v, const ui_state_t *s)
 	gfx_text(f, 0, y, fit, v->state == RS_TX ? ui_col.tx : v->state == RS_RX ? ui_col.rx : ui_col.fg);
 }
 
+#if CONFIG_CALLER_DETAILS && CONFIG_P25
+static void draw_p25_call(const radio_view_t *v, const ui_state_t *s)
+{
+	const ui_layout_t *L = &ui_layout;
+	char buf[48];
+	sbuf_t b;
+	sb_init(&b, buf, sizeof buf);
+	sb_str(&b, v->p25.flags & RADIO_P25_UNIT ? TR(CALL_VALUE_PRIVATE_TO, "Private to ") : "TG ");
+	sb_u32(&b, v->p25.dst, 1);
+	gfx_clear(ui_col.bg);
+	int y = ui_draw_top(v, s, NULL, buf) + 1;
+	y = draw_caller_identity(RADIO_MODE_P25, v->p25.src, "", 0, y, gfx_height() > 64 ? 3 : 2, NULL, ui_col.fg);
+	sb_init(&b, buf, sizeof buf);
+	sb_str(&b, "NAC ");
+	sb_hex(&b, v->p25.nac, 3);
+	if (v->p25.flags & RADIO_P25_ENC)
+		sb_str(&b, " ENC");
+	y = call_line(L->small, y, buf, ui_col.dim);
+	if (ui_svc_rx_audio_text(RADIO_MODE_P25, buf, sizeof buf))
+		y = call_line(L->small, y, buf, ui_col.rx);
+	if (y + L->small->h <= L->hint_y) {
+		sb_init(&b, buf, sizeof buf);
+		sb_i32(&b, v->rssi_dbm);
+		sb_str(&b, " dBm");
+		call_line(L->small, y, buf, ui_col.dim);
+	}
+	ui_draw_banner(s);
+	ui_draw_bottom(s, home_hint(v, s));
+}
+#endif
+
 void ui_draw_home(const radio_view_t *v, const ui_state_t *s)
 {
 #if CONFIG_DUAL_WATCH
 	if (s->dual.on) {
 		ui_draw_home_dual(v, s);
+		return;
+	}
+#endif
+#if CONFIG_CALLER_DETAILS && CONFIG_P25
+	if (!s->large_text && v->ch.mode == RADIO_MODE_P25 && v->p25.src != 0 &&
+	    (v->p25.flags & (RADIO_P25_RX | RADIO_P25_PLAYED)) == (RADIO_P25_RX | RADIO_P25_PLAYED)) {
+		draw_p25_call(v, s);
 		return;
 	}
 #endif
@@ -3097,6 +3225,79 @@ static void __attribute__((noinline)) dual_choose(int avail, int gap, dual_fit_t
 	*out = *ft;
 }
 
+static void fit_end(const font_t *f, const char *s, int max_w, char *out, size_t len);
+
+#if CONFIG_CALLER_DETAILS && CONFIG_DMR
+static bool dual_identity_home(const radio_view_t *v, const ui_state_t *s)
+{
+	const ui_dual_t *d = &s->dual;
+	if (d->rx == UI_DUAL_NONE || d->pane[0].rx == d->pane[1].rx || v->state == RS_TX)
+		return false;
+	const ui_dual_pane_t *p = &d->pane[d->rx];
+	if (!p->heard || !p->src || (p->mode != RADIO_MODE_DMR && p->mode != RADIO_MODE_P25))
+		return false;
+	const ui_layout_t *L = &ui_layout;
+	const font_t *sm = L->small, *ch = gfx_height() <= 64 ? sm : L->medium;
+	int gap = gfx_height() <= 64 ? 0 : 2;
+	int idle_h = gfx_height() <= 64 ? sm->h : ch->h + sm->h, active_h = L->hint_y - L->strip_h - idle_h - gap;
+	int y = L->strip_h;
+	char buf[64], fit[48], destination[24];
+	for (int i = 0; i < 2; i++) {
+		const ui_dual_pane_t *pane = &d->pane[i];
+		bool active = i == d->rx;
+		int h = active ? active_h : idle_h;
+		color_t color = active ? ui_col.rx : ui_col.dim;
+		sbuf_t b;
+		sb_init(&b, buf, sizeof buf);
+		sb_str(&b, i ? "B " : "A ");
+		dual_name(s, i, fit, sizeof fit);
+		sb_str(&b, fit);
+		if (!active && gfx_height() <= 64 && pane->target[0]) {
+			sb_chr(&b, ' ');
+			sb_str(&b, pane->target);
+		}
+		const char *word = d->sel == i ? "PTT" : "RX";
+		int pill_w = active || d->sel == i ? dual_pill_w(word) : 0;
+		fit_end(ch, buf, gfx_width() - pill_w - (pill_w ? sm->w : 0), fit, sizeof fit);
+		gfx_text(ch, 0, y, fit, color);
+		if (active || d->sel == i)
+			gfx_pill(sm, gfx_width() - pill_w, y, sm->h, word,
+				ui_col.bg, active ? ui_col.rx : ui_col.fg);
+		int row = y + ch->h;
+		if (active) {
+			bool audio = pane->heard && ui_svc_rx_audio_text(pane->mode, buf, sizeof buf);
+			int room = h - ch->h - (audio ? sm->h : 0);
+			int rows = room >= L->large->h + L->medium->h + sm->h ? 3 : 2;
+			sbuf_t db;
+			sb_init(&db, destination, sizeof destination);
+			sb_str(&db, pane->group ? " TG " : " " GLYPH_ARROW " ");
+			sb_u32(&db, pane->dst, 1);
+			row = draw_caller_identity(pane->mode, pane->src, pane->src_name, 0, row, rows,
+				gfx_height() <= 64 ? destination : NULL, ui_col.fg);
+			if (audio && row + sm->h <= y + h) {
+				gfx_text_fit(sm, buf, gfx_width(), fit, sizeof fit);
+				gfx_text(sm, 0, row, fit, color);
+				row += sm->h;
+			}
+			if (gfx_height() > 64 && row + sm->h <= y + h) {
+				sb_init(&b, buf, sizeof buf);
+				sb_str(&b, pane->group ? "TG " : TR(CALL_VALUE_PRIVATE_TO, "Private to "));
+				sb_u32(&b, pane->dst, 1);
+				gfx_text_fit(sm, buf, gfx_width(), fit, sizeof fit);
+				gfx_text(sm, 0, row, fit, ui_col.dim);
+			}
+		} else if (row + sm->h <= y + h) {
+			gfx_text_fit(sm, pane->target[0] ? pane->target : pane->detail, gfx_width(), fit, sizeof fit);
+			gfx_text(sm, 0, row, fit, color);
+		}
+		y += h + gap;
+		if (i == 0 && gap)
+			gfx_hline(0, y - 1, gfx_width(), ui_col.line);
+	}
+	return true;
+}
+#endif
+
 void ui_draw_home_dual(const radio_view_t *v, const ui_state_t *s)
 {
 	const ui_layout_t *L = &ui_layout;
@@ -3105,7 +3306,13 @@ void ui_draw_home_dual(const radio_view_t *v, const ui_state_t *s)
 	ui_draw_top(v, s, NULL, NULL);
 	if (s->large_text) {
 		dual_large(v, s);
-	} else {
+	} else
+#if CONFIG_CALLER_DETAILS && CONFIG_DMR
+	if (dual_identity_home(v, s)) {
+		// Both channel panes were drawn with the receiving identity expanded.
+	} else
+#endif
+	{
 		int top = L->strip_h, gap = gfx_height() >= UI_TALL_PX ? 6 : 2, pad;
 		dual_fit_t fit;
 		dual_choose(L->hint_y - top, gap, &fit, &pad);
@@ -3708,7 +3915,8 @@ void ui_draw_hotspot(const radio_view_t *v, const hotspot_view_t *h, const ui_st
 	sb_str(&b, "CC");
 	sb_u32(&b, h->cc, 1);
 	sb_str(&b, " ");
-	sb_str(&b, ui_power_name(v->power, v->ch.tx_hz));
+	// What the hotspot keys; the radio's own power until the radio core has entered hotspot mode
+	sb_str(&b, ui_power_name(v->hotspot ? v->hs_power : v->power, h->tx_hz != 0 ? h->tx_hz : v->ch.tx_hz));
 	y = call_line(L->small, y, buf, ui_col.dim);
 	sb_init(&b, buf, sizeof buf);
 	if (h->src != 0) {

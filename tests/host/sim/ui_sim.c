@@ -6,7 +6,7 @@
 //
 // Script tokens (separated by spaces):
 //   up down left right ok back quick ctx 0..9 tt mon user1..user4 emerg enc+ enc-   a short press (counted);
-//   powerkey zone+ zone- scankey lockkey cbkey homekey dualkey abkey: what a reassigned side key sends
+//   powerkey zone+ zone- scankey skipkey lockkey cbkey homekey dualkey abkey: what a reassigned side key sends
 //   long:<key>          a long press (counted)
 //   ptt / ptt:<ms>      PTT pressed for 1 s / ms (counted); pttdown ... pttup holds it
 //   mondown ... monup   the monitor key held (FM: the squelch held open)
@@ -50,6 +50,7 @@
 //   autolock:<s>        Settings > Keys > Auto lock: s seconds, 0 off
 //   battery:<pct>       the battery reads pct; offfailed: auto power off couldn't switch off
 //   foreign             the codeplug is another firmware's: a channel write asks first (codeplug-foreign)
+//   aeskeys             system 3 is a DMR AES one holding traffic keys 0 and 7 (the channel editor's AES key row)
 //   nobattery           the board has no battery (CAP_NO_BATTERY), until the next reset
 //   variant             the board suspects the image is for another hardware version, until the next reset
 //   supply:<mv>         no battery, and the board measures its DC input, which reads mv (hal_power_t.supply_mv)
@@ -741,6 +742,7 @@ bool ui_svc_codeplug_answer(uint8_t answer)
 
 // The settings past the stub's RAM table (UI_SET_RAM_COUNT): the firmware keeps them in the codeplug
 // (ui_svc_storage.c); here they are plain values
+static bool sim_caller_database;
 static int32_t sim_late[UI_SET_COUNT - UI_SET_RAM_COUNT];
 
 int32_t ui_svc_setting_get(uint8_t id)
@@ -772,15 +774,27 @@ bool ui_svc_setting_set(uint8_t id, int32_t value)
 	return true;
 }
 
-#if CONFIG_P25_ID_LOOKUP
-const char *ui_svc_p25_name(uint32_t id)
+#if CONFIG_CALLER_DETAILS || CONFIG_P25_ID_LOOKUP
+const char *ui_svc_caller_text(uint8_t mode, uint32_t id, bool *database)
 {
 	static char name[CODEPLUG_NAME_LEN + 1];
 	contact_t c;
-	name[0] = '\0';
-	if (ui_svc_setting_get(UI_SET_P25_ID_LOOKUP) && codeplug_contact_find(id, false, &c))
+	*database = false;
+	name[0] = 0;
+	if (mode == RADIO_MODE_P25 && (!CONFIG_P25_ID_LOOKUP || !ui_svc_setting_get(UI_SET_P25_ID_LOOKUP)))
+		return "";
+	if (sim_caller_database && id == 9991234) {
+		*database = true;
+		return "Q1ABC Joe Smith";
+	}
+	if (codeplug_contact_find(id, false, &c))
 		memcpy(name, c.name, sizeof name);
 	return name;
+}
+const char *ui_svc_p25_name(uint32_t id)
+{
+	bool database;
+	return ui_svc_caller_text(RADIO_MODE_P25, id, &database);
 }
 #endif
 
@@ -2615,6 +2629,7 @@ static void step(void)
 		ui_notify(&ev);
 	}
 	view.hotspot = hotspot_on;
+	view.hs_power = view.power;	// as the radio core with the host's RF level at its default (FF)
 	if (ui_app_tick(&view, now_ms))
 		ui_app_draw();
 	if (tick_hook != NULL)
@@ -2627,8 +2642,33 @@ static void advance(uint32_t ms)
 		step();
 }
 
+#if CONFIG_DMR_AES
+static bool sim_aes_keys;	// aeskeys
+
+// The codeplug's AES keys as ui_svc_storage.c steps them: system 3 (index 2), PI key IDs 0 and 7, then none
+void ui_svc_next_aes_key(channel_t *c)
+{
+	static const uint16_t refs[] = { 1, 8 };	// key ID + 1
+	unsigned i = 0;
+
+	if (c->kind == CODEPLUG_KIND_DMR_AES)
+		while (i < 2 && refs[i] <= c->aes_ref)
+			i++;
+	if (!sim_aes_keys || i == 2) {
+		c->kind = CODEPLUG_KIND_NONE;
+		c->system = CODEPLUG_SYSTEM_NONE;
+		c->aes_ref = 0;
+		return;
+	}
+	c->kind = CODEPLUG_KIND_DMR_AES;
+	c->system = 2;
+	c->aes_ref = refs[i];
+}
+#endif
+
 void sim_reset(const sim_geom_t *g, sim_map_t map)
 {
+	sim_caller_database = false;
 	emergency_on = false;
 	sim_foreign = sim_held = false;
 	disp.width = g->w;
@@ -2665,6 +2705,9 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	ui_layout_init();
 	memset(&view, 0, sizeof view);
 	memset(&sim_rec, 0, sizeof sim_rec);
+#if CONFIG_DMR_AES
+	sim_aes_keys = false;
+#endif
 #if CONFIG_SATELLITE_TLE
 	sim_satellite_predicting = false;
 	sim_satellite_no_passes = false;
@@ -2824,6 +2867,7 @@ static const struct { const char *name; uint8_t action; } keys[] = {
 	{ "dualkey", ACT_DUAL_WATCH }, { "abkey", ACT_AB },	// dual watch's side key functions
 	{ "vfokey", ACT_VFO_TOGGLE },		// a VFO/MR key in the board's key map, or a side key set to VFO/Channel
 	{ "labelkey", ACT_TALK_LABEL },
+	{ "skipkey", ACT_SCAN_SKIP },
 	{ "volkey", ACT_VOLUME },
 	{ "0", ACT_DIGIT_0 }, { "1", ACT_DIGIT_1 }, { "2", ACT_DIGIT_2 }, { "3", ACT_DIGIT_3 }, { "4", ACT_DIGIT_4 },
 	{ "5", ACT_DIGIT_5 }, { "6", ACT_DIGIT_6 }, { "7", ACT_DIGIT_7 }, { "8", ACT_DIGIT_8 }, { "9", ACT_DIGIT_9 },
@@ -2832,7 +2876,8 @@ static const struct { const char *name; uint8_t action; } keys[] = {
 static bool on_map(uint8_t action, bool lng)
 {
 	if ((action >= ACT_POWER && action <= ACT_VOLUME) || action == ACT_VFO_TOGGLE || action == ACT_DUAL_WATCH ||
-	    action == ACT_AB || action == ACT_TALK_TARGET || action == ACT_TALK_LABEL)
+	    action == ACT_AB || action == ACT_TALK_TARGET || action == ACT_TALK_LABEL ||
+	    action == ACT_SCAN_SKIP)
 		// any side key can be set to send these; the few-key map has none, but a radio with side keys and no QUICK key
 		// is the case the key lock needs on it
 		return board.side_key_count != 0 || cur_map == SIM_MAP_F;
@@ -3223,6 +3268,16 @@ static bool run_token(char *t, char *err, size_t len)
 		advance(arg != NULL ? (uint32_t)atoi(arg) : 1000u);
 		return true;
 	}
+	if (strcmp(t, "rxcodec") == 0 && arg != NULL) {
+		view.dmr.codec = strcmp(arg, "on") == 0;
+		changed(); advance(200);
+		return true;
+	}
+	if (strcmp(t, "rxfiltered") == 0) {
+		view.dmr.state = RDMR_RX_OTHER;
+		changed(); advance(200);
+		return true;
+	}
 	if (strcmp(t, "rx") == 0 || strcmp(t, "call") == 0) {
 		unsigned src = 0, dst = 0;
 		char kind = 'g', alias[32] = "";
@@ -3530,6 +3585,12 @@ static bool run_token(char *t, char *err, size_t len)
 		return true;
 	}
 #endif
+	if (strcmp(t, "callerdb") == 0) {
+		sim_caller_database = arg != NULL && strcmp(arg, "on") == 0;
+		changed();
+		advance(200);
+		return true;
+	}
 #if CONFIG_P25
 	if (strcmp(t, "p25names") == 0 && arg != NULL) {
 		ui_svc_setting_set(UI_SET_P25_ID_LOOKUP, strcmp(arg, "on") == 0);
@@ -3544,6 +3605,7 @@ static bool run_token(char *t, char *err, size_t len)
 			snprintf(err, len, "bad %s", t);
 			return false;
 		}
+		view.p25.nac = view.p25.rx_nac;
 		view.p25.flags = (uint8_t)((view.p25.flags & RADIO_P25_TALK_UNIT) | RADIO_P25_ON | RADIO_P25_RX |
 			(kind == 'u' ? RADIO_P25_UNIT : 0) | (kind == 'e' ? RADIO_P25_ENC : 0) |
 			(kind == 'e' || kind == 'o' ? 0 : RADIO_P25_PLAYED));
@@ -3727,6 +3789,12 @@ static bool run_token(char *t, char *err, size_t len)
 		advance(200);
 		return true;
 	}
+#if CONFIG_DMR_AES
+	if (strcmp(t, "aeskeys") == 0) {
+		sim_aes_keys = true;
+		return true;
+	}
+#endif
 	if (strcmp(t, "foreign") == 0) {	// the codeplug is another firmware's: the first edit asks
 		sim_foreign = true;
 		return true;

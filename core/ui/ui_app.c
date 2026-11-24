@@ -1079,6 +1079,18 @@ void ui_scan_toggle(void)
 		TR(SCAN_TOAST_SCANNING_BAND, "Scanning the band") : TR(SCAN_TOAST_SCANNING_ZONE, "Scanning this zone"));
 }
 
+// A side key set to Scan skip: what the scan action's "Skip channel for now" does, without the menu. Nothing happens
+// (a toast says so) when no scan is running, so the key can't skip a channel of a radio that isn't scanning
+void ui_scan_skip(void)
+{
+	if (!ui_st.scanning) {
+		ui_toast(TR(SCAN_TOAST_NOT_SCANNING, "Not scanning"));
+		return;
+	}
+	ui_toast(ui_svc_scan_skip() ? TR(SCAN_TOAST_SKIPPED_UNTIL_STOP, "Skipped until the scan stops") :
+		TR(SCAN_TOAST_NOTHING_TO_SKIP, "Nothing to skip yet"));
+}
+
 #if CONFIG_DMR
 // Up / Down on Home set to "Talk target" (Settings > Keys): the channel's default talkgroup, then its listen list,
 // each a temporary talk target (the default ends it). False when there is nothing to step through
@@ -2220,6 +2232,9 @@ void ui_app_key(const input_event_t *ev)
 		case ACT_SCAN:
 			ui_scan_toggle();
 			return;
+		case ACT_SCAN_SKIP:
+			ui_scan_skip();
+			return;
 #if CONFIG_DUAL_WATCH
 		case ACT_DUAL_WATCH:
 			ui_dual_key();
@@ -2459,8 +2474,8 @@ bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
 #endif
 	ui_svc_poll();
 	ui_svc_keys_poll();
-#if CONFIG_P25_ID_LOOKUP
-	if (ui_svc_p25_names_poll(v))
+#if CONFIG_CALLER_DETAILS || CONFIG_P25_ID_LOOKUP
+	if (ui_svc_caller_poll(v))
 		dirty = true;
 #endif
 #if CONFIG_ZONE_EDIT

@@ -40,6 +40,7 @@ WEAK bool ui_svc_privacy(bool on) { (void)on; return false; }
 WEAK bool ui_svc_monitor(bool on) { (void)on; return false; }
 WEAK bool ui_svc_vox(bool on) { (void)on; return false; }
 WEAK bool ui_svc_save_channel(void) { return false; }
+WEAK void ui_svc_next_aes_key(channel_t *ch) { (void)ch; }
 WEAK bool ui_svc_write_channel(uint16_t number, const channel_t *ch, uint16_t from) { (void)number; (void)ch; (void)from; return false; }
 #if CONFIG_P25 || CONFIG_NXDN
 WEAK bool ui_svc_write_channel_air(uint16_t number, const channel_t *ch, uint16_t from, const ui_air_conv_t *conv)
@@ -87,7 +88,14 @@ WEAK void ui_svc_poll(void)
 #endif
 }
 WEAK void ui_svc_keys_poll(void) { }
-WEAK bool ui_svc_p25_names_poll(const radio_view_t *v) { (void)v; return false; }
+WEAK void ui_svc_caller_request(uint8_t mode, uint32_t id) { (void)mode; (void)id; }
+WEAK bool ui_svc_caller_poll(const radio_view_t *v) { (void)v; return false; }
+#if !CONFIG_RX_AGC
+WEAK bool ui_svc_rx_audio_text(uint8_t mode, char *out, size_t len)
+{ (void)mode; if (len) out[0] = 0; return false; }
+#endif
+WEAK const char *ui_svc_caller_text(uint8_t mode, uint32_t id, bool *database)
+{ (void)mode; (void)id; *database = false; return ""; }
 WEAK const char *ui_svc_p25_name(uint32_t id) { (void)id; return ""; }
 // Without key assignment no home key sends ACT_HOME_KEY_n: every action is the key map's
 WEAK uint8_t ui_svc_home_key(uint8_t action, uint8_t gesture, bool home) { (void)gesture; (void)home; return action; }

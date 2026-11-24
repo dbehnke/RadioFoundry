@@ -332,11 +332,22 @@ bool ui_svc_dual_rx(uint8_t pane, ui_dual_rx_t *out)
 		out->dmr = v->ch.mode == RADIO_MODE_DMR;
 #if CONFIG_DMR
 		if (out->dmr) {
-			out->active = out->heard = v->state == RS_RX && v->dmr.state == RDMR_RX;
+			out->active = v->state == RS_RX && v->dmr.state == RDMR_RX;
+			out->heard = out->active && v->dmr.codec;
 			out->src = v->dmr.call.src;
 			out->dst = v->dmr.call.dst;
 			out->group = v->dmr.call.group;
 			strncpy(out->src_name, v->dmr.call.src_name, sizeof out->src_name - 1);
+		}
+#endif
+#if CONFIG_P25
+		if (v->ch.mode == RADIO_MODE_P25) {
+			out->dmr = false;
+			out->active = v->state == RS_RX && (v->p25.flags & RADIO_P25_RX) != 0;
+			out->heard = out->active && (v->p25.flags & RADIO_P25_PLAYED) != 0;
+			out->src = v->p25.src;
+			out->dst = v->p25.dst;
+			out->group = (v->p25.flags & RADIO_P25_UNIT) == 0;
 		}
 #endif
 		return true;

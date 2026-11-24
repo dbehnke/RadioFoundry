@@ -52,6 +52,13 @@ or name, as in the zone's channel list.
 
 ## 3. Home
 
+With `CONFIG_CALLER_DETAILS`, one heard DMR or P25 call expands its pane with the caller's label and numeric ID.
+Database callsign and name use separate lines where they fit. Compact screens combine them; a 64-pixel display
+keeps the inactive channel on one row. P25 labels follow the P25 contact lookup preference. Optional input/output
+audio levels appear on the heard pane when their provider enables them. Two simultaneous calls and large-text
+mode keep the layout below.
+
+
 <img src="screens/240x320/home_dual.png" width="200" alt="Dual watch Home, 240x320">
 <img src="screens/240x320/home_dual_rx_b.png" width="200" alt="A call on B">
 <img src="screens/240x320/home_dual_tx.png" width="200" alt="Talking on A">

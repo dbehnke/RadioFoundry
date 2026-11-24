@@ -65,6 +65,9 @@ typedef struct {
 	bool busy;		// one receiver: a look in the wait after a call on the other pane found a signal here (not
 				// played; the watch comes here when the wait ends)
 	int16_t rssi_dbm;
+	uint32_t src, dst;
+	bool group;
+	char src_name[CODEPLUG_NAME_LEN + 1];
 	char caller[48];	// the call coming in: "Joe Smith TG 91" (with a shorter alternate, font.h)
 } ui_dual_pane_t;
 
