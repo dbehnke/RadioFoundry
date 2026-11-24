@@ -12,34 +12,34 @@ See the [usage and testing guide](README.md) for menu paths and test instruction
 
 | Item | Value |
 |---|---|
-| Firmware source | `eb02cb21` |
-| Upstream main included | `dd67ecd6` |
-| Release tag | [`kf8s-dd67ecd6-eb02cb21-261124-6`](https://github.com/dbehnke/RadioFoundry/tree/kf8s-dd67ecd6-eb02cb21-261124-6) |
-| ZIP | `radiofoundry-kf8s-dd67ecd6-eb02cb21-261124-6.zip` |
+| Firmware source | `533acd6c` |
+| Upstream main included | `bac4b209` |
+| Release tag | [`kf8s-bac4b209-533acd6c-261124-7`](https://github.com/dbehnke/RadioFoundry/tree/kf8s-bac4b209-533acd6c-261124-7) |
+| ZIP | `radiofoundry-kf8s-bac4b209-533acd6c-261124-7.zip` |
 | Images | RT3S / MD-UV380 standard 5 W, MD9600, DM1701, DM32 |
 | Optional calibration | Off in this package |
 | DMR AES | Enabled in this package |
 
 The tag identifies the firmware source. Later documentation commits do not change that firmware.
-The local ZIP is not automatically uploaded to GitHub by pushing this tag.
+The ZIP and checksum are available on the [GitHub release](https://github.com/dbehnke/RadioFoundry/releases/tag/kf8s-bac4b209-533acd6c-261124-7).
 
 ## November 24, 2026
 
-### Upstream synchronization after the tagged test build
+### Upstream synchronization
 
 - Merged upstream through `bac4b209`, including the FM Home receive-frequency/offset display change (#1043).
 - Reviewed upstream's microphone/P25 limiter follow-up (#1054). Kept the fork's existing shared DSP limiter,
   computed DC removal, manual P25 gain handling and -20 dBFS microphone AGC target in overlapping code.
   The AMBE board correction is not added to P25. Existing audio regression tests remain authoritative.
-- These changes are newer than the firmware tag listed above.
+- Included in the current firmware tag listed above.
 
-### Receive display rollback after the tagged test build
+### Receive display rollback
 
 - Removed the digital RF signal-display enhancement because the added information crowded the display.
 - Restored the earlier caller/dual layouts and removed the added RX details preference and measurement metadata.
 - Preserved the earlier caller lookup/display improvements, RX/TX AGC, power controls and microphone keys.
-- This source rollback is newer than the firmware tag above. The existing ZIP still has the meter enhancement;
-  no replacement firmware was built for this change. The original feature branch is retained.
+- Included in the current ZIP. The preceding `kf8s-dd67ecd6-eb02cb21-261124-6` package still has the meter
+  enhancement. The original feature branch is retained.
 
 
 ### Microphone input and P25 calibration
@@ -160,7 +160,7 @@ Key commits: [`fef6efbd`](https://github.com/dbehnke/RadioFoundry/commit/fef6efb
 Independent implementation/integration reviews accepted the power, RF display and microphone-key changes.
 Host/UI, feature-off, translation, documentation and layout checks passed. The current four-image package passed
 firmware size, stack, provenance and checksum checks with warning-free final build logs. C-SKY build-tool crashes
-required retries; they did not require source changes.
+required retries, including a resumed unpublished batch; they did not require source changes.
 
 These checks do not establish hardware RF-power accuracy, RSSI calibration, microphone-key behavior, or on-air
 speech quality. Owner testing is the purpose of this build. Earlier on-device calibration informed the P25 target;

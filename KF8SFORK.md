@@ -48,3 +48,12 @@ Output is under `build/kf8s/<label>/`. The ZIP includes every image and manifest
 [FORKING.md](FORKING.md) requires. No AMBE codec is included.
 
 Host tests and firmware checks do not replace the owner's listening tests. No build command flashes or keys a radio.
+
+## Publishing owner-requested firmware ZIPs
+
+For an owner-requested firmware ZIP, finish building and verifying the package first, then publish it in
+`dbehnke/RadioFoundry` GitHub Releases. Use the package label as the annotated Git tag, pointing to the exact
+firmware commit in `build.json`. Push the branch and tag without changing an existing release tag. Attach the
+ZIP and its `.zip.sha256` sidecar, retain all license notices, and include supported image variants, changes,
+validation limits and links to the testing guide. Mark test firmware as a prerelease. Update the guide's current
+package reference after verification; a later documentation commit does not change the tagged firmware.

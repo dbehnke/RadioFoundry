@@ -10,9 +10,9 @@ features. Menu labels below are the English labels; available modes and options 
 
 ## Which build to test
 
-The current four-radio package is **`radiofoundry-kf8s-dd67ecd6-eb02cb21-261124-6.zip`**.
-Its [Git tag](https://github.com/dbehnke/RadioFoundry/tree/kf8s-dd67ecd6-eb02cb21-261124-6) points to firmware
-commit `eb02cb21`, including upstream main `dd67ecd6`.
+The current four-radio package is **`radiofoundry-kf8s-bac4b209-533acd6c-261124-7.zip`**.
+Its [Git tag](https://github.com/dbehnke/RadioFoundry/tree/kf8s-bac4b209-533acd6c-261124-7) points to firmware
+commit `533acd6c`, including upstream main `bac4b209`.
 
 | Radio | Image prefix | Notes |
 |---|---|---|
@@ -21,13 +21,13 @@ commit `eb02cb21`, including upstream main `dd67ecd6`.
 | Baofeng DM1701 | `rfoundry-dm1701-` | Uses this radio's own image and manifest |
 | Baofeng DM32 | `rfoundry-dm32-` | Uses this radio's own image and manifest |
 
-This previously built package includes AES, TX/RX AGC, power controls, RF display and microphone-key changes.
-The branch has since reverted the RF display changes; that rollback is not in this existing ZIP. The temporary P25
-calibration/parrot is **off**. The Git tag is a source reference, not a ZIP download; obtain the ZIP from the
-maintainer. Its SHA-256 is:
+This package includes AES, TX/RX AGC, power controls and microphone-key changes, with the earlier receive
+display layout restored. The temporary P25
+calibration/parrot is **off**. Download the ZIP and checksum from the
+[GitHub release](https://github.com/dbehnke/RadioFoundry/releases/tag/kf8s-bac4b209-533acd6c-261124-7). Its SHA-256 is:
 
 ```text
-8943f882c7a6db1d971a12e3fb6198be2e01ede58ce2881174b76dc058f8eef8
+b618b9cbf78f679211b81656554467e2e9b9331e008971782969c55ec6238c9c
 ```
 
 Back up your current settings/codeplug and follow [Installing](../user/02-installing.md). Use the matching image
