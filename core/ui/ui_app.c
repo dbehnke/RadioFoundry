@@ -2524,7 +2524,8 @@ static void signal_tick(const radio_view_t *v, uint32_t now_ms)
 }
 #endif
 
-bool ui_app_tick_serials(const radio_view_t *v, uint32_t now_ms, uint32_t serial, uint32_t signal_serial)
+// Keep tick-only dual-pane scratch frames off the key-handling call chain under LTO.
+__attribute__((noinline)) bool ui_app_tick_serials(const radio_view_t *v, uint32_t now_ms, uint32_t serial, uint32_t signal_serial)
 {
 	static uint32_t serial_seen;
 #if CONFIG_RX_SIGNAL_MENU
