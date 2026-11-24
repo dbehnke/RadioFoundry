@@ -104,6 +104,11 @@ typedef struct {
 	// start, so any task may call it. NULL = no gain in the board's audio path: DMR then scales the samples before the
 	// vocoder and FM stays as it is
 	void (*mic_gain)(int8_t db);
+	// Optional, for local PCM diagnostics: apply a digital microphone gain offset immediately in digital receive.
+	// Uses the same reference gain as digital TX and leaves the stored transmit offset alone. Radio task only.
+	void (*pcm_mic_gain)(int8_t db);
+	// Optional: route the transmit microphone to the PCM ADC without arming RF. Restore receive routing on false.
+	void (*pcm_mic_route)(bool on);
 	// Optional: the reference oscillator trim, parts per billion (the Freq trim setting, -10000..+10000 in steps of
 	// 100; core/radio/ref_trim.h). Positive raises the reference. It moves receive and transmit together, FM and DMR. Any task may call it. The board applies
 	// it now (false) or at the next tune (true: the caller asks the radio task for one, radio_req_retune). NULL = the

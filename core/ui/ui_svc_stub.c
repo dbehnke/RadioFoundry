@@ -235,3 +235,13 @@ bool ui_svc_ram_set(uint8_t id, int32_t value)
 
 WEAK int32_t ui_svc_setting_get(uint8_t id) { return ui_svc_ram_get(id); }
 WEAK bool ui_svc_setting_set(uint8_t id, int32_t value) { return ui_svc_ram_set(id, value); }
+
+#if CONFIG_P25_PARROT
+__attribute__((weak)) bool ui_svc_p25_parrot(uint8_t command, bool agc, int8_t target) { return false; }
+__attribute__((weak)) uint8_t ui_svc_p25_parrot_state(void) { return P25_PARROT_OFF; }
+__attribute__((weak)) void ui_svc_p25_parrot_view(p25_parrot_view_t *out)
+{
+	memset(out, 0, sizeof *out);
+	out->input_db10 = out->encoder_db10 = out->output_db10 = -960;
+}
+#endif

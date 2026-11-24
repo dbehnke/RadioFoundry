@@ -147,7 +147,7 @@ static void update_focus_target(void)
 		ui_svc_focus_target(0, false);
 }
 
-#if CONFIG_BACKLIGHT_TEST || CONFIG_SATELLITE_TLE
+#if CONFIG_BACKLIGHT_TEST || CONFIG_SATELLITE_TLE || CONFIG_P25_PARROT
 // Screens from the top down to stack level `from` leave the stack: each runs its leave hook (the backlight tests give
 // the light back)
 static void left(uint8_t from)
@@ -2188,6 +2188,11 @@ void ui_app_key(const input_event_t *ev)
 		ui_toast(locked_text(true));
 		return;
 	}
+#if CONFIG_P25_PARROT
+	// Keep the local audio session on screen until Back releases it. The normal unlock keys still work.
+	if (stack[sp].scr == SCR_P25_PARROT && ev->action != ACT_BACK && ev->action != ACT_SELECT && !is_nav(ev))
+		return;
+#endif
 #if CONFIG_HOTSPOT
 	if (in_hotspot()) {
 		hotspot_key(ev);
@@ -2469,6 +2474,18 @@ bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
 #endif
 	now = now_ms;
 	ui_st.now_ms = now_ms;
+#if CONFIG_P25_PARROT
+	static uint32_t parrot_draw_ms;
+	if (stack[sp].scr == SCR_P25_PARROT) {
+		if (ui_svc_p25_parrot_state() == P25_PARROT_REFUSED) {
+			ui_pop();
+			ui_toast(TR(P25_PARROT_UNAVAILABLE, "Unavailable"));
+		} else if (now_ms - parrot_draw_ms >= 200u) {
+			parrot_draw_ms = now_ms;
+			ui_dirty();
+		}
+	}
+#endif
 #if CONFIG_VOLUME_BAR
 	knob_tick(v);
 #endif

@@ -68,6 +68,9 @@ static volatile uint32_t overruns;	// blocks the task did not get to in time
 static volatile uint32_t blocks;	// blocks processed (one per 20 ms while streaming)
 static volatile uint32_t dropped;	// blocks skipped: both halves pending, the older one overwritten
 static const stm32_i2s_pcm_cfg_t *cfg;
+#if CONFIG_P25_PARROT
+static volatile uint8_t dma_loud;	// TX halves to play (audio task; cleared on start with DMA stopped)
+#endif
 
 // The FIFO path: the FM copy (an air interface) and beeps in FM receive use it
 #define I2S_FIFO	(CONFIG_AIR || CONFIG_BEEP)
@@ -88,6 +91,12 @@ static volatile uint32_t fifo_chunks, fifo_gaps, fifo_full;
 // Writes a poll may make: the FIFO's depth in chunks, plus one for what drains meanwhile. A bound, so a chip that never
 // reports full (reset, or the bit read wrong) can't keep the top-priority feeder in a loop that starves every task
 #define FIFO_POLL_CHUNKS	((uint32_t)(HRC_PROMPT_DEPTH / HRC_PROMPT_CHUNK) + 1u)
+#if CONFIG_P25_PARROT
+#define FIFO_PLAY_MS	((1000u * HRC_PROMPT_DEPTH + AUDIO_RATE_HZ - 1u) / AUDIO_RATE_HZ + 1u)
+static volatile uint32_t fifo_loud_head;	// ring index after the last nonzero block
+static volatile uint32_t fifo_loud_at;	// last nonzero chunk sent to the chip
+static volatile bool fifo_loud_recent;
+#endif
 #endif
 
 // --- I2S and DMA ---
@@ -187,6 +196,9 @@ static bool hw_start(void)
 	I2S3ext->I2SCFGR &= ~SPI_I2SCFGR_I2SE;
 	memset(tx_buf, 0, sizeof tx_buf);
 	pending = 0;
+#if CONFIG_P25_PARROT
+	dma_loud = 0;
+#endif
 
 	// RX: SPI3 DR -> rx_buf, half and full interrupts
 	DMA1_Stream0->PAR = (uint32_t)&SPI3->DR;
@@ -261,6 +273,16 @@ void DMA1_Stream0_IRQHandler(void)
 	portYIELD_FROM_ISR(woken);
 }
 
+#if CONFIG_P25_PARROT
+static bool pcm_loud(const int16_t *pcm, unsigned n)
+{
+	for (unsigned i = 0; i < n; i++) {
+		if (pcm[i] != 0) return true;
+	}
+	return false;
+}
+#endif
+
 static void process(uint8_t half)
 {
 	const int16_t *in = &rx_buf[half * HALF_WORDS];
@@ -277,11 +299,22 @@ static void process(uint8_t half)
 	} else {
 		memset(spk, 0, sizeof spk);
 	}
+#if CONFIG_P25_PARROT
+	bool loud = pcm_loud(spk, AUDIO_BLOCK_SAMPLES);
+#endif
 #if I2S_FIFO
 	// Silence while the PCM route is off: the FIFO goes past the switch that keeps the stream off the amplifier, which
 	// stays on for the hang after a call, so what the stream holds then (not a call) would play
-	if (fifo_chip != NULL && !pcm_ring_push(ring, fifo_spk ? spk : NULL, AUDIO_BLOCK_SAMPLES)) {
-		fifo_full++;
+	if (fifo_chip != NULL) {
+		bool routed = fifo_spk;
+		if (!pcm_ring_push(ring, routed ? spk : NULL, AUDIO_BLOCK_SAMPLES)) {
+			fifo_full++;
+		}
+#if CONFIG_P25_PARROT
+		else if (routed && loud) {
+			fifo_loud_head = ring->head;
+		}
+#endif
 	}
 #endif
 	// This half has just gone out (TX runs in step with RX), so it is free until the DMA comes back in 20 ms
@@ -289,6 +322,9 @@ static void process(uint8_t half)
 		out[2 * i] = spk[i];
 		out[2 * i + 1] = spk[i];
 	}
+#if CONFIG_P25_PARROT
+	if (loud) dma_loud |= (uint8_t)(1u << half);
+#endif
 }
 
 #if I2S_FIFO
@@ -324,6 +360,14 @@ static void feeder_task(void *arg)
 				fifo_gaps++;
 			}
 			(void)hrc_prompt_write(chip, buf);
+#if CONFIG_P25_PARROT
+			if (pcm_loud(buf, PCM_RING_CHUNK)) {
+				fifo_loud_at = hal_millis();
+				fifo_loud_recent = true;
+			} else if (fifo_loud_recent && hal_millis() - fifo_loud_at >= FIFO_PLAY_MS) {
+				fifo_loud_recent = false;
+			}
+#endif
 			fifo_chunks++;
 		}
 		vTaskDelay(1);	// the FIFO holds 8 ms: polled every 1 ms, as the chip's manual does
@@ -369,6 +413,10 @@ static void fifo_follow(void)
 	}
 	if (chip != NULL) {
 		pcm_ring_reset(ring);
+#if CONFIG_P25_PARROT
+		fifo_loud_head = 0;
+		fifo_loud_recent = false;
+#endif
 		(void)hrc_prompt_on(chip, true);
 		fifo_chip = chip;
 		xTaskNotifyGive(feeder);
@@ -430,6 +478,10 @@ static void audio_task(void *arg)
 			if (p == 0 || !running) {
 				break;
 			}
+#if CONFIG_P25_PARROT
+			// RX and TX advance together. All halves reported by the interrupt have played.
+			dma_loud &= (uint8_t)~p;
+#endif
 			fifo_follow();
 			process(half);
 			blocks++;
@@ -492,6 +544,25 @@ bool stm32_i2s_pcm_running(void)
 {
 	return running;
 }
+
+#if CONFIG_P25_PARROT
+bool stm32_i2s_pcm_spk_pending(void)
+{
+	// The audio task fills the ring and the higher-priority feeder takes from it. Read one snapshot.
+	taskENTER_CRITICAL();
+	bool waiting = running && dma_loud != 0;
+#if I2S_FIFO
+	if (running && fifo_chip != NULL) {
+		uint32_t queued = fifo_loud_head - ring->tail;
+		waiting = waiting || (queued != 0 && queued <= PCM_RING_SAMPLES);
+		// The FIFO does not report empty. Allow its full depth to play after the last nonzero write.
+		waiting = waiting || (fifo_loud_recent && hal_millis() - fifo_loud_at < FIFO_PLAY_MS);
+	}
+#endif
+	taskEXIT_CRITICAL();
+	return waiting;
+}
+#endif
 
 void stm32_i2s_pcm_stats(stm32_i2s_pcm_stats_t *out)
 {

@@ -20,6 +20,7 @@
 #endif
 #if CONFIG_P25
 #include "p25/p25_codeplug.h"
+#include "p25/p25_parrot.h"
 #endif
 #if CONFIG_NXDN
 #include "nxdn/nxdn_codeplug.h"
@@ -539,5 +540,11 @@ void ui_svc_keys_poll(void);
 uint8_t ui_svc_home_key(uint8_t action, uint8_t gesture, bool home);
 // Settings > Keys: value may go in the setting id's slot (a home key's role can't hold Monitor or Tone burst)
 bool ui_svc_key_offered(uint8_t id, int32_t value);
+
+#if CONFIG_P25_PARROT
+bool ui_svc_p25_parrot(uint8_t command, bool agc, int8_t target);
+uint8_t ui_svc_p25_parrot_state(void);
+void ui_svc_p25_parrot_view(p25_parrot_view_t *out);
+#endif
 
 #endif

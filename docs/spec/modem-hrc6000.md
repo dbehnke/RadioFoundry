@@ -735,6 +735,11 @@ whose FM audio comes through the chip, which plays a beep there only while the P
 FM receive (`stm32_i2s_pcm_fm_chip`), and clears that report before a DMR set-up or a transmission: a beep while keyed stays
 off the speaker, and the FIFO doesn't reach the modulator (8.1).
 
+With `CONFIG_P25_PARROT`, the STM32 PCM provider reports pending speaker audio through `hal_audio_t.spk_pending`.
+It tracks nonzero DMA halves until their transfer completes and nonzero PCM queued for the prompt FIFO. The FIFO has
+no empty flag, so the provider allows time for its full depth to play after the last nonzero write. The parrot keeps
+the speaker routed during this drain. Playback timing on hardware is untested.
+
 **Tones (0xA1 mode)**: 0x80 off, 0x88 CTCSS, 0x84 DCS, 0x82 DTMF, as traced. The manual's register table differs:
 0xA1 is `fm_mod`, bit 7 is reserved and must be 0, bit 6 MSK, and its appendix selects CTCSS with 0x08, CDCSS 0x04,
 DTMF 0x02, 2-tone 0x10, 5-tone 0x20. With bit 7 set (the init's 0x80) a board that feeds the chip a 450 kHz IF never

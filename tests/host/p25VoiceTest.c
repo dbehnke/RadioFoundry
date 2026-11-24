@@ -9,6 +9,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "dsp/tx_level.h"
 #include "p25/p25Voice.h"
 
 static int failures, checks;
@@ -16,6 +17,8 @@ static int failures, checks;
 
 // ── The board's PCM stream ──
 static bool running, spk_on;
+static bool speaker_pending;
+static unsigned pending_checks;
 static int starts, stops;
 static bool fake_start(audio_block_cb_t cb, void *ctx)
 {
@@ -26,8 +29,18 @@ static bool fake_start(audio_block_cb_t cb, void *ctx)
 	return true;
 }
 static void fake_stop(void) { running = false; stops++; }
-static void fake_speaker(bool on) { spk_on = on; }
-static const hal_audio_t audio = { .start = fake_start, .stop = fake_stop, .speaker_pcm = fake_speaker };
+static void fake_speaker(bool on)
+{
+	spk_on = on;
+	if (!on) speaker_pending = false;
+}
+static bool fake_pending(void)
+{
+	pending_checks++;
+	return speaker_pending;
+}
+static const hal_audio_t audio = { .start = fake_start, .stop = fake_stop, .speaker_pcm = fake_speaker,
+				   .spk_pending = fake_pending };
 
 static p25_voice_mem_t vmem;
 static const p25_engine_hooks_t *hk;
@@ -66,6 +79,8 @@ static void begin(void)
 	p25VoiceEnd();
 	p25VoiceResetStats();
 	running = spk_on = false;
+	speaker_pending = false;
+	pending_checks = 0;
 	starts = stops = 0;
 	p25VoiceBegin(&vmem);
 }
@@ -342,6 +357,228 @@ static void testRouteTakeover(void)
 	p25VoiceEnd();
 }
 
+static void testTxManualCeiling(void)
+{
+	int16_t mic[AUDIO_BLOCK_SAMPLES], out[AUDIO_BLOCK_SAMPLES];
+	p25_voice_stats_t s;
+	begin();
+	p25VoiceSetAgc(false);
+	for (uint8_t step = 5; step <= 10; step += 5) {
+		p25VoiceSetMicGain(step);
+		p25VoiceTx(true);
+		for (unsigned i = 0; i < AUDIO_BLOCK_SAMPLES; i++) mic[i] = i & 1u ? INT16_MAX : INT16_MIN;
+		p25VoiceAudioBlock(mic, out, NULL);
+		p25VoiceGetStats(&s);
+#if CONFIG_TX_MIC_LIMITER
+		CHECK(s.tx_mic_peak == TX_LEVEL_CEILING && s.tx_limited_blocks == 1 && s.tx_gain_q16 < TX_LEVEL_UNITY,
+		      "manual peak protection %u/%u/%u", s.tx_mic_peak, s.tx_limited_blocks, s.tx_gain_q16);
+#else
+		CHECK(s.tx_mic_peak == 32768 && s.tx_limited_blocks == 0,
+		      "manual legacy peak %u/%u", s.tx_mic_peak, s.tx_limited_blocks);
+#endif
+		p25VoiceTx(false);
+	}
+	p25VoiceTx(true);
+	for (unsigned i = 0; i < AUDIO_BLOCK_SAMPLES; i++) mic[i] = 1000;
+	p25VoiceAudioBlock(mic, out, NULL);
+	p25VoiceGetStats(&s);
+	CHECK(s.tx_mic_peak == 1000 * 810 / 256 && s.tx_gain_q16 == 810u << 8 && s.tx_limited_blocks == 0,
+	      "manual gain did not reset on new TX (%u/%u/%u)", s.tx_mic_peak, s.tx_limited_blocks, s.tx_gain_q16);
+	p25VoiceSetMicGain(5);
+	p25VoiceEnd();
+}
+
+#if CONFIG_P25_PARROT
+static bool feed_tone(int amplitude, unsigned count)
+{
+	bool heard = false;
+	for (unsigned f = 0; f < count; f++) {
+		int16_t mic[AUDIO_BLOCK_SAMPLES], out[AUDIO_BLOCK_SAMPLES];
+		for (unsigned i = 0; i < AUDIO_BLOCK_SAMPLES; i++)
+			mic[i] = (int16_t)lrint(amplitude * cos(2 * M_PI * 200 * i / AUDIO_RATE_HZ));
+		p25VoiceAudioBlock(mic, out, NULL);
+		for (unsigned i = 0; i < AUDIO_BLOCK_SAMPLES && !heard; i++) heard = out[i] != 0;
+	}
+	return heard;
+}
+static void testParrot(void)
+{
+	static uint8_t frames[500][IMBE_BYTES];
+	p25_parrot_view_t v;
+	begin();
+	p25VoiceParrotReady(frames, 217, frames + 217);
+	CHECK(p25VoiceParrotCapture(true, -25, 10, false), "parrot did not start");
+	p25VoiceParrotView(&v);
+	CHECK(v.state == P25_PARROT_RECORD && v.frames == 0, "capture was not published immediately");
+	CHECK(!p25VoiceParrotCapture(false, -18, 5, false), "second capture accepted before the first audio block");
+	feed_tone(500, 500);
+	p25VoiceParrotView(&v);
+	CHECK(v.state == P25_PARROT_RECORD && v.frames == 500, "ten second capture %u/%u", v.state, v.frames);
+	CHECK(!spk_on, "speaker on while recording");
+	CHECK(v.agc && v.limiter && v.target_dbfs == -25 && v.gain_q16 > TX_LEVEL_UNITY && v.mic_step == 10 &&
+	      v.manual_gain_q16 == 810u << 8,
+	      "missing recorded settings/gain");
+	CHECK(v.input_peak > 0 && v.encoder_peak > v.input_peak, "missing input peaks");
+	CHECK(v.input_db10 < -380 && v.encoder_db10 > -260 && v.encoder_db10 < -245,
+	      "quiet input/encoder %d/%d", v.input_db10, v.encoder_db10);
+	feed_tone(0, 1);
+	CHECK(spk_on, "speaker did not open for playback");
+	feed_tone(0, 501);
+	p25VoiceParrotView(&v);
+	CHECK(v.state == P25_PARROT_DONE && !spk_on, "playback did not finish");
+	p25_parrot_view_t held = v;
+	feed_tone(0, 5);
+	p25VoiceParrotView(&v);
+	CHECK(v.input_db10 == held.input_db10 && v.output_peak == held.output_peak && v.frames == held.frames, "completed report changed");
+	CHECK(abs(v.output_db10 - v.encoder_db10) < 15, "codec output %d encoder %d", v.output_db10, v.encoder_db10);
+	CHECK(p25VoiceParrotCapture(false, -25, 7, true), "repeat capture refused");
+	feed_tone(500, 50);
+	p25VoiceParrotStop();
+	feed_tone(0, 52);
+	p25VoiceParrotView(&v);
+	CHECK(!v.agc && v.limiter == CONFIG_TX_MIC_LIMITER && v.mic_step == 7 &&
+	      v.manual_gain_q16 == TX_LEVEL_UNITY && v.gain_q16 == TX_LEVEL_UNITY && v.limited_blocks == 0,
+	      "manual report incorrect");
+	CHECK(v.state == P25_PARROT_DONE && v.frames == 50, "early stop %u/%u", v.state, v.frames);
+	CHECK(abs(v.input_db10 - v.encoder_db10) <= 1, "AGC off changed level %d/%d", v.input_db10, v.encoder_db10);
+	CHECK(p25VoiceParrotCapture(true, -25, 5, false), "loud capture refused");
+	feed_tone(12000, 100);
+	p25VoiceParrotStop();
+	feed_tone(0, 102);
+	p25VoiceParrotView(&v);
+	CHECK(abs(v.encoder_db10 + 250) <= 3, "loud encoder target %d", v.encoder_db10);
+	CHECK(p25VoiceParrotCapture(true, -18, 5, false), "target capture refused");
+	feed_tone(12000, 100);
+	p25VoiceParrotView(&v);
+	CHECK(v.agc && v.target_dbfs == -18, "report target was not captured");
+	CHECK(abs(v.encoder_db10 + 180) <= 3, "adjusted target %d", v.encoder_db10);
+	p25VoiceEnd();
+	p25VoiceParrotView(&v);
+	CHECK(v.state == P25_PARROT_OFF && !running && !spk_on, "exit failed to release stream");
+	begin();
+	p25VoiceParrotReady(frames, 217, frames + 217);
+	p25VoiceParrotStop(); // no capture yet: harmless, a new recording overwrites the command
+	CHECK(p25VoiceParrotCapture(false, -25, 5, false), "capture after idle stop refused");
+	p25VoiceParrotStop(); // stop before the first callback must not erase the pending start
+	feed_tone(500, 2);
+	p25VoiceParrotView(&v);
+	CHECK(v.state == P25_PARROT_DONE && v.frames == 0, "pending capture ignored immediate stop");
+	p25VoiceEnd();
+}
+
+static void testParrotMatchesTx(void)
+{
+	static uint8_t frames[500][IMBE_BYTES];
+	uint8_t bits[IMBE_BYTES];
+	p25_voice_stats_t s;
+	p25_parrot_view_t v;
+	begin();
+	p25VoiceSetAgc(false);
+	p25VoiceSetMicGain(10);
+	p25VoiceTx(true);
+	feed_tone(12000, 1);
+	CHECK(hk->tx_voice(bits, NULL), "no transmit frame to compare with capture");
+	p25VoiceGetStats(&s);
+	p25VoiceEnd();
+	p25VoiceBegin(&vmem);
+	p25VoiceParrotReady(frames, 217, frames + 217);
+	p25VoiceSetMicGain(5);
+	CHECK(p25VoiceParrotCapture(false, -25, 10, false), "manual parrot capture refused");
+	feed_tone(12000, 1);
+	p25VoiceParrotView(&v);
+	CHECK(v.input_peak == 12000 && v.encoder_peak == s.tx_mic_peak && v.gain_q16 == s.tx_gain_q16 &&
+	      v.limited_blocks == s.tx_limited_blocks && v.manual_gain_q16 == 810u << 8,
+	      "manual parrot input differs from transmit");
+	CHECK(memcmp(bits, frames[0], sizeof bits) == 0, "parrot and transmit encoded different bits");
+	p25VoiceEnd();
+}
+
+static void testParrotDrain(void)
+{
+	static uint8_t frames[500][IMBE_BYTES];
+	p25_parrot_view_t v;
+	begin();
+	p25VoiceParrotReady(frames, 217, frames + 217);
+	for (unsigned pass = 0; pass < 3; pass++) {
+		CHECK(p25VoiceParrotCapture(false, -25, 5, false), "drain test could not start a capture");
+		CHECK(p25VoiceParrotProgress() == 0, "progress from the last capture was retained");
+		CHECK(!feed_tone(3000, 8), "scaled microphone samples leaked into the speaker buffer");
+		p25VoiceParrotStop();
+		CHECK(!block() && spk_on && p25VoiceParrotState() == P25_PARROT_PLAY, "playback did not start");
+		CHECK(feed_tone(0, 8), "no audio came out of the decoder");
+		speaker_pending = true;
+		unsigned polls = pending_checks;
+		uint16_t progress = p25VoiceParrotProgress();
+		CHECK(!block() && !block(), "playback drain did not fill silence");
+		CHECK(spk_on && p25VoiceParrotState() == P25_PARROT_PLAY && pending_checks == polls + 2,
+		      "route closed while the speaker still held PCM");
+		CHECK(p25VoiceParrotProgress() == progress, "callbacks that only waited for drain counted as progress");
+		if (pass == 0) {
+			speaker_pending = false;
+			CHECK(!block() && !spk_on && p25VoiceParrotState() == P25_PARROT_DONE,
+			      "route stayed open after the PCM drained");
+			p25VoiceParrotView(&v);
+			CHECK(v.frames == 8 && v.output_peak != 0, "report was lost after playback drained");
+		} else if (pass == 1) {
+			CHECK(!feed_tone(0, 12) && p25VoiceParrotProgress() == progress,
+			      "callbacks kept the watchdog alive while the drain was stuck");
+			p25VoiceParrotFail();
+			p25VoiceParrotView(&v);
+			CHECK(!running && !spk_on && !speaker_pending && v.state == P25_PARROT_ERROR,
+			      "failure did not stop the stalled playback");
+			CHECK(v.frames == 8 && v.output_peak != 0, "failure discarded the playback report");
+		} else {
+			p25VoiceEnd();
+			CHECK(!running && !spk_on && !speaker_pending && p25VoiceParrotState() == P25_PARROT_OFF,
+			      "exit waited for queued speaker PCM");
+		}
+	}
+}
+
+static void testParrotFailure(void)
+{
+	static uint8_t frames[500][IMBE_BYTES];
+	p25_parrot_view_t v;
+	begin();
+	p25VoiceParrotReady(frames, 217, frames + 217);
+	CHECK(p25VoiceParrotCapture(false, -25, 5, false), "stall test could not start a capture");
+	feed_tone(1000, 3);
+	p25VoiceParrotFail();
+	p25VoiceParrotView(&v);
+	CHECK(!running && !spk_on && v.state == P25_PARROT_ERROR, "stalled stream was not stopped");
+	CHECK(v.frames == 3 && v.input_peak == 1000, "failure discarded the partial capture report");
+	CHECK(p25VoiceParrotCapture(false, -25, 5, false), "could not restart after stall");
+	p25VoiceParrotView(&v);
+	CHECK(v.state == P25_PARROT_RECORD && v.frames == 0 && p25VoiceParrotProgress() == 0,
+	      "restarted capture retained stale progress");
+	p25VoiceEnd();
+}
+#endif
+
+#if CONFIG_P25_TX_AGC
+static void testTxAgc(void)
+{
+	p25_voice_stats_t s;
+	uint8_t bits[IMBE_BYTES];
+	begin();
+	p25VoiceSetAgc(true);
+	p25VoiceTx(true);
+	for (unsigned f = 0; f < 150; f++) {
+		tx_blocks(1, 500);
+		(void)hk->tx_voice(bits, NULL);
+	}
+	// Restart peak accounting after settling, without restarting the AGC.
+	p25VoiceResetStats();
+	tx_blocks(1, 500);
+	p25VoiceGetStats(&s);
+	CHECK(s.tx_mic_peak > 2500 && s.tx_mic_peak < 6000, "AGC did not raise quiet speech %u", (unsigned)s.tx_mic_peak);
+	CHECK(s.tx_gain_q16 > TX_LEVEL_UNITY && s.tx_limited_blocks == 0, "AGC did not report quiet speech boost");
+	p25VoiceTx(false);
+	p25VoiceSetAgc(false);
+	p25VoiceEnd();
+}
+#endif
+
 int main(void)
 {
 	p25VoiceInit(&audio);
@@ -352,6 +589,16 @@ int main(void)
 	testMixerAndTx();
 	testTransmit();
 	testRouteTakeover();
+	testTxManualCeiling();
+#if CONFIG_P25_TX_AGC
+	testTxAgc();
+#endif
+#if CONFIG_P25_PARROT
+	testParrot();
+	testParrotMatchesTx();
+	testParrotDrain();
+	testParrotFailure();
+#endif
 	printf("p25VoiceTest: %d checks, %d failed\n", checks, failures);
 	return failures ? 1 : 0;
 }

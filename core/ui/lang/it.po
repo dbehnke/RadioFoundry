@@ -747,6 +747,11 @@ msgctxt "BATT_PART_CHARGE_SOON"
 msgid "%: charge soon"
 msgstr "%: ricarica presto"
 
+#: core/ui/ui_app.c core/ui/ui_menus.c
+msgctxt "P25_PARROT_UNAVAILABLE"
+msgid "Unavailable"
+msgstr "Non disponibile"
+
 #: core/ui/ui_app.c
 msgctxt "TRUNK_TOAST_BACK_ON"
 msgid "Back on "
@@ -3256,6 +3261,136 @@ msgstr "Font Noto Sans CJK SC: OFL-1.1"
 msgctxt "ABOUT_BODY_CODEC_AMBE"
 msgid "AMBE+2 codec: DVSI (stock)"
 msgstr "Codec AMBE+2: DVSI (originale)"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_OPENING"
+msgid "Opening"
+msgstr "Apertura"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_READY"
+msgid "Ready: no RF"
+msgstr "Pronto: senza RF"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_RECORDING"
+msgid "Recording"
+msgstr "Registrazione"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_PLAYING"
+msgid "Playing"
+msgstr "Riproduzione"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_DONE"
+msgid "Done: no RF"
+msgstr "Finito: senza RF"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_AUDIO_FAILED"
+msgid "Audio failed"
+msgstr "Errore audio"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_MODE"
+msgid "Mode"
+msgstr "Modalità"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_STOP_PLAY"
+msgid "Stop and play"
+msgstr "Ferma e riproduci"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_RECORD"
+msgid "Record up to 10 s"
+msgstr "Registra fino a 10 s"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_AGC"
+msgid "Input AGC"
+msgstr "AGC ingresso"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_ON"
+msgid "On"
+msgstr "Sì"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_OFF"
+msgid "Off"
+msgstr "No"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_TARGET"
+msgid "Target dBFS"
+msgstr "Obiettivo dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_INPUT"
+msgid "Mic RMS dBFS"
+msgstr "RMS mic. dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_ENCODER"
+msgid "Enc RMS dBFS"
+msgstr "RMS cod. dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_OUTPUT"
+msgid "Dec RMS dBFS"
+msgstr "RMS dec. dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_TEST_AGC"
+msgid "Test AGC"
+msgstr "AGC del test"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_TEST_TARGET"
+msgid "Test target dBFS"
+msgstr "Ob. test dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_TEST_MIC"
+msgid "Test mic step"
+msgstr "Liv. mic test"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_MIC_PEAK"
+msgid "Mic peak dBFS"
+msgstr "Picco mic. dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_ENC_PEAK"
+msgid "Enc peak dBFS"
+msgstr "Picco cod. dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_DEC_PEAK"
+msgid "Dec peak dBFS"
+msgstr "Picco dec. dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_GAIN"
+msgid "Last PCM gain"
+msgstr "Ult. guad. PCM"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_LIMITED"
+msgid "Limited blocks"
+msgstr "Blocchi limitati"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_TITLE"
+msgid "Codec diagnostic"
+msgstr "Test codec"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_HINT"
+msgid "OK / Back: exit"
+msgstr "OK / Indietro: esci"
 
 #: core/ui/ui_menus.c
 msgctxt "ROAM_VALUE_SYNCED"

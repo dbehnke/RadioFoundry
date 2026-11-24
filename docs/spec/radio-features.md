@@ -330,7 +330,19 @@ the debug link's SETTING op 29 sets it in RAM only.
 | Board | FM | DMR |
 |---|---|---|
 | with `hal_radio_t.mic_gain` (HR_C7000 boards) | the board's FM level for the channel bandwidth plus (step - 5) x 2 dB, written into the modem's mic gain at each FM transmit start | the board's DMR level plus the same offset, at each DMR entry and DMR transmit start; the samples to the vocoder are not scaled |
-| without it | not changed | the mic samples are scaled before the vocoder (`ambeVoiceSetMicGain`, with saturation) |
+| without it | not changed | the mic samples are scaled before the vocoder (`ambeVoiceSetMicGain`) |
+
+`CONFIG_TX_MIC_LIMITER` defaults to DMR and protects the digital microphone PCM before AMBE or P25 encoding.
+One shared block controller applies the requested manual software gain once, with a 28000-sample peak ceiling,
+immediate reductions and recovery bounded to about 0.49 dB per 20 ms block, ramped within each block. With the
+switch enabled, protection also applies at unity, including when a board applies the user gain in hardware. The
+manual steps retain their existing scaling and rounding below the ceiling; a new transmission resets recovery.
+With the switch disabled, the manual path retains its previous saturation behavior. P25 automatic RMS leveling
+uses the same controller and always retains peak protection ([p25.md](p25.md) 5.2).
+
+The shared AMBE microphone path serves DMR and NXDN. This protection does not change vocoder options or add a
+second AGC around the codec's existing internal AGC. No AMBE RMS target or fixed board boost is inferred from
+P25 calibration. FM is unaffected. None of this can repair clipping already present in the microphone ADC.
 
 The board only stores the offset in the hook; a change takes effect at the next transmission. On an HR_C7000 radio
 the register is clamped to 0-42 dB (`hrc7000_mic_db`). The VOX meter reads the same codec ADC, so on these radios

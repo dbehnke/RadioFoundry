@@ -749,6 +749,11 @@ msgctxt "BATT_PART_CHARGE_SOON"
 msgid "%: charge soon"
 msgstr "%：请尽快充电"
 
+#: core/ui/ui_app.c core/ui/ui_menus.c
+msgctxt "P25_PARROT_UNAVAILABLE"
+msgid "Unavailable"
+msgstr "不可用"
+
 #: core/ui/ui_app.c
 msgctxt "TRUNK_TOAST_BACK_ON"
 msgid "Back on "
@@ -3258,6 +3263,136 @@ msgstr "Noto Sans CJK SC 字体：OFL-1.1"
 msgctxt "ABOUT_BODY_CODEC_AMBE"
 msgid "AMBE+2 codec: DVSI (stock)"
 msgstr "AMBE+2 编解码器：DVSI（原厂）"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_OPENING"
+msgid "Opening"
+msgstr "正在打开"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_READY"
+msgid "Ready: no RF"
+msgstr "就绪：无射频"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_RECORDING"
+msgid "Recording"
+msgstr "正在录音"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_PLAYING"
+msgid "Playing"
+msgstr "正在播放"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_DONE"
+msgid "Done: no RF"
+msgstr "完成：无射频"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_AUDIO_FAILED"
+msgid "Audio failed"
+msgstr "音频失败"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_MODE"
+msgid "Mode"
+msgstr "模式"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_STOP_PLAY"
+msgid "Stop and play"
+msgstr "停止后播放"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_RECORD"
+msgid "Record up to 10 s"
+msgstr "录音最多10秒"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_AGC"
+msgid "Input AGC"
+msgstr "输入自动增益"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_ON"
+msgid "On"
+msgstr "开"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_OFF"
+msgid "Off"
+msgstr "关"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_TARGET"
+msgid "Target dBFS"
+msgstr "目标 dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_INPUT"
+msgid "Mic RMS dBFS"
+msgstr "麦克风RMS dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_ENCODER"
+msgid "Enc RMS dBFS"
+msgstr "编码RMS dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_OUTPUT"
+msgid "Dec RMS dBFS"
+msgstr "解码RMS dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_TEST_AGC"
+msgid "Test AGC"
+msgstr "测试AGC"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_TEST_TARGET"
+msgid "Test target dBFS"
+msgstr "测试目标dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_TEST_MIC"
+msgid "Test mic step"
+msgstr "测试麦克风级"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_MIC_PEAK"
+msgid "Mic peak dBFS"
+msgstr "麦克风峰值dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_ENC_PEAK"
+msgid "Enc peak dBFS"
+msgstr "编码峰值dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_DEC_PEAK"
+msgid "Dec peak dBFS"
+msgstr "解码峰值dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_GAIN"
+msgid "Last PCM gain"
+msgstr "最后PCM增益"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_LIMITED"
+msgid "Limited blocks"
+msgstr "限制次数"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_TITLE"
+msgid "Codec diagnostic"
+msgstr "编解码测试"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_HINT"
+msgid "OK / Back: exit"
+msgstr "确定 / 返回：退出"
 
 #: core/ui/ui_menus.c
 msgctxt "ROAM_VALUE_SYNCED"

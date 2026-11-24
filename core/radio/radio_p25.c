@@ -270,6 +270,24 @@ static p25_mem_t *mem_get(void)
 #endif
 }
 
+#if CONFIG_P25_PARROT
+// The inactive engine and follower hold the first frames; only the remainder needs extra RAM.
+#define PARROT_SHARED_FRAMES (offsetof(p25_mem_t, voice) / IMBE_BYTES)
+_Static_assert(PARROT_SHARED_FRAMES < 500, "parrot shared recording extent");
+static uint8_t parrot_extra[500 - PARROT_SHARED_FRAMES][IMBE_BYTES];
+bool radio_p25_parrot_open(void)
+{
+	if (mem != NULL || board.audio == NULL || board.audio->start == NULL || board.audio->stop == NULL ||
+	    board.audio->speaker_pcm == NULL) return false;
+	p25_mem_t *workspace = mem_get();
+	if (workspace == NULL) return false;
+	p25VoiceBegin(&workspace->voice);
+	p25VoiceParrotReady((uint8_t (*)[IMBE_BYTES])workspace, PARROT_SHARED_FRAMES, parrot_extra);
+	return true;
+}
+void radio_p25_parrot_close(void) { p25VoiceEnd(); }
+#endif
+
 #if CONFIG_P25_TRUNK
 // One task at a time inside the follower, without a lock: each says it is in, then looks for the other. The task that
 // finds the other in leaves again: the provider's drops that unit (the follower takes the next), the radio task's tick

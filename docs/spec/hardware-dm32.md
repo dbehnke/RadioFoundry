@@ -488,7 +488,7 @@ ground. Whether F1/F2 are routed anywhere on the DM-32UV board is unknown (3.11)
 | 0x28 | PTB8 | Keypad backlight | out | high = on |
 | 0x2B | PTB11 | PTT | in | low = pressed |
 | 0x2C | PTB12 | GPS power | out | **low = GPS on**, high = off |
-| 0x2E | PTB14 | Audio path select: mic to analog FM path vs to DMR codec | out | 1 = analog (FM TX), 0 = DMR; set at each TX start, and 0 while APRS tones play in FM TX (9.1) |
+| 0x2E | PTB14 | Audio path select: mic to analog FM path vs to DMR codec | out | 1 = analog (FM TX), 0 = DMR. Set at TX start and low while APRS tones play in FM TX (9.1). The codec diagnostic holds it low for local recording while the radio stays in digital receive ([p25.md](p25.md) 5.3) |
 | 0x2F | PTB15 | FD6818 audio switch | out | 1 = the FD6818's audio output to the speaker and away from the C7000's ADC; 0 = the audio into the C7000 (DMR receive needs this) and the speaker on the codec (measured) |
 | 0x31–0x34 | PTB17–20 | Keypad columns 1–4 | in | low = key closed |
 | 0x35 | PTB21 | Audio power amplifier enable | out | high = on |

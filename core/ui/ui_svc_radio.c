@@ -32,6 +32,7 @@
 #endif
 #if CONFIG_P25
 #include "radio/radio_p25.h"
+#include "p25/p25Voice.h"
 #endif
 
 
@@ -418,7 +419,8 @@ int32_t ui_svc_reply_shown(const radio_settings_t *s)
 // dimmed)
 static void apply_mic_gain(int32_t step, bool agc)
 {
-	if (CONFIG_DMR && agc) {
+	if (CONFIG_DMR && agc && board.vocoder != NULL && board.vocoder->options != NULL &&
+	    (board.vocoder->options() & VOCODER_OPT_AGC) != 0) {
 		step = (int32_t)MIC_GAIN_UNITY;
 	} else if (step < 0) {
 		step = 0;
@@ -462,6 +464,9 @@ void ui_svc_apply(uint8_t id, int32_t value)
 		bool agc = (id == UI_SET_MIC_AGC ? value : ui_svc_setting_get(UI_SET_MIC_AGC)) != 0;
 		ambeVoiceSetEncodeOptions(VOCODER_OPT_TONE_FRAMES | (nr ? VOCODER_OPT_NOISE_REDUCTION : 0u) |
 					  (agc ? VOCODER_OPT_AGC : 0u));
+#if CONFIG_P25
+		if (id == UI_SET_MIC_AGC) p25VoiceSetAgc(agc);
+#endif
 		if (id == UI_SET_MIC_AGC) {
 			apply_mic_gain(ui_svc_setting_get(UI_SET_MIC_GAIN), agc);
 		}
@@ -547,3 +552,22 @@ void ui_svc_apply(uint8_t id, int32_t value)
 	}
 	rs_send(&was);
 }
+
+#if CONFIG_P25_PARROT
+bool ui_svc_p25_parrot(uint8_t command, bool agc, int8_t target)
+{
+	return radio_req_p25_parrot(command, agc, target);
+}
+uint8_t ui_svc_p25_parrot_state(void) { return radio_p25_parrot_state(); }
+void ui_svc_p25_parrot_view(p25_parrot_view_t *out)
+{
+	uint8_t state = radio_p25_parrot_state();
+	if (state == P25_PARROT_READY) {
+		p25VoiceParrotView(out);
+	} else {
+		memset(out, 0, sizeof *out);
+		out->state = state;
+		out->input_db10 = out->encoder_db10 = out->output_db10 = -960;
+	}
+}
+#endif

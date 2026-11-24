@@ -43,6 +43,9 @@
 #include "radio/radio_p25.h"	// P25 conventional (docs/spec/p25.md 7)
 #if CONFIG_IMBE
 #include "p25/p25Voice.h"
+#if CONFIG_P25_PARROT
+#include "radio/mic_gain.h"
+#endif
 #endif
 #endif
 #if CONFIG_NET_USRP || CONFIG_APRS_RX
@@ -672,6 +675,9 @@ static void outputs(radio_sm_t *sm)
 {
 	bool tx = sm->view.state == RS_TX;
 	bool fm = sm->view.ch.mode == RADIO_MODE_FM && !sm->hotspot && !parked(&sm->view.ch);
+#if CONFIG_P25_PARROT
+	fm = fm && !sm->p25_parrot;
+#endif
 	bool open = !tx && fm && (sm->view.monitor || sm->view.state == RS_RX || (sm->view.state == RS_TX_DENIED && sm->deny_rx));
 	bool green = open;
 #if CONFIG_P25
@@ -999,6 +1005,10 @@ void radio_sm_satellite_update(radio_sm_t *sm, bool enabled, uint8_t record_inde
 			       bool targets_valid, uint32_t rx_hz, uint32_t tx_hz,
 			       int64_t rx_offset_hz, int64_t tx_offset_hz, uint32_t now_ms)
 {
+#if CONFIG_P25_PARROT
+	if (sm->p25_parrot)
+		return;
+#endif
 	if (!enabled) {
 		if (sm->satellite_session && satellite_same_channel(sm)) {
 			sm->satellite_session = false;
@@ -9060,9 +9070,141 @@ static void bench_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_m
 }
 #endif
 
+#if CONFIG_P25_PARROT
+// A healthy drain fits the watchdog window: up to 64 ms queued plus 9 ms in the STM32 prompt FIFO, or 60 ms queued
+// plus 32 ms in the HR_C7000 FIFO. Waiting on the queue leaves the progress counter unchanged.
+#define PARROT_STALL_POLLS 8u	// 200 ms without capture or playback progress
+
+static void parrot_release_mic(radio_sm_t *sm)
+{
+	if (!sm->p25_parrot_capture)
+		return;
+	if (board.radio->pcm_mic_gain != NULL)
+		board.radio->pcm_mic_gain(mic_gain_offset_db(radio_mic_gain()));
+	if (board.radio->pcm_mic_route != NULL)
+		board.radio->pcm_mic_route(false);
+	sm->p25_parrot_capture = false;
+}
+
+static void parrot_poll(radio_sm_t *sm)
+{
+	uint8_t state = p25VoiceParrotState();
+	if (state != P25_PARROT_RECORD)
+		parrot_release_mic(sm);
+	if (state != P25_PARROT_RECORD && state != P25_PARROT_PLAY)
+		return;
+	uint16_t progress = p25VoiceParrotProgress();
+	if (progress != sm->p25_parrot_progress) {
+		sm->p25_parrot_progress = progress;
+		sm->p25_parrot_stall_polls = 0;
+	} else if (++sm->p25_parrot_stall_polls >= PARROT_STALL_POLLS) {
+		p25VoiceParrotFail();
+		parrot_release_mic(sm);
+	}
+}
+
+static void parrot_close(radio_sm_t *sm, uint32_t now_ms)
+{
+	if (!sm->p25_parrot) return;
+	radio_p25_parrot_close();
+	parrot_release_mic(sm);
+#if CONFIG_NET_USRP || CONFIG_APRS_RX
+	audio_mux_local(false);
+#endif
+	sm->p25_parrot = false;
+	tune(sm, now_ms);
+}
+
+static void parrot_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_ms)
+{
+	if (req->arg == P25_PARROT_CLOSE) { parrot_close(sm, now_ms); return; }
+	if (req->arg == P25_PARROT_OPEN) {
+		if (sm->p25_parrot || sm->hotspot || BENCH_HELD(sm) || sm->ptt || sm->view.state == RS_TX)
+			return;
+#if CONFIG_SFR_CWID
+		cw_cancel(sm);
+#endif
+		scan_stop(sm, true, now_ms);
+		end_reception(sm, now_ms);
+#if CONFIG_APRS_RX
+		aprs_rx_release();
+#endif
+#if CONFIG_NET_USRP || CONFIG_APRS_RX
+		audio_mux_local(true);
+#endif
+#if CONFIG_BCAST_FM
+		bcast_power(sm, false);
+		sm->view.bcast = sm->view.bcast_fault = false;
+#endif
+		dmr_end(sm);
+		if (sm->board_mode != RADIO_MODE_DMR) {
+			sm->board_mode = RADIO_MODE_DMR;
+			board.radio->set_mode(RADIO_MODE_DMR);
+		}
+		// The digital PCM stream uses the microphone ADC without arming the transmitter.
+		static const subtone_t none = { TONE_NONE, 0 };
+		uint32_t hz = sm->view.ch.rx_hz;
+		if (radio_listen_band(hz) && board.band_count != 0)
+			hz = board.bands[0].lo_hz;
+		sm->view.state = RS_IDLE;
+		sm->p25_parrot = board.radio->rx(hz, RADIO_BW_12K5, &none) && radio_p25_parrot_open();
+#if CONFIG_BEEP
+		if (sm->p25_parrot) beep_service(true, now_ms); // the diagnostic took the beep stream over
+#endif
+		if (!sm->p25_parrot) {
+#if CONFIG_NET_USRP || CONFIG_APRS_RX
+			audio_mux_local(false);
+#endif
+			tune(sm, now_ms);
+		}
+		outputs(sm);
+		changed(sm);
+	} else if (sm->p25_parrot && req->arg == P25_PARROT_CAPTURE) {
+		uint8_t state = p25VoiceParrotState();
+		if (state == P25_PARROT_RECORD || state == P25_PARROT_PLAY)
+			return;
+		bool agc = (req->arg2 & 256u) != 0;
+		uint8_t step = SETTINGS_FIELD(mic_gain);
+		if (step > MIC_GAIN_STEPS)
+			step = MIC_GAIN_UNITY;
+		bool hw_gain = board.radio->pcm_mic_gain != NULL;
+		if (hw_gain)
+			board.radio->pcm_mic_gain(agc ? 0 : mic_gain_offset_db(step));
+		if (board.radio->pcm_mic_route != NULL)
+			board.radio->pcm_mic_route(true);
+		sm->p25_parrot_capture = true;
+		sm->p25_parrot_progress = 0;
+		sm->p25_parrot_stall_polls = 0;
+		if (!p25VoiceParrotCapture(agc, (int8_t)req->arg2, step, hw_gain))
+			parrot_release_mic(sm);
+	} else if (sm->p25_parrot && req->arg == P25_PARROT_STOP) {
+		p25VoiceParrotStop();
+	}
+}
+#endif
+
 void radio_sm_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_ms)
 {
 	sm->led_now = now_ms;
+#if CONFIG_P25_PARROT
+	if (sm->p25_parrot) {
+		switch (req->type) {
+		case RREQ_POWER_OFF: parrot_close(sm, now_ms); break;
+		case RREQ_MONITOR:
+			if (req->arg != 1 && sm->view.monitor) {
+				sm->view.monitor = false;
+				changed(sm);
+			}
+			return;
+		case RREQ_P25_PARROT:
+		case RREQ_VOLUME:
+		case RREQ_VOLUME_OVERRIDE:
+		case RREQ_VOLUME_HOLD:
+			break;
+		default: return;
+		}
+	}
+#endif
 	uint8_t flags = req->type < RREQ_COUNT ? req_flags[req->type] : 0;
 	if ((flags & (RQ_ALERT | RQ_KEEP_APRS)) == 0) {
 		aprs_rf_abort(sm, now_ms);	// the user does something: an APRS transmission gives way
@@ -9113,6 +9255,9 @@ void radio_sm_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_ms)
 	case RREQ_VFO_TX: vfo_tx_request(sm, req, busy); break;
 #if CONFIG_AM_RX
 	case RREQ_VFO_STEP_SIZE: vfo_step_size_request(sm, req, now_ms); break;
+#endif
+#if CONFIG_P25_PARROT
+	case RREQ_P25_PARROT: parrot_request(sm, req, now_ms); break;
 #endif
 	case RREQ_PTT: ptt_request(sm, req, now_ms); break;
 	case RREQ_MONITOR: monitor_request(sm, req, now_ms); break;
@@ -9605,6 +9750,14 @@ void radio_sm_poll(radio_sm_t *sm, uint32_t now_ms)
 {
 	radio_status_t st;
 	sm->led_now = now_ms;
+#if CONFIG_P25_PARROT
+	if (sm->p25_parrot) {
+		parrot_poll(sm);
+		follow_volume(sm);
+		battery_poll(sm, now_ms);
+		return;
+	}
+#endif
 	if (sm->led_timed || sm->deny_led || ptt_line_stuck()) {
 		outputs(sm);	// as in radio_sm_tick: some paths below return before their outputs()
 	}
@@ -9935,6 +10088,9 @@ static void t3_kv_retry(radio_sm_t *sm)
 void radio_sm_tick(radio_sm_t *sm, uint32_t now_ms)
 {
 	sm->led_now = now_ms;
+#if CONFIG_P25_PARROT
+	if (sm->p25_parrot) return;
+#endif
 	if (codeplug_kv_serial() != kv_seen) {
 #if CONFIG_DMR_AES
 		if (sm->dmr_running && sm->view.ch.kind == CODEPLUG_KIND_DMR_AES)

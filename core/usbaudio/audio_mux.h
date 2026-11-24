@@ -61,7 +61,7 @@ uint32_t audio_mux_host_read(int16_t *pcm, uint32_t n);
 void audio_mux_host_push(const int16_t *pcm, uint32_t n);
 // The host transmits (true) or stopped (false): resets the jitter buffer at the start; dmr: replace the microphone in
 // the stream's blocks while it lasts
-void audio_mux_host_tx(bool on, bool dmr);
+bool audio_mux_host_tx(bool on, bool dmr);
 uint32_t audio_mux_host_tx_fill(void);
 // Host transmit pushes so far: the radio task unkeys a host transmission whose audio stopped coming
 uint32_t audio_mux_host_pushes(void);
@@ -75,6 +75,9 @@ uint32_t audio_mux_aprs_read(int16_t *pcm, uint32_t n);
 
 // Radio task: start or stop the board's stream as the host side needs (every poll)
 void audio_mux_service(uint32_t now_ms);
+
+// Radio task: temporarily give a local codec diagnostic exclusive use of the microphone and speaker PCM.
+void audio_mux_local(bool on);
 
 // FM transmit audio for hal_audio_tap_t.fm_tx_inject (the board's interrupt)
 void audio_mux_fm_pull(int16_t *pcm, uint16_t n);

@@ -814,6 +814,10 @@ reflash (debug link SETTING 29). Speech on FM gave 1.4 kHz peak deviation (above
 bandwidth of that measurement isn't recorded, so the target isn't settled. If the path is linear up to the deviation
 limiter, each dB of gain adds 1 dB of deviation. See section 10.
 
+The codec diagnostic uses the digital receive microphone route, which already holds PTB14 high as for digital TX.
+It can apply a temporary ADC gain offset relative to `MIC_GAIN_DMR_DB` while recording and restores the live radio
+offset afterward. The board hook leaves the stored TX offset alone. On-device checks are pending.
+
 APRS: positions over DMR (LRRP and UDT) decode on the SDR bench. FM APRS uses the shared HR_C7000 AFSK
 (`platform/hrc7000/hrc_afsk.c`), which plays the tones through the prompt FIFO. On the DM-32UV the FIFO's playback
 reaches the modulator by itself (ring play). On this radio it doesn't: the frame went out as a bare carrier (7 Hz rms

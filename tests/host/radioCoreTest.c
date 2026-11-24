@@ -23,6 +23,7 @@
 #include "hotspot/mmdvm.h"
 #include "settings/settings.h"
 #include "radio/ref_trim.h"
+#include "radio/mic_gain.h"
 #include "dmr/dmr_data_api.h"
 #include "dmr/dmr_emergency.h"
 #include "ui/ui_svc.h"
@@ -177,13 +178,22 @@ static const hal_input_t fake_input = { .ptt_line_stuck = p_ptt_stuck };
 // ---- fake PCM audio and vocoder (core/dmr/ambe runs on them) ----
 static struct {
 	bool started;
+	bool fail;
 	int starts, stops;
 	bool pcm;
 	bool feed;		// run() hands the callback a 20 ms microphone block, as a driver does (off: no blocks)
 	audio_block_cb_t cb;
 	void *ctx;
 } aud;
-static bool a_start(audio_block_cb_t cb, void *ctx) { aud.cb = cb; aud.ctx = ctx; aud.started = true; aud.starts++; return true; }
+static bool a_start(audio_block_cb_t cb, void *ctx)
+{
+	aud.starts++;
+	if (aud.fail) return false;
+	aud.cb = cb;
+	aud.ctx = ctx;
+	aud.started = true;
+	return true;
+}
 static void a_stop(void) { aud.started = false; aud.stops++; }
 static void a_pcm(bool on) { aud.pcm = on; }
 static const hal_audio_t fake_audio = { .start = a_start, .stop = a_stop, .speaker_pcm = a_pcm };
@@ -201,7 +211,11 @@ static void v_decode(const uint8_t *bits, int16_t *pcm)
 	}
 	memset(pcm, 0, VOCODER_FRAME_SAMPLES * 2);
 }
-static uint32_t v_options(void) { return VOCODER_OPT_NOISE_REDUCTION | VOCODER_OPT_TONE_FRAMES | VOCODER_OPT_AGC; }
+static bool v_agc_supported = true;
+static uint32_t v_options(void)
+{
+	return VOCODER_OPT_NOISE_REDUCTION | VOCODER_OPT_TONE_FRAMES | (v_agc_supported ? VOCODER_OPT_AGC : 0u);
+}
 static void v_set_options(uint32_t opts) { (void)opts; }
 #if CONFIG_P25 || defined(HAL_VOCODER_LEND_BYTES)
 static bool lend_refuse;		// a vocoder with nothing to lend
@@ -4164,6 +4178,15 @@ void radio_get_view(radio_view_t *v) { *v = sm.view; }
 uint32_t radio_view_serial(void) { return sm.serial; }
 void radio_get_settings(radio_settings_t *s) { *s = sm.set; }
 void radio_set_settings(const radio_settings_t *s) { radio_sm_set_settings(&sm, s, now); }
+#if CONFIG_P25_PARROT
+bool radio_req_p25_parrot(uint8_t command, bool agc, int8_t target)
+{
+	radio_req_t r = { .type = RREQ_P25_PARROT, .arg = command, .arg2 = (uint8_t)target | (agc ? 256u : 0u) };
+	radio_sm_request(&sm, &r, now);
+	return command != P25_PARROT_OPEN || sm.p25_parrot;
+}
+uint8_t radio_p25_parrot_state(void) { return sm.p25_parrot ? P25_PARROT_READY : P25_PARROT_OFF; }
+#endif
 void radio_req_monitor(bool down) { req(RREQ_MONITOR, down); }
 void radio_req_reload(void) { req(RREQ_RELOAD, 0); }
 void radio_req_volume(uint8_t step) { req(RREQ_VOLUME, step); }
@@ -8541,6 +8564,112 @@ static void test_p25_conv_wacn_nogo(void)
 
 #endif
 
+#if CONFIG_P25_PARROT
+static int8_t parrot_saved_offset, parrot_pcm_offset;
+static bool parrot_mic_route;
+static void r_mic_gain(int8_t db) { parrot_saved_offset = db; }
+static void r_pcm_mic_gain(int8_t db) { parrot_pcm_offset = db; }
+static void r_pcm_mic_route(bool on) { parrot_mic_route = on; }
+
+static void test_p25_parrot(void)
+{
+	setup_codeplug_p25(); start(); p25_defaults();
+	req(RREQ_ZONE_POS, 2);
+	req(RREQ_PTT, 2);
+	CHECK(sm.ptt && sm.host_audio && !radio_req_p25_parrot(P25_PARROT_OPEN, false, -25));
+	req(RREQ_PTT, 0);
+	run(500);
+	CHECK(!sm.ptt && sm.view.state != RS_TX && sm.host_audio);
+	int tx_before = hw.tx_calls;
+	uint32_t hz = sm.view.ch.rx_hz;
+	CHECK(ui_svc_setting_set(UI_SET_MIC_GAIN, 8));
+	CHECK(ui_svc_setting_set(UI_SET_MIC_AGC, 1));
+	ui_svc_apply(UI_SET_MIC_AGC, 1);
+	CHECK(radio_mic_gain() == MIC_GAIN_UNITY);
+	CHECK(radio_req_p25_parrot(P25_PARROT_OPEN, false, -25));
+	CHECK(sm.p25_parrot && !radio_p25_running() && !sm.dmr_running);
+	req(RREQ_PTT, 1);
+	req(RREQ_SCAN, RSCAN_ZONE);
+	aud.feed = true;
+	CHECK(radio_req_p25_parrot(P25_PARROT_CAPTURE, false, -25));
+	run(40);
+	p25_parrot_view_t v;
+	p25VoiceParrotView(&v);
+	CHECK(v.state == P25_PARROT_RECORD && v.frames == 2 && !v.agc && v.mic_step == 8);
+	CHECK(v.manual_gain_q16 == (511u << 8) && v.gain_q16 == (511u << 8));
+	CHECK(radio_req_p25_parrot(P25_PARROT_CAPTURE, true, -20));
+	run(20);
+	p25VoiceParrotView(&v);
+	CHECK(v.frames == 3 && !v.agc);
+	req(RREQ_P25_PARROT, P25_PARROT_STOP);
+	run(200);
+	p25VoiceParrotView(&v);
+	CHECK(v.state == P25_PARROT_DONE && v.frames == 3);
+	CHECK(sm.view.scan == SCAN_OFF && !sm.ptt);
+	CHECK(hw.tx_calls == tx_before && !hw.keyed);
+	req(RREQ_MODE, RADIO_MODE_FM);
+	CHECK(sm.p25_parrot);
+	req(RREQ_P25_PARROT, P25_PARROT_CLOSE);
+	CHECK(!sm.p25_parrot && radio_p25_running() && hw.rx_hz == hz);
+	CHECK(!aud.started && !aud.pcm);
+	CHECK(hw.tx_calls == tx_before && !hw.keyed);
+	req(RREQ_PTT, 0);
+	CHECK(radio_mic_gain() == MIC_GAIN_UNITY && SETTINGS_FIELD(mic_gain) == 8);
+
+	// The board with an ADC gain hook applies the step once. The saved offset survives the local override.
+	fake_radio.mic_gain = r_mic_gain;
+	fake_radio.pcm_mic_gain = r_pcm_mic_gain;
+	fake_radio.pcm_mic_route = r_pcm_mic_route;
+	radio_set_mic_gain(5);
+	CHECK(radio_req_p25_parrot(P25_PARROT_OPEN, false, -25));
+	p25VoiceParrotView(&v);
+	CHECK(v.state == P25_PARROT_READY && v.frames == 0);
+	CHECK(radio_req_p25_parrot(P25_PARROT_CAPTURE, false, -25));
+	run(20);
+	p25VoiceParrotView(&v);
+	CHECK(v.state == P25_PARROT_RECORD && v.mic_step == 8 && v.manual_gain_q16 == 65536u);
+	CHECK(v.gain_q16 == 65536u && parrot_pcm_offset == 6 && parrot_saved_offset == 0 && parrot_mic_route);
+	req(RREQ_P25_PARROT, P25_PARROT_STOP);
+	run(200);
+	CHECK(parrot_pcm_offset == 0 && !parrot_mic_route && sm.p25_parrot);
+	CHECK(radio_req_p25_parrot(P25_PARROT_CAPTURE, false, -25));
+	CHECK(parrot_pcm_offset == 6);
+	req(RREQ_P25_PARROT, P25_PARROT_CLOSE);
+	CHECK(parrot_pcm_offset == 0 && !parrot_mic_route && !aud.started && !aud.pcm && radio_p25_running());
+
+	// A failed PCM start leaves the session available for a retry and restores the hardware gain immediately.
+	CHECK(radio_req_p25_parrot(P25_PARROT_OPEN, false, -25));
+	aud.fail = true;
+	CHECK(radio_req_p25_parrot(P25_PARROT_CAPTURE, false, -25));
+	p25VoiceParrotView(&v);
+	CHECK(v.state == P25_PARROT_ERROR && parrot_pcm_offset == 0 && !parrot_mic_route && !aud.started && !aud.pcm);
+	aud.fail = false;
+	aud.feed = false;
+	CHECK(radio_req_p25_parrot(P25_PARROT_CAPTURE, false, -25));
+	req(RREQ_P25_PARROT, P25_PARROT_STOP);
+	run(225);
+	CHECK(p25VoiceParrotState() == P25_PARROT_ERROR && !aud.started && !aud.pcm &&
+	      !parrot_mic_route && parrot_pcm_offset == 0);
+	aud.feed = true;
+	CHECK(radio_req_p25_parrot(P25_PARROT_CAPTURE, true, -20));
+	run(20);
+	p25VoiceParrotView(&v);
+	CHECK(v.state == P25_PARROT_RECORD && v.agc && v.target_dbfs == -20 && parrot_pcm_offset == 0);
+	req(RREQ_P25_PARROT, P25_PARROT_CLOSE);
+	CHECK(hw.tx_calls == tx_before && SETTINGS_FIELD(mic_gain) == 8);
+	// P25's AGC is available even without an AMBE AGC option. It must not force the shared FM/DMR gain to step 5.
+	v_agc_supported = false;
+	ui_svc_apply(UI_SET_MIC_AGC, 1);
+	CHECK(radio_mic_gain() == 8 && parrot_saved_offset == 6);
+	v_agc_supported = true;
+	fake_radio.mic_gain = NULL;
+	fake_radio.pcm_mic_gain = NULL;
+	fake_radio.pcm_mic_route = NULL;
+	ui_svc_apply(UI_SET_MIC_AGC, 0);
+	radio_set_mic_gain(MIC_GAIN_UNITY);
+}
+#endif
+
 static void test_p25(void)
 {
 #if CONFIG_P25_TRUNK
@@ -8548,6 +8677,9 @@ static void test_p25(void)
 	test_p25_trunk_tx();
 	test_p25_trunk_wacn_nogo();
 	test_p25_conv_wacn_nogo();
+#endif
+#if CONFIG_P25_PARROT
+	test_p25_parrot();
 #endif
 	test_p25_rx();
 	test_p25_stored();

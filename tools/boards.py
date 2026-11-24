@@ -336,7 +336,8 @@ def make_vars(root, board, names, args=()):
     import subprocess
     # Without the calling make's variables: run from a build's registry rule, MAKEFLAGS would carry its BUILD and
     # CONFIG_ overrides into this make, which then read another build's values and touched its build directory
-    env = {k: v for k, v in os.environ.items() if k not in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL", "MAKEOVERRIDES")}
+    env = {k: v for k, v in os.environ.items() if k not in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL", "MAKEOVERRIDES", "BUILD")
+           and not k.startswith("CONFIG_")}
     try:
         r = subprocess.run(["make", "-s", "--no-print-directory", "-C", root, "BOARD=" + board, *args,
                             "print-vars", "VARS=" + " ".join(names)], capture_output=True, text=True, timeout=60,
@@ -2081,7 +2082,13 @@ def self_test():
                 os.makedirs(os.path.dirname(os.path.join(tmp, p)), exist_ok=True)
                 open(os.path.join(tmp, p), "w").close()
         ok(check(tmp) == [], "the copied registry is consistent: %s" % check(tmp)[:3])
+        from unittest.mock import patch
         one = board_dirs(tmp)[0]
+        names = ["CONFIG_DMR", "CONFIG_P25_PARROT", "BUILD"]
+        expected = make_vars(tmp, one, names)
+        with patch.dict(os.environ, {"CONFIG_P25_PARROT": "y", "CONFIG_DMR": "n", "BUILD": "bad"}):
+            clean = make_vars(tmp, one, names)
+        ok(clean == expected, "registry queries ignore the calling build's exported feature overrides: %s" % clean)
         path = os.path.join(tmp, "boards", one, "board.toml")
         good = open(path, encoding="utf-8").read()
 

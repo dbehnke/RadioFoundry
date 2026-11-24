@@ -83,6 +83,9 @@ static bool start(audio_block_cb_t cb, void *ctx)
 }
 
 const hal_audio_t uvf_audio = { .start = start, .stop = stm32_i2s_pcm_stop, .speaker_pcm = speaker_pcm,
+#if CONFIG_P25_PARROT
+				.spk_pending = stm32_i2s_pcm_spk_pending,
+#endif
 				.stream_stats = stm32_i2s_pcm_stream_stats };
 
 #if CONFIG_NET_USRP

@@ -586,6 +586,59 @@ static const hal_vocoder_t cap_vocoder = {
 	.options = opt_options, .set_options = opt_set, .encode_flags = opt_encode_flags,
 };
 
+static void testMicGain(void)
+{
+	ambeVoiceInit(&audio, &cap_vocoder);
+	const dmr_voice_source_t *src = ambeVoiceSource();
+	ambeVoiceSetMicGain(8);
+	for (unsigned i = 0; i < 160; i++) mic[i] = i & 1 ? -1000 : 1000;
+	ncap = 0;
+	src->begin(src->ctx); block();
+	bool exact = true;
+	for (unsigned i = 0; i < 160; i++) exact = exact && cap_pcm[0][i] == (int32_t)mic[i] * 511 / 256;
+	CHECK(exact, "manual gain preserves the legacy below-ceiling scaling");
+	src->end(src->ctx); block();
+#if CONFIG_TX_MIC_LIMITER
+	ambeVoiceSetMicGain(10);
+	for (unsigned i = 0; i < 160; i++) mic[i] = i & 1 ? -32768 : 32767;
+	ncap = 0;
+	src->begin(src->ctx); block();
+	bool safe = true;
+	for (unsigned i = 0; i < 160; i++) safe = safe && cap_pcm[0][i] >= -28000 && cap_pcm[0][i] <= 28000;
+	ambe_voice_stats_t st;
+	ambeVoiceGetStats(&st);
+	CHECK(safe && st.tx_enc_peak <= 28000 && st.tx_limited_blocks == 1, "loud PCM protected before codec");
+	CHECK(st.tx_mic_peak == 32768 && st.tx_gain_q16 < 65536, "raw input and applied gain are distinct");
+	src->end(src->ctx); block();
+	ambeVoiceSetMicGain(5);
+	ncap = 0;
+	src->begin(src->ctx); block();
+	CHECK(cap_pcm[0][0] <= 28000 && cap_pcm[0][1] >= -28000, "unity gain still protects peaks");
+	src->end(src->ctx); block();
+	for (unsigned i = 0; i < 160; i++) mic[i] = i & 1 ? -1234 : 1234;
+	ncap = 0;
+	src->begin(src->ctx); block();
+	ambeVoiceGetStats(&st);
+	CHECK(memcmp(cap_pcm[0], mic, sizeof mic) == 0 && st.tx_limited_blocks == 0 && st.tx_gain_q16 == 65536,
+	      "fresh call resets limiter, clean unity stays exact");
+	src->end(src->ctx); block();
+#if CONFIG_SIG_TONES
+	static const beep_seg_t tone_step[] = { { 1000, 200 } };
+	for (unsigned i = 0; i < 160; i++) mic[i] = -32768;
+	ncap = 0;
+	src->begin(src->ctx);
+	ambeVoiceTxTone(tone_step, 1, false);
+	block();
+	ambeVoiceGetStats(&st);
+	CHECK(st.tx_limited_blocks == 0 && st.tx_enc_peak <= 14000,
+	      "discarded mic during signaling does not alter limiter telemetry");
+	src->end(src->ctx); block();
+#endif
+#endif
+	ambeVoiceSetMicGain(5);
+	ambeVoiceInit(&audio, &vocoder);
+}
+
 static int zeroCrossings(const int16_t *p, int n)
 {
 	int c = 0;
@@ -735,6 +788,7 @@ int main(void)
 	testMicStats();
 	testFlagsMap();
 	testEncodeOptions();
+	testMicGain();
 	testTxTone();
 	testRepeats();
 #if CONFIG_VOICE_CAPTURE

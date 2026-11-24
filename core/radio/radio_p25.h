@@ -173,4 +173,9 @@ void *radio_p25_idle_mem(size_t *len);
 #endif
 #endif
 
+#if CONFIG_P25_PARROT
+bool radio_p25_parrot_open(void);
+void radio_p25_parrot_close(void);
+#endif
+
 #endif

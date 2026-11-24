@@ -74,6 +74,8 @@ void debuglink_view_dmr(uint8_t part, const radio_view_t *v, dl_text_t *t)
 			ambeVoiceGetStats(&a);
 			dl_text(t, "voice.tx_mic_peak=%u\nvoice.tx_test=%u\n", (unsigned)a.tx_mic_peak,
 				ambeVoiceTestSignal() ? 1u : 0u);
+			dl_text(t, "voice.tx_enc_peak=%u\nvoice.tx_gain_q16=%u\nvoice.tx_limited_blocks=%u\nvoice.mic_limiter=%u\n",
+				(unsigned)a.tx_enc_peak, (unsigned)a.tx_gain_q16, (unsigned)a.tx_limited_blocks, CONFIG_TX_MIC_LIMITER);
 		}
 		// Encode options (VOCODER_OPT_*): in force and supported; the codec's own word when the board reports it
 		dl_text(t, "voice.enc_options=0x%X\nvoice.enc_supported=0x%X\n", (unsigned)ambeVoiceEncodeOptions(),

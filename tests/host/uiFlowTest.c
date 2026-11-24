@@ -402,6 +402,25 @@ static const flow_t flows[] = {
 	{ "11 dual watch modes: NXDN call", "nxdn chkind:3,nxdn up down quick 7 tune:a", "fmrx",
 	  "dual=1 shows=NXDN_call hides=FM_signal hides=DMR_call", 0, false },
 #endif
+#if CONFIG_P25_PARROT
+	{ "S P25 parrot opens", "", "ok 7 up ok up ok", "screen=p25parrot shows=Codec_diagnostic shows=P25_/_IMBE shows=Ready:_no_RF", 6, false },
+	{ "S P25 parrot AGC toggle", "ok 7 up ok up ok", "down ok", "screen=p25parrot shows=Off", 2, false },
+	{ "S P25 parrot target", "ok 7 up ok up ok", "down down ok", "screen=p25parrot shows=-24", 3, false },
+	{ "S P25 parrot levels scroll", "ok 7 up ok up ok", "down down down down down down", "screen=p25parrot shows=Dec_RMS_dBFS", 6, false },
+	{ "S P25 parrot report context", "ok 7 up ok up ok ok ok down down ok expect:shows=-24", "down down down down down down", "screen=p25parrot shows=Test_target_dBFS shows=-25", 6, false },
+	{ "S P25 parrot report peaks", "ok 7 up ok up ok ok ok", "down down down down down down down down down down down down", "screen=p25parrot shows=Dec_peak_dBFS", 12, false },
+	{ "S P25 parrot report gain", "ok 7 up ok up ok ok ok", "down down down down down down down down down down down down down down", "screen=p25parrot shows=Last_PCM_gain shows=4.47x shows=Limited_blocks shows=3", 14, false },
+	{ "S P25 parrot manual report retained", "ok 7 up ok up ok down ok up ok ok down ok", "down down down down down down down down",
+	  "screen=p25parrot shows=Test_AGC shows=Off shows=Test_mic_step", 8, false },
+	{ "S P25 parrot manual gain and limiting", "ok 7 up ok up ok down ok up ok ok", "up",
+	  "screen=p25parrot shows=Last_PCM_gain shows=1.00x shows=Limited_blocks shows=3", 1, false },
+	{ "S P25 parrot quick keeps session visible", "ok 7 up ok up ok ok", "quick", "screen=p25parrot shows=Stop_and_play", 1, false },
+	{ "S P25 parrot back", "ok 7 up ok up ok", "back", "screen=group", 1, false },
+	{ "S P25 parrot home", "ok 7 up ok up ok", "long:back", "screen=home", 1, false },
+	{ "S P25 parrot unlock and exit", "autolock:30 ok 7 up ok up ok wait:31000 expect:locked=1",
+	  "long:quick back", "screen=group locked=0", 2, false },
+	{ "S P25 parrot reopened", "ok 7 up ok up ok down ok up ok ok back ok", "", "screen=p25parrot shows=On shows=-25 hides=Done:_no_RF", 0, false },
+#endif
 	// Settings > Advanced > Hardware (last row): OK steps a choice without storing ("*"), holding OK stores it
 	{ "S hardware options open", "hwopt", "ok 7 up ok up ok", "screen=hwopt shows=Not_set", 6, false },
 	{ "S hardware option stepped, not stored", "hwopt ok 7 up ok up ok", "ok ok", "shows=V2*", 2, false },
