@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The radio core's state machine, without the RTOS: it takes requests and the time, polls board.radio and keeps
 // the view. radio_task.c runs it in a task; the host tests run it against a fake board.
 #ifndef RADIO_SM_H
@@ -26,7 +27,7 @@
 #endif
 
 #define RADIO_SM_CW		(CONFIG_HOTSPOT || CONFIG_SFR_CWID)	// the CW keyer (radio_sm.c)
-#define RADIO_POLL_MS		25	// status poll and squelch period
+#define RADIO_POLL_MS		RADIO_SIGNAL_CURRENT_MS	// status poll and squelch period
 #define RADIO_RETUNE_SETTLE_MS	400	// RREQ_RETUNE: tune once the reference trim has held this long
 #define RADIO_TICK_MS		10	// DMR call stack poll (radio_sm_tick)
 // The LEDs on a repeater wake-up and a TX deny (docs/spec/radio-features.md 5.7): while the radio waits for a
@@ -88,7 +89,7 @@
 // slot about half the time and shows the noise floor. While the DMR path is running the published RSSI is the peak of
 // the last RADIO_RSSI_HOLD_MS: two full frames, so one lost sample or a late poll still leaves a burst in the window.
 // RADIO_POLL_MS (25) is shorter than a slot (30), so every slot gets at least one sample.
-#define RADIO_RSSI_HOLD_MS	120
+#define RADIO_RSSI_HOLD_MS	RADIO_SIGNAL_HOLD_MS
 #define RADIO_RSSI_HOLD_POLLS	((RADIO_RSSI_HOLD_MS + RADIO_POLL_MS - 1) / RADIO_POLL_MS)
 
 // Scan defaults and per-stop timing (docs/spec/radio-features.md 2)
@@ -308,6 +309,13 @@ typedef struct {
 	uint32_t tx_start_ms;
 	uint8_t close_count;		// polls in a row above the close threshold
 	uint8_t tone_count;		// polls in a row disagreeing with view.tone_ok (debounce)
+#if CONFIG_RX_SIGNAL_MENU
+	radio_signal_t signal_ring[RADIO_RSSI_HOLD_POLLS];
+	uint8_t signal_pos;
+	uint32_t signal_serial;	// visible changes caused solely by signal measurements
+	uint32_t dmr_signal_serial;	// last copied call-stack signal serial
+	uint32_t signal_call_ms;	// call ownership, including consecutive calls with the same IDs
+#endif
 	int16_t rssi_published;
 	int16_t sql_rssi;		// the signal strength on the last poll the squelch held (close_need)
 	int16_t sql_floor;		// the receiver's floor, from idle polls (track_floor); INT16_MAX not known

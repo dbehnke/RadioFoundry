@@ -2421,5 +2421,10 @@
  "screen.caller_database_dual_p25": "Identidad del llamante P25 en doble escucha",
  "screen.channel_power_default": "Editor de canal: heredar la potencia predeterminada de la radio",
  "screen.power_default": "Ajustes: elegir la potencia de transmisión predeterminada",
- "screen.power_quick": "Ajustes rápidos: elegir cualquier potencia de transmisión compatible"
+ "screen.power_quick": "Ajustes rápidos: elegir cualquier potencia de transmisión compatible",
+ "screen.rx_signal": "Datos de señal digital recibida",
+ "screen.rx_signal_held": "Medida retenida de señal recibida",
+ "screen.rx_signal_unavailable": "Señal recibida no disponible",
+ "screen.settings_rx_details": "Ajustes de datos de recepción",
+ "screen.home_dual_signal": "Datos de señal en doble recepción"
 }

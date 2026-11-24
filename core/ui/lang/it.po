@@ -4068,6 +4068,16 @@ msgid "Idle steps"
 msgstr "Passi libero"
 
 #: core/ui/ui_menus.c
+msgctxt "SET_VALUE_RX_CALLER"
+msgid "Caller"
+msgstr "Chiamante"
+
+#: core/ui/ui_menus.c
+msgctxt "SET_VALUE_RX_SIGNAL"
+msgid "Signal"
+msgstr "Segnale"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_LABEL_BRIGHTNESS"
 msgid "Brightness"
 msgstr "Luminosità"
@@ -4106,6 +4116,11 @@ msgstr "Riga suggerim."
 msgctxt "SET_LABEL_RX_AUDIO_LEVELS"
 msgid "RX audio levels"
 msgstr "Livelli audio RX"
+
+#: core/ui/ui_menus.c
+msgctxt "SET_LABEL_RX_DETAILS"
+msgid "RX details"
+msgstr "Dettagli RX"
 
 #: core/ui/ui_menus.c
 msgctxt "SET_LABEL_LANGUAGE"
@@ -5028,6 +5043,26 @@ msgid "Broadcast FM"
 msgstr "FM broadcast"
 
 #: core/ui/ui_screens.c
+msgctxt "SIGNAL_STATE_CURRENT"
+msgid "Current"
+msgstr "Attuale"
+
+#: core/ui/ui_screens.c
+msgctxt "SIGNAL_STATE_HELD"
+msgid "Held"
+msgstr "Memorizzato"
+
+#: core/ui/ui_screens.c
+msgctxt "SIGNAL_STATE_EXPIRED"
+msgid "Expired"
+msgstr "Scaduto"
+
+#: core/ui/ui_screens.c
+msgctxt "SIGNAL_STATE_UNAVAILABLE"
+msgid "Unavailable"
+msgstr "Non disponibile"
+
+#: core/ui/ui_screens.c
 msgctxt "HW_BODY_RESTART_TO_APPLY"
 msgid "Restart to apply"
 msgstr "Riavvia per applicare"
@@ -5283,6 +5318,11 @@ msgid "Phone line"
 msgstr "Linea telefonica"
 
 #: core/ui/ui_screens.c
+msgctxt "STATE_RECEIVING"
+msgid "Receiving"
+msgstr "Ricezione"
+
+#: core/ui/ui_screens.c
 msgctxt "CALL_VALUE_PRIVATE_TO_YOU"
 msgid "Private to you"
 msgstr "Privata per te"
@@ -5536,11 +5576,6 @@ msgstr "MON: monitor digitale"
 msgctxt "ACTIVITY_STATE_SQUELCH_OPEN"
 msgid "Squelch open"
 msgstr "Squelch aperto"
-
-#: core/ui/ui_screens.c
-msgctxt "STATE_RECEIVING"
-msgid "Receiving"
-msgstr "Ricezione"
 
 #: core/ui/ui_screens.c
 msgctxt "STATE_SENDING"

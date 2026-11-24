@@ -512,10 +512,11 @@ boardBandTest: boardBandTest.c $(ROOT)/hal/board.h
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -o $@ boardBandTest.c
 
 run: run-core
-run-core: radioCoreTest radioCoreTestNoVfoDmr radioCoreTestP25 radioCoreTestP25NoAgc radioCoreTestP25T radioCoreTestNxdn radioCoreTestP25Nxdn radioCoreTestAprs radioCoreTestAprsDmr radioFeaturesTest radioFeaturesTestNoDual roamTest radioListenBandsTest inputTest switchFollowTest aprsRadioTest quadratureTest serialmicTest miclevelTest resampleTest \
+run-core: radioCoreTest radioCoreTestNoSignal radioCoreTestNoVfoDmr radioCoreTestP25 radioCoreTestP25NoAgc radioCoreTestP25T radioCoreTestNxdn radioCoreTestP25Nxdn radioCoreTestAprs radioCoreTestAprsDmr radioFeaturesTest radioFeaturesTestNoDual roamTest radioListenBandsTest inputTest switchFollowTest aprsRadioTest quadratureTest serialmicTest miclevelTest resampleTest \
           rx2LinkTest keyassignTest powerSwitchTest powerKeyTest boardBandTest batteryTest
 	./aprsRadioTest
 	./radioCoreTest
+	./radioCoreTestNoSignal
 	./radioCoreTestNoVfoDmr
 	./radioCoreTestP25
 	./radioCoreTestP25NoAgc
@@ -739,7 +740,7 @@ $(shell python3 $(ROOT)/tools/gen_about.py $(ROOT)/AUTHORS $(ROOT)/platform/stm3
 UIFLAGS := -std=gnu99 -Wall -Wextra -Wno-unused-parameter -Wshadow -g $(COVFLAGS) $(SANFLAGS) -I$(CORE) -I$(ROOT)/hal -I. -Iout/gen \
            '-DGFX_FB_BYTES=(320u*320u*2u)' -DGFX_MAX_ROWS=320 -DCONFIG_FONT_XL=1 -DFONT_BOTH -DGFX_INDEXED=1 -DGFX_FIT_TRACE
 UIDEPS  := $(UIAPP) $(ABOUT_H) $(LANG_H) $(CORE)/dsp/speech_meter.h $(wildcard $(CORE)/ui/*.h $(CORE)/ui/fonts/*.inc sim/ui_sim.h)
-TESTS   += uiFlowTest uiFlowTestNoColor uiSim
+TESTS   += uiFlowTest uiFlowTestNoColor uiFlowTestNoRxSignal uiSim
 TESTS   += uiFlowTestSatellite uiFlowTestNoPowerMenu
 
 uiFlowTestNoPowerMenu: uiFlowTest.c $(UIDEPS)
@@ -765,6 +766,9 @@ uiFlowTestNoCallerLookup: uiFlowTest.c $(UIDEPS)
 uiFlowTestNoColor: uiFlowTest.c $(UIDEPS)
 	$(CC) $(UIFLAGS) -DCONFIG_UI_COLOR=0 -DCONFIG_LANG_ES=0 -DCONFIG_BACKLIGHT_TEST=1 -DCONFIG_DMR_PRIVACY=0 -o $@ \
 		uiFlowTest.c $(UIAPP) -lz
+
+uiFlowTestNoRxSignal: uiFlowTest.c $(UIDEPS)
+	$(CC) $(UIFLAGS) -DCONFIG_RX_SIGNAL_MENU=0 -o $@ uiFlowTest.c $(UIAPP) -lz
 
 uiFlowTestSatellite: uiFlowTest.c $(UIDEPS)
 	$(CC) $(UIFLAGS) -DCONFIG_SATELLITE_TLE=1 -o $@ uiFlowTest.c $(UIAPP) -lz
@@ -813,7 +817,7 @@ ui-sheets: uiSim
 	UI_GALLERY_COLORS="$(UI_GALLERY_COLORS)" ./uiSim --sheets out/sheets $(GEOM)
 
 run: run-ui
-run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault uiFlowTest uiFlowTestNoCallerLookup uiFlowTestP25NoAgc uiFlowTestNoColor uiFlowTestSatellite uiFlowTestNoPowerMenu uiSim beepReel
+run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault uiFlowTest uiFlowTestNoCallerLookup uiFlowTestP25NoAgc uiFlowTestNoColor uiFlowTestNoRxSignal uiFlowTestSatellite uiFlowTestNoPowerMenu uiSim beepReel
 	./gfxTest
 	./gfxTestZh
 	./gfxFbEdgeTest
@@ -825,6 +829,7 @@ run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault 
 	./uiFlowTestP25NoAgc
 	./uiFlowTestNoColor
 	./uiFlowTestNoPowerMenu
+	./uiFlowTestNoRxSignal
 	./uiFlowTestSatellite
 	./uiSim --layout
 	./beepReel --out out/beep-reel --no-frames > /dev/null	# checks every beep has a scene and the scenes still run
@@ -2028,3 +2033,22 @@ run: run-powerview
 run-powerview: powerViewTest
 	./powerViewTest
 .PHONY: run-powerview
+
+# RF display metadata has a bounded reply and a clean feature-disabled path.
+TESTS += signalViewTest signalViewOffTest
+SIGNALVIEW := signalViewTest.c $(CORE)/debuglink/debuglink_view_signal.c $(CORE)/debuglink/dl_fmt.c
+signalViewTest: $(SIGNALVIEW) $(wildcard $(CORE)/debuglink/*.h)
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -o $@ $(SIGNALVIEW)
+signalViewOffTest: $(SIGNALVIEW) $(wildcard $(CORE)/debuglink/*.h)
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -DCONFIG_RX_SIGNAL_MENU=0 -o $@ $(SIGNALVIEW)
+run: run-signalview
+run-signalview: signalViewTest signalViewOffTest
+	./signalViewTest
+	./signalViewOffTest
+.PHONY: run-signalview
+
+# The whole radio/service backend also builds and runs with RX signal presentation removed.
+TESTS += radioCoreTestNoSignal
+radioCoreTestNoSignal: $(RCORE) $(wildcard $(CORE)/radio/*.h) $(wildcard $(CORE)/dmr/call/*.h) $(CORE)/ui/ui_svc.h
+	$(CC) $(CFLAGS) $(CORE_HAL) -I. -DDMR_RX_TRACE=0 -DCONFIG_DMR_IP_GATEWAY=0 -DCONFIG_SFR=1 -DCONFIG_APRS=0 \
+		-DCONFIG_SATELLITE_TLE=1 -DCONFIG_RX_SIGNAL_MENU=0 -o $@ $(RCORE) -lm

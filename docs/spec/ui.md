@@ -755,3 +755,35 @@ HIL: `tests/hil/test_ui.py` (`tests/hil/README.md`) replays the main sequences o
   PTT then talks to it once, and the radio follows it for a reply window (the reply time setting, else the
   codeplug's hang time) before going back to the channel's talk target. A channel change, the call ending outside
   the window, Reply cancel or a new manual target end it.
+
+## 9. Digital receive identity and RF signal
+
+With `CONFIG_RX_SIGNAL_MENU`, digital reception keeps the primary caller identity visible through the call.
+A resolved name or callsign is preferred; the numeric ID is the fallback. Text fits the measured space left by
+the numeric RF reading. Large text and compact or dual layouts follow the same priority: identity, numeric dBm,
+then a bar if enough width remains. A bar must not displace identity. There is no automatic rotation.
+
+The RF bar uses the existing -120 to -60 dBm range. Numbers retain the measured value outside that range.
+This is received RF strength, not decoded audio dBFS or a bit-error measurement. A repeater downlink measures
+what this radio receives from the repeater. A network stream with no local RF measurement has no numeric RF value.
+
+Settings > Display > RX details is remembered. Caller details is the default and uses secondary space for
+caller information. Signal details uses secondary space for a wider bar and measurement status. Both keep the
+primary identity and numeric RF reading. There is no new global key action.
+
+The presentation consumes explicit measurement validity, source, frequency and timestamp metadata; a low numeric
+reading does not mean invalid. Current, held, unavailable and expired are distinct states. A receiver's reading
+belongs only to the channel it measured. Single-receiver dual watch shows no measurement on the untuned pane;
+it does not imply simultaneous measurement. A second receiver can supply its own independent measurement.
+Channel, call and incompatible tuner changes clear old presentation ownership immediately.
+
+Meter values commit at most once per 250 ms. Essential call, PTT and navigation changes are not delayed; they use
+the committed compatible meter value. Unavailable or expired measurements clear immediately. Drawing uses the
+existing changed-row framebuffer flush. No extra RF smoothing or changes to squelch, scanning, codecs or audio
+gain are introduced. Source freshness and expiration are specified with the radio metadata in
+[radio-features.md](radio-features.md).
+
+Without the switch, the legacy activity layout remains. Stored receive-details preferences are retained.
+
+A tilde beside the numeric value (`-85~ dBm`) marks a retained recent measurement. The marker is shown
+in both RX details choices and on compact and dual layouts. It disappears when the measurement expires.

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 /*
  * The DMR voice call stack, modem neutral: it talks only to a hal_dmr_modem_t (docs/spec/dmr-modem.md section 6) and
  * runs at task level.
@@ -22,6 +23,7 @@
 #ifndef RFOUNDRY_DMR_CALL_H
 #define RFOUNDRY_DMR_CALL_H
 
+#include "config.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include "hal_dmr_modem.h"
@@ -241,6 +243,10 @@ typedef struct {
 	bool rmo;
 	bool repeater_up;		// RMO: outbound heard recently
 	int16_t rssi_dbm;		// last burst of the current / last call, 0 = unknown
+#if CONFIG_RX_SIGNAL_MENU
+	uint32_t signal_serial;	// subset of serial published for RSSI alone
+	uint32_t rssi_ms;		// arrival of the last burst carrying RSSI, in the poll clock
+#endif
 	dmr_caller_t caller;		// RX: the current call; TX: us -> target
 	uint32_t call_start_ms;
 	uint32_t call_ms;		// duration of the current call (RX or TX), 0 when idle

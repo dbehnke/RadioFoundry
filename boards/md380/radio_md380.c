@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // MD-380 radio: SKY72310 synthesizer + GT3136 receiver + HR_C5000 (the HR_C6000 driver in its C5000 variant) + RF path
 // GPIOs + the two DACs + calibration (docs/spec/hardware-md380.md 4-8, 11). Nothing here has run on a radio.
 //
@@ -1053,6 +1054,7 @@ static void dmr_tx_end(void)
 
 static void status(radio_status_t *st)
 {
+	st->rssi_valid = st->rssi_fresh = r.rx_valid && !r.tx_on && !r.asleep;
 	uint32_t rssi = md380_adc_raw(MD380_ADC_RSSI);
 	uint32_t busy = md380_adc_raw(MD380_ADC_BUSY);
 	st->rssi_dbm = (int16_t)(RSSI_FLOOR_DBM + (int32_t)(rssi * RSSI_SPAN_DB / 4095u));

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // MD-9600 radio: the hal_radio_t on top of the RF sequencer (rfseq_md9600.c), for every board revision
 // (docs/spec/hardware-md9600.md 5, 6, 16, 19).
 //
@@ -817,6 +818,7 @@ static void rx_sleep(bool sleep)
 
 static void status(radio_status_t *st)
 {
+	st->rssi_valid = st->rssi_fresh = rf.state == MD9600_RF_RX;
 	uint8_t band = MD9600_UHF;
 	(void)md9600_band_of(rf.rx_hz, &band);
 	uint16_t rssi = md9600_adc_raw(band == MD9600_VHF ? MD9600_ADC_RSSI_V : MD9600_ADC_RSSI_U);

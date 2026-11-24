@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // Dual watch (docs/ux/dual-watch.md): two channels on Home, A and B, each a channel of any zone or the VFO. One of
 // them is selected: PTT transmits on it and the watch goes on after, and Home's keys (Up / Down, the knob, digits,
 // quick settings) act on it as they act on the one channel of the single Home. The A/B key, Left / Right or # 1
@@ -839,7 +840,7 @@ static void caller_text(char *out, size_t len, const ui_dual_pane_t *p, bool dmr
 {
 	sbuf_t b;
 	sb_init(&b, out, len);
-	if ((!dmr && p->mode != RADIO_MODE_P25) || (!src && !dst)) {
+	if ((!dmr && !src) || (!src && !dst)) {
 		sb_str(&b, signal_word(p, dmr));
 		return;
 	}
@@ -1123,6 +1124,9 @@ __attribute__((noinline)) bool ui_dual_tick(const radio_view_t *v, uint32_t now)
 			ui_dual_rx_t *x = &r[t];
 			x->active = x->heard = true;
 			x->rssi_dbm = v->rssi_dbm;
+#if CONFIG_RX_SIGNAL_MENU
+			x->signal = v->signal;
+#endif
 			x->dmr = shown_mode(&v->ch) == RADIO_MODE_DMR;	// a P25 or NXDN record keeps DMR
 #if CONFIG_DMR
 			if (x->dmr)
@@ -1138,6 +1142,15 @@ __attribute__((noinline)) bool ui_dual_tick(const radio_view_t *v, uint32_t now)
 				x->dst = v->p25.dst;
 				x->group = (v->p25.flags & RADIO_P25_UNIT) == 0;
 				x->heard = (v->p25.flags & RADIO_P25_PLAYED) != 0;
+			x->src_name[0] = 0;
+			}
+#endif
+#if CONFIG_RX_SIGNAL_MENU && CONFIG_NXDN
+			if (v->ch.mode == RADIO_MODE_NXDN) {
+				x->src = v->nxdn.src;
+				x->dst = v->nxdn.dst;
+				x->group = (v->nxdn.flags & RADIO_NXDN_UNIT) == 0;
+				x->src_name[0] = 0;
 			}
 #endif
 		}
@@ -1152,6 +1165,7 @@ __attribute__((noinline)) bool ui_dual_tick(const radio_view_t *v, uint32_t now)
 			if (d->talk_back && i != d->sel && v->state != RS_TX)
 				talk_back(d, i, now);
 		}
+		bool caller_changed = false;
 		if (x->active) {
 			if (p->mode == RADIO_MODE_P25)
 				str_copy(x->src_name, sizeof x->src_name, ui_svc_p25_name(x->src));
@@ -1164,13 +1178,26 @@ __attribute__((noinline)) bool ui_dual_tick(const radio_view_t *v, uint32_t now)
 			caller_text(caller_buf, sizeof caller_buf, p, x->dmr, x->src, x->src_name, x->dst, x->group);
 			if (strcmp(caller_buf, p->caller) != 0) {
 				strcpy(p->caller, caller_buf);
+				caller_changed = true;
 				dirty = true;
 			}
 			if (x->heard || heard == UI_DUAL_NONE)
 				heard = i;
 		}
+#if CONFIG_RX_SIGNAL_MENU
+		p->caller_id = x->src;
+		if (ui_signal_commit(&p->signal, &x->signal, now, &p->signal_commit_ms,
+			caller_changed || p->rx != x->active))
+			dirty = true;
+#else
+		(void)caller_changed;
+#endif
 		bool busy = !own && !x->active && (v->dual_busy & (1u << i)) != 0;
-		if (p->rx != x->active || p->heard != x->heard || p->rssi_dbm != x->rssi_dbm || p->busy != busy)
+		if (p->rx != x->active || p->heard != x->heard || p->busy != busy
+#if !CONFIG_RX_SIGNAL_MENU
+				|| p->rssi_dbm != x->rssi_dbm
+#endif
+				)
 			dirty = true;
 		p->busy = busy;
 		p->rx = x->active;

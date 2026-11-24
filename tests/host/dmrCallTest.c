@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The DMR voice call stack (core/dmr/call) against a simulated modem (sim/dmr_sim_modem.c), plus its link control
 // coding checked against references written here from the ETSI TS 102 361-1 definitions and against the older
 // clean-tree checkers (sfr.c's RS(12,9) / CRC check, dmrData.c's CSBK builder)
@@ -1803,6 +1804,12 @@ static void test_rx_call(void)
 	for (unsigned i = 0; i < 36; i++)
 		CHECK(sink_log.seq[i] == (uint8_t)(i + 1));
 	CHECK(V()->rssi_dbm == -85);
+#if CONFIG_RX_SIGNAL_MENU
+	uint32_t rssi_ms = V()->rssi_ms;
+	CHECK(now - rssi_ms <= 120u);
+	run_ms(20);
+	CHECK(V()->rssi_ms == rssi_ms); // Polling without a burst never refreshes its measurement time.
+#endif
 	rx_header(lc, 1, 0, DMR_SYNC_MS, true);
 	run_ms(20);
 	CHECK(sink_log.ends == 1 && V()->state == DMR_CALL_STATE_IDLE);

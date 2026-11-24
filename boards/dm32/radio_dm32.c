@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // DM-32UV radio: FD6818 RF transceiver (bit-banged), the HR_C7000 baseband for FM and DMR, LNA / PA selects and the
 // PA drive on DAC channel B (docs/spec/hardware-dm32.md 3.8, 8, 9, 11.3; modem-hrc7000.md 4, 5.1, 8).
 //
@@ -685,6 +686,7 @@ static bool tx_dtmf(char digit)
 
 static void status(radio_status_t *st)
 {
+	st->rssi_valid = st->rssi_fresh = have_rx && !transmitting && !asleep;
 	uint16_t r67 = fd6818_read(&fd, FD_REG_RSSI);
 	uint16_t r65 = fd6818_read(&fd, FD_REG_NOISE);
 	last_rssi_raw = fd6818_rssi_raw(r67);

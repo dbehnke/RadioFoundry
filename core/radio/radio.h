@@ -430,6 +430,44 @@ typedef struct {
 } radio_t3_view_t;
 #endif
 
+// Display metadata is separate from the scalar used by squelch and scan algorithms.
+typedef enum {
+	RADIO_SIGNAL_UNAVAILABLE = 0,
+	RADIO_SIGNAL_CURRENT,
+	RADIO_SIGNAL_HELD,
+	RADIO_SIGNAL_EXPIRED,
+} radio_signal_state_t;
+typedef enum {
+	RADIO_SIGNAL_SOURCE_NONE = 0,
+	RADIO_SIGNAL_SOURCE_RF,
+	RADIO_SIGNAL_SOURCE_DMR,
+	RADIO_SIGNAL_SOURCE_RX2,
+	RADIO_SIGNAL_SOURCE_BCAST,
+} radio_signal_source_t;
+typedef struct {
+	uint32_t sampled_ms;
+	uint32_t rx_hz;
+	int16_t dbm;
+	uint8_t state;
+	uint8_t source;
+} radio_signal_t;
+
+#define RADIO_SIGNAL_CURRENT_MS 25
+#define RADIO_SIGNAL_HOLD_MS 120
+#define RADIO_SIGNAL_RX2_CURRENT_MS 500u
+#define RADIO_SIGNAL_RX2_HOLD_MS (RADIO_SIGNAL_RX2_CURRENT_MS + RADIO_SIGNAL_HOLD_MS)
+
+static inline uint8_t radio_signal_state_at(const radio_signal_t *s, uint32_t at_ms)
+{
+	if (s->state == RADIO_SIGNAL_UNAVAILABLE)
+		return RADIO_SIGNAL_UNAVAILABLE;
+	uint32_t current = s->source == RADIO_SIGNAL_SOURCE_RX2 ? RADIO_SIGNAL_RX2_CURRENT_MS : RADIO_SIGNAL_CURRENT_MS;
+	uint32_t hold = s->source == RADIO_SIGNAL_SOURCE_RX2 ? RADIO_SIGNAL_RX2_HOLD_MS : RADIO_SIGNAL_HOLD_MS;
+	uint32_t age = at_ms - s->sampled_ms;
+	return age <= current && s->state != RADIO_SIGNAL_HELD ? RADIO_SIGNAL_CURRENT :
+	       age <= hold ? RADIO_SIGNAL_HELD : RADIO_SIGNAL_EXPIRED;
+}
+
 #define RADIO_LED_GREEN		0x01u	// radio_view_t.leds
 #define RADIO_LED_RED		0x02u
 
@@ -452,6 +490,7 @@ typedef struct {
 	bool monitor;		// squelch held open by the user
 	bool tone_ok;		// the RX tone or code is heard (debounced; true when the channel has no RX tone)
 	int16_t rssi_dbm;
+	radio_signal_t signal;
 	uint8_t noise;
 	uint8_t sql_close;	// polls over the close line the squelch's last close took (1 or 2 as a carrier goes, more
 				// after a voice peak hold); 0 none yet
@@ -550,6 +589,8 @@ typedef struct {
 void radio_core_start(void);
 // A consistent copy of the current state
 void radio_get_view(radio_view_t *v);
+// The view and both change counters from the same publication, for paced UI rendering.
+void radio_get_view_serials(radio_view_t *v, uint32_t *all, uint32_t *signal);
 // The current channel settings, with nominal satellite frequencies when Doppler tracking is active
 void radio_get_channel_profile(channel_t *ch);
 #if CONFIG_SATELLITE_TLE
@@ -574,6 +615,10 @@ void radio_with_t3_view(void (*fn)(const radio_t3_view_t *x, void *ctx), void *c
 #endif
 // Bumped on every visible change, so the UI can redraw only when needed
 uint32_t radio_view_serial(void);
+// Subset of that serial caused solely by signal measurements (zero when presentation is disabled).
+uint32_t radio_view_signal_serial(void);
+// Read the two counters from one published generation.
+void radio_view_serials(uint32_t *all, uint32_t *signal);
 
 // Requests taken by the radio task, and lost to a full queue, since start-up
 void radio_req_stats(uint32_t *handled, uint32_t *dropped);

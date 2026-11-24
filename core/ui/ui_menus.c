@@ -7050,6 +7050,11 @@ static const set_item_t s_sigtones[] = {
 	ACTION(TRN(SIG_ROW_IDLE_STEPS, "Idle steps"), "signaling chain frequency length pitch channel free", SA_SIG_IDLE),
 };
 #endif
+#if CONFIG_RX_SIGNAL_MENU
+static const int16_t v_rx_details[] = { 0, 1 };
+static const tr_id_t n_rx_details[] = { TRN(SET_VALUE_RX_CALLER, "Caller"),
+	TRN(SET_VALUE_RX_SIGNAL, "Signal") };
+#endif
 static const set_item_t s_display[] = {
 	NUMBER(TRN(SET_LABEL_BRIGHTNESS, "Brightness"), "backlight", UI_SET_BRIGHTNESS, 10, 100, 10, "%"),
 	LIST(TRN(SET_LABEL_BACKLIGHT_DIM_OFF, "Backlight Dim/Off"), "timeout", UI_SET_BACKLIGHT_S, v_backlight,
@@ -7067,6 +7072,10 @@ static const set_item_t s_display[] = {
 #endif
 #if CONFIG_RX_AGC
 	TOGGLE(TRN(SET_LABEL_RX_AUDIO_LEVELS, "RX audio levels"), "receive input output AGC dBFS", UI_SET_RX_AUDIO_LEVELS),
+#endif
+#if CONFIG_RX_SIGNAL_MENU
+	LIST(TRN(SET_LABEL_RX_DETAILS, "RX details"), "RSSI dBm caller signal", UI_SET_RX_DETAILS,
+		v_rx_details, n_rx_details),
 #endif
 	// Last, so the rows above keep their places; its search words are "language" in other languages, for a user who
 	// can't read the English

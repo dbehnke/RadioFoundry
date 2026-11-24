@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The radio core's task: a request queue in front of the state machine (radio_sm.c), a status poll every
 // RADIO_POLL_MS, the DMR call stack every RADIO_TICK_MS, and a snapshot of the view that other tasks copy under a
 // mutex. It also implements the hotspot's radio operations (hotspot_radio_ops_t): they post requests and never wait,
@@ -97,6 +98,9 @@ static uint8_t shared_dual_sel, shared_dual_at;
 static bool shared_dual_on;
 #endif
 static volatile uint32_t shared_serial;
+#if CONFIG_RX_SIGNAL_MENU
+static volatile uint32_t shared_signal_serial;
+#endif
 static volatile bool power_off_busy;	// radio_req_power_off until the radio core is done
 static volatile bool power_off_wanted;	// published view.power_off
 static SemaphoreHandle_t view_lock;
@@ -173,6 +177,9 @@ static void publish(void)
 	dtmf_ready = sm.view.dtmf_ready;
 	radio_sm_shown_view(&sm, &shared_view);	// a roaming survey visit: the screens keep the site it left
 	shared_serial = sm.serial;
+#if CONFIG_RX_SIGNAL_MENU
+	shared_signal_serial = sm.signal_serial;
+#endif
 	shared_settings = sm.set;
 	settings_published = settings_taken;
 #if CONFIG_DUAL_WATCH
@@ -422,6 +429,9 @@ void radio_core_start(void)
 #endif
 	shared_view = sm.view;
 	shared_serial = sm.serial;
+#if CONFIG_RX_SIGNAL_MENU
+	shared_signal_serial = sm.signal_serial;
+#endif
 	shared_settings = sm.set;
 #if CONFIG_HOTSPOT
 	radio_hs_init(hs_post);
@@ -433,6 +443,24 @@ void radio_core_start(void)
 #if CONFIG_HOTSPOT
 	hotspot_set_radio(&radio_hs_ops);
 #endif
+}
+
+void radio_get_view_serials(radio_view_t *v, uint32_t *all, uint32_t *signal)
+{
+	if (view_lock == NULL) {
+		memset(v, 0, sizeof(*v));
+		*all = *signal = 0;
+		return;
+	}
+	xSemaphoreTake(view_lock, portMAX_DELAY);
+	*v = shared_view;
+	*all = shared_serial;
+#if CONFIG_RX_SIGNAL_MENU
+	*signal = shared_signal_serial;
+#else
+	*signal = 0;
+#endif
+	xSemaphoreGive(view_lock);
 }
 
 void radio_get_view(radio_view_t *v)
@@ -618,6 +646,31 @@ bool radio_get_zone_pos(uint16_t *zone, uint16_t *pos, uint16_t *size)
 uint32_t radio_view_serial(void)
 {
 	return shared_serial;
+}
+
+uint32_t radio_view_signal_serial(void)
+{
+#if CONFIG_RX_SIGNAL_MENU
+	return shared_signal_serial;
+#else
+	return 0;
+#endif
+}
+
+void radio_view_serials(uint32_t *all, uint32_t *signal)
+{
+	if (view_lock == NULL) {
+		*all = *signal = 0;
+		return;
+	}
+	xSemaphoreTake(view_lock, portMAX_DELAY);
+	*all = shared_serial;
+#if CONFIG_RX_SIGNAL_MENU
+	*signal = shared_signal_serial;
+#else
+	*signal = 0;
+#endif
+	xSemaphoreGive(view_lock);
 }
 
 static void post(uint8_t type, int32_t arg, TickType_t wait)

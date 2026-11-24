@@ -67,6 +67,13 @@ static const struct { const char *name, *script; } gallery[] = {
 	{ "home_locked", "long:quick 5" },
 	{ "home_usb_ip", "usbnet:on" },
 	{ "home_usb_ip_up", "usbnet:up" },
+#if CONFIG_RX_SIGNAL_MENU
+	{ "home_dual_signal", "rxdetails:1 receivers:2 quick 7 ctx 3 5 ok wait:3000 rxa:9991234,3100,g rxb:9997777,91,g" },
+	{ "rx_signal", "rxdetails:1 rx:9991234,91,g signal:-84" },
+	{ "rx_signal_held", "rxdetails:1 rx:9991234,91,g signal:-84,2" },
+	{ "rx_signal_unavailable", "rxdetails:1 rx:9991234,91,g signal:0,0" },
+	{ "settings_rx_details", "ok 7 2 up up" },
+#endif
 	{ "rx_group", "rx:9991234,91,g,Q1ABC_Joe_-_Boston,_MA" },
 #if CONFIG_RX_AGC
 	{ "rx_agc", "rx:9991234,91,g,Q1ABC_Joe_-_Boston,_MA agc:0,5,464" },

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // A second receiver: radios with a receiver per dual watch channel (the GD-88's SoC B). The radio core keeps it on the
 // dual watch channel that isn't selected, so both channels are heard at once instead of in turn; the main receiver
 // (hal_radio_t) stays on the selected one, which is also the one PTT transmits on. Without it (board.rx2 NULL, or
@@ -37,6 +38,8 @@ typedef struct {
 	bool group;		// ... to a group (else private)
 	bool heard;		// its audio goes to the speaker now (audio(true) and active)
 	int16_t rssi_dbm;
+	bool rssi_valid;	// fresh receiver measurement in this STATUS; old peers leave false
+	uint32_t rssi_sample_ms;	// main clock: arrival of the last STATUS carrying a valid measurement
 	uint8_t noise;
 	uint32_t src, dst;	// DMR: the call's source and destination IDs
 } rx2_status_t;

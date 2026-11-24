@@ -269,10 +269,17 @@ bool ui_svc_ram_set(uint8_t id, int32_t value)
 	return true;
 }
 
+static uint8_t rx_details;
 static int32_t master_power = -1;
-WEAK int32_t ui_svc_setting_get(uint8_t id) { return id == UI_SET_MASTER_POWER ? master_power : ui_svc_ram_get(id); }
+WEAK int32_t ui_svc_setting_get(uint8_t id) { return id == UI_SET_MASTER_POWER ? master_power : id == UI_SET_RX_DETAILS ? rx_details : ui_svc_ram_get(id); }
 WEAK bool ui_svc_setting_set(uint8_t id, int32_t value)
 {
+	if (id == UI_SET_RX_DETAILS) {
+		if (value < 0 || value > 1)
+			return false;
+		rx_details = (uint8_t)value;
+		return true;
+	}
 	if (id == UI_SET_MASTER_POWER) {
 		master_power = value;
 		return true;

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The ui_svc.h calls the radio core answers: the talk target and the one-shot target of the focused row
 // (docs/spec/dmr-voice.md), the temporary channel changes (timeslot, color code, mode), the hear all, monitor and VOX
 // latches, privacy with the stored key, scan, key beeps and the radio's settings (docs/spec/radio-features.md).
 // These are the strong definitions; ui_svc_stub.c keeps the weak ones for what other packages still have to provide.
 #include "ui_svc.h"
 #include "board.h"
+#include "hal_time.h"
 #include "radio/radio.h"
 #include "radio/beep.h"
 #include "radio/vibe.h"
@@ -330,6 +332,9 @@ bool ui_svc_dual_rx(uint8_t pane, ui_dual_rx_t *out)
 	if (pane == sel) {
 		out->active = out->heard = v->state == RS_RX;
 		out->rssi_dbm = v->rssi_dbm;
+#if CONFIG_RX_SIGNAL_MENU
+		out->signal = v->signal;
+#endif
 		out->dmr = v->ch.mode == RADIO_MODE_DMR;
 #if CONFIG_DMR
 		if (out->dmr) {
@@ -351,6 +356,13 @@ bool ui_svc_dual_rx(uint8_t pane, ui_dual_rx_t *out)
 			out->group = (v->p25.flags & RADIO_P25_UNIT) == 0;
 		}
 #endif
+#if CONFIG_NXDN
+		if (v->ch.mode == RADIO_MODE_NXDN) {
+			out->src = v->nxdn.src;
+			out->dst = v->nxdn.dst;
+			out->group = (v->nxdn.flags & RADIO_NXDN_UNIT) == 0;
+		}
+#endif
 		return true;
 	}
 	rx2_status_t st;
@@ -360,6 +372,13 @@ bool ui_svc_dual_rx(uint8_t pane, ui_dual_rx_t *out)
 	out->dmr = st.dmr;
 	out->group = st.group;
 	out->rssi_dbm = st.rssi_dbm;
+#if CONFIG_RX_SIGNAL_MENU
+	if (st.tuned && st.rssi_valid) {
+		out->signal = (radio_signal_t){ .sampled_ms = st.rssi_sample_ms, .dbm = st.rssi_dbm,
+			.state = RADIO_SIGNAL_CURRENT, .source = RADIO_SIGNAL_SOURCE_RX2 };
+		out->signal.state = radio_signal_state_at(&out->signal, hal_millis());
+	}
+#endif
 	out->src = st.src;
 	out->dst = st.dst;
 	return true;

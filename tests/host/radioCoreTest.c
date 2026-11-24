@@ -917,6 +917,7 @@ static void poll_for(uint32_t ms)
 
 static void rx_signal(uint8_t noise, bool tone_ok)
 {
+	hw.st.rssi_valid = hw.st.rssi_fresh = true;
 	hw.st.noise = noise;
 	hw.st.tone_ok = tone_ok;
 	hw.st.rssi_dbm = noise < 50 ? -80 : -125;
@@ -4249,6 +4250,23 @@ uint32_t hal_millis(void) { return now; }
 void hal_delay_ms(uint32_t ms) { now += ms; }	// the PA sweep op's wait
 void radio_get_view(radio_view_t *v) { *v = sm.view; }
 uint32_t radio_view_serial(void) { return sm.serial; }
+void radio_view_serials(uint32_t *all, uint32_t *signal)
+{
+	*all = sm.serial;
+#if CONFIG_RX_SIGNAL_MENU
+	*signal = sm.signal_serial;
+#else
+	*signal = 0;
+#endif
+}
+uint32_t radio_view_signal_serial(void)
+{
+#if CONFIG_RX_SIGNAL_MENU
+	return sm.signal_serial;
+#else
+	return 0;
+#endif
+}
 void radio_get_settings(radio_settings_t *s) { *s = sm.set; }
 void radio_set_settings(const radio_settings_t *s) { radio_sm_set_settings(&sm, s, now); }
 #if CONFIG_P25_PARROT
@@ -5534,6 +5552,48 @@ static void test_ui_glue(void)
 	CHECK(sm.set.reply_s == RADIO_REPLY_CODEPLUG && sm.set.vox == RADIO_VOX_OFF);
 }
 
+static void test_receive_details_persistence(void)
+{
+	static const hal_flash_map_t map = {
+		.settings_addr=0x11000u, .settings_size=0x8000u, .journal_addr=0x19000u,
+		.openfw_flash=0x20000u, .openfw_end=0x30000u,
+		.calibration_addr=0x10000u, .calibration_size=0x200u,
+		.native_addr=0x30000u, .native_size=0x4000u,
+	};
+	settings_t sv;
+	dmr_start(true);
+	sim_flash_create(0x40000u, &map);
+	CHECK(storage_init());
+	settings_init();
+	// A receive presentation preference shares spare bits without changing the stored layout or other controls.
+	settings_read(&sv);
+	uint8_t saved_sound = sv.sound_flags;
+	CHECK(ui_svc_setting_get(UI_SET_RX_DETAILS) == 0);
+	CHECK(!ui_svc_setting_set(UI_SET_RX_DETAILS, -1));
+	CHECK(!ui_svc_setting_set(UI_SET_RX_DETAILS, 2));
+	CHECK(ui_svc_setting_set(UI_SET_RX_DETAILS, 1));
+	CHECK(ui_svc_setting_get(UI_SET_RX_DETAILS) == 1);
+	settings_read(&sv);
+	CHECK((sv.sound_flags & ~SETTINGS_RX_SIGNAL_DETAILS) == (saved_sound & ~SETTINGS_RX_SIGNAL_DETAILS));
+	CHECK(ui_svc_setting_set(UI_SET_KNOB_WHEN_LOCKED, 0));
+	CHECK(ui_svc_setting_get(UI_SET_RX_DETAILS) == 1);
+	CHECK(ui_svc_setting_set(UI_SET_CALL_END_TONE, 0));
+	CHECK(ui_svc_setting_get(UI_SET_RX_DETAILS) == 1);
+	storage_job_poll();	// the tone change also synchronizes the codeplug tone setting
+	CHECK(settings_flush());
+	settings_init();
+	CHECK(ui_svc_setting_get(UI_SET_RX_DETAILS) == 1);
+	CHECK(ui_svc_setting_set(UI_SET_RX_DETAILS, 0));
+	settings_t *prefs = settings_begin();
+	prefs->sound_flags = saved_sound;
+	settings_end(now);
+	CHECK(settings_flush());
+	sim_flash.map = NULL;
+	storage_init();		// return to the RAM-only storage fixture
+	settings_init();
+	sim_flash_free();
+}
+
 // Every setting ui_svc_storage.c answers: where it is read from, the clamps on the way in, the privacy key slot,
 // and the codeplug jobs' refusals (no channel, a job still pending, the channel unreadable)
 static void test_ui_settings(void)
@@ -6741,8 +6801,76 @@ static void test_dmr_rssi_hold(void)
 	rssi_alt = true;
 	hear_call(true, 201, 9991234, 2, 1, false);
 	CHECK(d->state == RDMR_RX && d->rssi_dbm == -85);
+#if CONFIG_RX_SIGNAL_MENU
+	CHECK(sm.view.signal.source == RADIO_SIGNAL_SOURCE_DMR && sm.view.signal.dbm == -85);
+	CHECK(sm.view.signal.sampled_ms == dmr_call_view()->rssi_ms);
+#endif
 	rssi_alt = false;
 }
+
+#if CONFIG_RX_SIGNAL_MENU
+static void test_signal_metadata(void)
+{
+	setup_codeplug();
+	start();
+	CHECK(sm.view.signal.state == RADIO_SIGNAL_UNAVAILABLE);
+	hw.st.rssi_valid = hw.st.rssi_fresh = false;
+	hw.st.rssi_dbm = -140;
+	poll_for(RADIO_POLL_MS);
+	CHECK(sm.view.signal.state == RADIO_SIGNAL_UNAVAILABLE);
+	hw.st.rssi_valid = hw.st.rssi_fresh = true;
+	hw.st.rssi_dbm = -140; // A real weak measurement must not be mistaken for the board's error fallback.
+	poll_for(RADIO_POLL_MS);
+	CHECK(sm.view.signal.state == RADIO_SIGNAL_CURRENT && sm.view.signal.dbm == -140);
+	CHECK(sm.view.signal.source == RADIO_SIGNAL_SOURCE_RF && sm.view.signal.rx_hz == sm.view.ch.rx_hz);
+	uint32_t sampled = sm.view.signal.sampled_ms;
+	hw.st.rssi_valid = hw.st.rssi_fresh = false;
+	hw.st.rssi_dbm = -140; // Same numerical value, failed read: explicitly unavailable.
+	poll_for(RADIO_POLL_MS);
+	CHECK(sm.view.signal.state == RADIO_SIGNAL_UNAVAILABLE);
+	hw.st.rssi_valid = hw.st.rssi_fresh = true;
+	poll_for(RADIO_POLL_MS);
+	sampled = sm.view.signal.sampled_ms;
+	hw.st.rssi_fresh = false; // A valid retained sample keeps its original clock and expires.
+	poll_for(2 * RADIO_POLL_MS);
+	CHECK(sm.view.signal.state == RADIO_SIGNAL_HELD && sm.view.signal.sampled_ms == sampled);
+	poll_for(RADIO_RSSI_HOLD_MS);
+	CHECK(sm.view.signal.state == RADIO_SIGNAL_EXPIRED && sm.view.signal.sampled_ms == sampled);
+	hw.st.rssi_valid = hw.st.rssi_fresh = true;
+	hw.st.rssi_dbm = 0; // Explicit validity also permits a genuine zero-dBm measurement.
+	uint32_t all_before = sm.serial, signal_before = sm.signal_serial;
+	poll_for(RADIO_POLL_MS);
+	CHECK(sm.serial - all_before == sm.signal_serial - signal_before); // Pure RSSI must not force full-rate redraws.
+	CHECK(sm.view.signal.state == RADIO_SIGNAL_CURRENT && sm.view.signal.dbm == 0);
+	hw.st.rssi_fresh = false; // A board's retained TX status is not another measurement.
+	poll_for(2 * RADIO_POLL_MS);
+	CHECK(sm.view.signal.state == RADIO_SIGNAL_HELD);
+	all_before = sm.serial;
+	signal_before = sm.signal_serial;
+	req(RREQ_PTT, 1);
+	CHECK(sm.serial - all_before > sm.signal_serial - signal_before); // PTT remains an essential immediate event.
+	CHECK(sm.view.signal.state == RADIO_SIGNAL_UNAVAILABLE);
+	hw.st.rssi_fresh = true;
+	poll_for(RADIO_POLL_MS);
+	CHECK(sm.view.signal.state == RADIO_SIGNAL_UNAVAILABLE);
+	req(RREQ_PTT, 0);
+	poll_for(RADIO_POLL_MS);
+	CHECK(sm.view.signal.state == RADIO_SIGNAL_CURRENT);
+	req(RREQ_CH_STEP, 1);
+	CHECK(sm.view.signal.state == RADIO_SIGNAL_UNAVAILABLE); // Also applies to a same-frequency channel.
+
+	// Age arithmetic must work across the millisecond clock wrap, including the RX2 source cadence.
+	radio_signal_t s = { .sampled_ms = UINT32_MAX - 10u, .state = RADIO_SIGNAL_CURRENT,
+		.source = RADIO_SIGNAL_SOURCE_RF };
+	CHECK(radio_signal_state_at(&s, 10) == RADIO_SIGNAL_CURRENT);
+	CHECK(radio_signal_state_at(&s, 50) == RADIO_SIGNAL_HELD);
+	CHECK(radio_signal_state_at(&s, 150) == RADIO_SIGNAL_EXPIRED);
+	s.source = RADIO_SIGNAL_SOURCE_RX2;
+	CHECK(radio_signal_state_at(&s, 450) == RADIO_SIGNAL_CURRENT);
+	CHECK(radio_signal_state_at(&s, 550) == RADIO_SIGNAL_HELD);
+	CHECK(radio_signal_state_at(&s, 650) == RADIO_SIGNAL_EXPIRED);
+}
+#endif
 
 // FM keeps the raw reading: no hold
 static void test_fm_rssi_raw(void)
@@ -12251,6 +12379,9 @@ int main(void)
 	test_dmr_rx();
 	test_dmr_rssi_hold();
 	test_fm_rssi_raw();
+#if CONFIG_RX_SIGNAL_MENU
+	test_signal_metadata();
+#endif
 	test_dmr_tx();
 	test_dmr_tx_end();
 #if CONFIG_DMR_TRUNK_TX
@@ -12320,6 +12451,7 @@ int main(void)
 	test_ui_dual();
 	test_dual_two_vfos();
 #endif
+	test_receive_details_persistence();
 	test_ui_settings();
 	test_soft_volume();
 	test_side_keys();

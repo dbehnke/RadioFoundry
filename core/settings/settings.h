@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The radio's own settings, kept across power cycles (docs/spec/settings-store.md): where the radio was (zone,
 // channel, VFO), the VFO's settings and the user's preferences. Stored as versioned records appended to a ring of
 // flash sectors (board.flash->map settings area): a record is valid only once its commit word is programmed, so a
@@ -231,7 +232,8 @@ typedef struct {
 	// (docs/spec/zone-share.md 5.4); key 0 = unused, the oldest replaced first
 	settings_zs_import_t zs_import[SETTINGS_ZS_IMPORTS];
 	// Sound options (appended; was knob_flags, bit 0 only): SETTINGS_KNOB_LOCK, then the Settings > Sound tones off
-	// in bits 4..7 (settings_tones_off). 0 = the knob works and every tone is on, as an older record reads
+	// in bits 4..7 (settings_tones_off), and receive signal details in bit 1. 0 = the knob works, every tone
+	// is on, and caller details are selected, as an older record reads
 	uint8_t sound_flags;
 	// The VFOs' SFR role (docs/spec/sfr.md 4): byte A of a codeplug channel's SFR bytes (core/dmr/sfr.h), role bits 0 =
 	// none (was reserved9[0..1]: an older record reads none). The VFO's outbound color code is its own (no byte B)
@@ -388,8 +390,9 @@ static inline void settings_set_crash_contact(settings_t *s, uint16_t num)
 	s->updown_home = (uint8_t)((s->updown_home & 0x83u) | (((num >> 6) & 0x1Fu) << 2));
 }
 
-// settings_t.sound_flags (bits 1..3 reserved, 0)
+// settings_t.sound_flags: sound and shared presentation preferences (bits 2..3 reserved, 0)
 #define SETTINGS_KNOB_LOCK		0x01u	// the volume knob does nothing while the keys are locked (Settings > Key lock > Knob when locked Off)
+#define SETTINGS_RX_SIGNAL_DETAILS	0x02u	// receive secondary row shows RF signal details (0: caller details)
 #define SETTINGS_TONES_OFF_SHIFT	4	// radio_settings_t.tones_off, the radio's own copy of the codeplug's tone keys
 #define SETTINGS_TONES_OFF_MASK		0xF0u
 

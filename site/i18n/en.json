@@ -2421,5 +2421,10 @@
  "screen.caller_database_dual_p25": "P25 caller identity in dual watch",
  "screen.channel_power_default": "Channel editor: inheriting the radio default power",
  "screen.power_default": "Settings: choosing the default transmit power",
- "screen.power_quick": "Quick settings: choosing any supported transmit power"
+ "screen.power_quick": "Quick settings: choosing any supported transmit power",
+ "screen.rx_signal": "Digital receive signal details",
+ "screen.rx_signal_held": "Held receive signal measurement",
+ "screen.rx_signal_unavailable": "Receive signal unavailable",
+ "screen.settings_rx_details": "Receive detail settings",
+ "screen.home_dual_signal": "Dual receive signal details"
 }

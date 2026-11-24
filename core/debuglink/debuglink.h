@@ -61,6 +61,7 @@ enum {
 	DL_VIEW_NXDN,		// NXDN on the channel: the call, settings, the provider's fit, engine counters (debuglink_view_nxdn.c)
 	DL_VIEW_DMR_TX_AUDIO,	// the AMBE input gain and peak limiter (debuglink_view_dmr.c)
 	DL_VIEW_POWER,		// complete supported power labels and the configured default
+	DL_VIEW_SIGNAL,		// digital receive RF measurement presentation metadata
 	DL_VIEW_COUNT
 };
 #define DL_VIEW_VERSION		5	// bumped when a key changes meaning or goes away (new keys don't bump it)
@@ -88,6 +89,8 @@ void debuglink_view_radio(const radio_view_t *v, dl_text_t *t);
 void debuglink_view_audio(dl_text_t *t);
 // Board-provided power labels and the effective configured default (the power section).
 void debuglink_view_power(dl_text_t *t);
+
+void debuglink_view_signal(const radio_view_t *v, dl_text_t *t);
 // The p25 section (debuglink_view_p25.c; "p25.built=0" without CONFIG_P25) and its counter reset
 void debuglink_view_p25(const radio_view_t *v, dl_text_t *t);
 // The p25_trunk section ("p25t.built=0" without CONFIG_P25_TRUNK)
