@@ -655,7 +655,7 @@ static void testParrotAgcMatchesTx(void)
 	p25VoiceEnd();
 	p25VoiceBegin(&vmem);
 	p25VoiceParrotReady(frames, 217, frames + 217);
-	CHECK(p25VoiceParrotCapture(true, -25, 5, false), "AGC parity capture refused");
+	CHECK(p25VoiceParrotCapture(true, -20, 5, false), "AGC parity capture refused");
 	for (unsigned b = 0; b < 60; b++) {
 		for (unsigned i = 0; i < 160; i++) mic[i] = (int16_t)((i % 40 < 20 ? 700 : -700) + (b < 30 ? 2500 : -2500));
 		p25VoiceAudioBlock(mic, out, NULL);
@@ -833,18 +833,21 @@ static void testTxAgc(void)
 {
 	p25_voice_stats_t s;
 	uint8_t bits[IMBE_BYTES];
+	int16_t mic[160], out[160];
+	for (unsigned i = 0; i < 160; i++)
+		mic[i] = (int16_t)(500 * sin(2 * M_PI * i / 40));
 	begin();
 	p25VoiceSetAgc(true);
 	p25VoiceTx(true);
 	for (unsigned f = 0; f < 150; f++) {
-		tx_blocks(1, 500);
+		p25VoiceAudioBlock(mic, out, NULL);
 		(void)hk->tx_voice(bits, NULL);
 	}
 	// Restart peak accounting after settling, without restarting the AGC.
 	p25VoiceResetStats();
-	tx_blocks(1, 500);
+	p25VoiceAudioBlock(mic, out, NULL);
 	p25VoiceGetStats(&s);
-	CHECK(s.tx_mic_peak > 2500 && s.tx_mic_peak < 6000, "AGC did not raise quiet speech %u", (unsigned)s.tx_mic_peak);
+	CHECK(s.tx_mic_peak > 4500 && s.tx_mic_peak < 4800, "AGC did not reach -20 dBFS for the reference tone: peak %u", (unsigned)s.tx_mic_peak);
 	CHECK(s.tx_gain_q16 > TX_LEVEL_UNITY && s.tx_limited_blocks == 0, "AGC did not report quiet speech boost");
 	p25VoiceTx(false);
 	p25VoiceSetAgc(false);
