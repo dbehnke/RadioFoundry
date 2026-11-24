@@ -531,6 +531,8 @@ void ui_svc_poll(void);
 // Every UI pass: the side key assignment follows a codeplug a CPS wrote, and a change made in Settings goes to the
 // codeplug (CONFIG_KEY_ASSIGN)
 void ui_svc_keys_poll(void);
+// Optional played-audio input/output annotation. False: omit it (including when AGC is off).
+bool ui_svc_rx_audio_text(uint8_t mode, char *out, size_t len);
 // A home key's event (ACT_HOME_KEY_n, board.home_keys): the action it does now, its function on Home (home true) or
 // the key's own action elsewhere; ACT_NONE for nothing. Any other action comes back as it is (CONFIG_KEY_ASSIGN)
 uint8_t ui_svc_home_key(uint8_t action, uint8_t gesture, bool home);

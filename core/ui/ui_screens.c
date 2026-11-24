@@ -1995,6 +1995,24 @@ static void rx_audio_text(rx_agc_mode_t mode, char *buf, size_t len)
 	}
 	sb_str(&b, " dBFS");
 }
+
+bool ui_svc_rx_audio_text(uint8_t mode, char *out, size_t len)
+{
+	rx_agc_mode_t agc;
+	switch (mode) {
+	case RADIO_MODE_DMR: agc = RX_AGC_DMR; break;
+	case RADIO_MODE_P25: agc = RX_AGC_P25; break;
+	case RADIO_MODE_NXDN: agc = RX_AGC_NXDN; break;
+	default: if (len) out[0] = 0; return false;
+	}
+	if (!rx_audio_levels() || ui_svc_setting_get((uint8_t)(UI_SET_RX_AGC_DMR + agc)) == 0) {
+		if (len) out[0] = 0;
+		return false;
+	}
+	rx_audio_text(agc, out, len);
+	return true;
+}
+
 #endif
 
 // Receiving and Transmitting: the call takes the screen below the status strip

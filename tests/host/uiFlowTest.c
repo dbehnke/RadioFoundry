@@ -12,6 +12,7 @@
 #include <string.h>
 #include "sim/ui_sim.h"
 #include "ui/ui_app.h"
+#include "ui/ui_svc.h"
 #include "ui/ui_screens.h"
 #include "ui/gfx.h"
 #include "ui/i18n.h"
@@ -2318,8 +2319,42 @@ static int check_satellite_path_endpoint_colors(void)
 }
 #endif
 
+#if CONFIG_RX_AGC
+static void audio_annotation_checks(void)
+{
+	char out[48], err[128];
+	sim_reset(sim_geom_find("128x64"), SIM_MAP_M);
+	if (ui_svc_rx_audio_text(RADIO_MODE_P25, out, sizeof out)) {
+		printf("FAIL audio annotation: disabled levels must be omitted\n");
+		fails++;
+	}
+	if (!sim_run("agc:1,2,3277", err, sizeof err) ||
+	    !ui_svc_rx_audio_text(RADIO_MODE_P25, out, sizeof out) || strcmp(out, "AGC -20 > -33 dBFS") != 0) {
+		printf("FAIL audio annotation: P25 -20 to -33, got '%s'\n", out);
+		fails++;
+	}
+	if (ui_svc_rx_audio_text(RADIO_MODE_DMR, out, sizeof out) ||
+	    ui_svc_rx_audio_text(RADIO_MODE_FM, out, sizeof out)) {
+		printf("FAIL audio annotation: off mode or FM must be omitted\n");
+		fails++;
+	}
+	ui_svc_setting_set(UI_SET_RX_AGC_P25, 0);
+	if (ui_svc_rx_audio_text(RADIO_MODE_P25, out, sizeof out)) {
+		printf("FAIL audio annotation: target Off must be omitted\n");
+		fails++;
+	}
+}
+#endif
+
 int main(void)
 {
+#if !CONFIG_RX_AGC
+	char annotation[8] = "stale";
+	if (ui_svc_rx_audio_text(RADIO_MODE_P25, annotation, sizeof annotation) || annotation[0]) {
+		printf("FAIL audio annotation: absent AGC must return false and clear text\n");
+		return 1;
+	}
+#endif
 	if (check_name_is_id() != 0)
 		return 1;
 #if CONFIG_SATELLITE_TLE
@@ -2359,6 +2394,9 @@ int main(void)
 	for (size_t i = 0; i < sizeof flows_s / sizeof flows_s[0]; i++)
 		run_flow(&flows_s[i], sim_geom_find("128x64"), SIM_MAP_S, "S side keys");
 	printf("# %d flows run\n", flows_run);
+#if CONFIG_RX_AGC
+	audio_annotation_checks();
+#endif
 	about_checks();
 	call_screen_checks();
 #if CONFIG_DMR_TRUNK
