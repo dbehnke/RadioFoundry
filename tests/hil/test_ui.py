@@ -65,6 +65,20 @@ def test_keys_move_the_channel(home):
 
 
 @pytest.mark.feature("ui_navigation")
+def test_contextual_select_menus(home):
+    """The contextual A/B action is ordinary OK on a short press and ordinary OK hold in menus. No RF or writes."""
+    r = home
+    r.press("select_ab")
+    wait_screen(r, "hub", "contextual Select opens the Hub")
+    r.press("select_ab")
+    wait_screen(r, "contacts", "contextual Select opens Contacts")
+    r.press("back")
+    wait_screen(r, "hub")
+    r.press("select_ab", LONG)
+    wait_screen(r, "contacts", "contextual Select hold keeps menu OK behavior")
+
+
+@pytest.mark.feature("ui_navigation")
 def test_hub_and_back(home):
     """OK opens the Hub (seven destinations, numbered); a digit opens one; BACK goes up one level; long BACK goes Home
     from any depth (information-architecture.md, key meanings). A radio without a CONTEXT key has Last caller first,

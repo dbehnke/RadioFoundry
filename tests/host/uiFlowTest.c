@@ -96,6 +96,64 @@ static const flow_t flows[] = {
 	  "shows=1234 shows=-84_dBm", 0, false },
 #endif
 #endif
+	{ "Context Select opens Home menu", "", "selectab", "screen=hub", 1, false },
+	{ "Context Select opens menu row", "selectab", "selectab", "screen=contacts", 1, false },
+	{ "Context Select hold in channel Home explains A/B", "", "long:selectab",
+	  "screen=home vfo=0 toast=A/B:_use_VFO_or_dual_watch", 1, false },
+	{ "Context Select respects key lock", "long:quick", "selectab", "screen=home locked=1", 1, false },
+#if CONFIG_VFO && CONFIG_DUAL_WATCH
+	{ "Context Select hold swaps standalone VFO", "vfokey", "long:selectab",
+	  "screen=home vfo=1 vfoindex=1 dual=0", 1, false },
+	{ "Context Select hold swaps standalone VFO back", "vfokey long:selectab", "long:selectab",
+	  "screen=home vfo=1 vfoindex=0 dual=0", 1, false },
+	{ "Context Select hold preserves normal Home entry behavior", "vfokey 1 4 6 5 5", "long:selectab",
+	  "screen=home vfoindex=0 freq=146520000 entry=14655", 1, false },
+	{ "Context Select hold stops scan and swaps VFO", "vfokey scankey", "long:selectab",
+	  "vfoindex=1 scanning=0", 1, false },
+	{ "Context Select hold during PTT leaves VFO alone", "vfokey pttdown", "long:selectab",
+	  "vfoindex=0", 1, false },
+#endif
+#if CONFIG_DUAL_WATCH
+	{ "Context Select hold selects other dual pane", "quick 7", "long:selectab",
+	  "screen=home dual=1 sel=B", 1, false },
+	{ "Context Select press with dual watch opens menu", "quick 7", "selectab",
+	  "screen=hub dual=1 sel=A", 1, false },
+	{ "Context Select hold during dual PTT keeps selection", "quick 7 pttdown", "long:selectab",
+	  "dual=1 sel=A", 1, false },
+#endif
+#if CONFIG_CHANNEL_EDIT
+	{ "Long Back asks before leaving a dirty channel", "ok 4 ctx ctx 3", "long:back",
+	  "screen=discard writes=0", 1, false },
+	{ "Long Back discard confirmation reaches Home", "ok 4 ctx ctx 3 long:back", "down selectab",
+	  "screen=home writes=0", 2, false },
+	{ "Long Back discard No keeps editing", "ok 4 ctx ctx 3 long:back", "selectab",
+	  "screen=channel writes=0", 1, false },
+	{ "Long Back asks over nested channel name entry", "ok 4 ctx ctx 3 ok", "long:back",
+	  "screen=discard writes=0", 1, false },
+	{ "Long Back asks about pending channel name only", "ok 5 ok ok 2", "long:back",
+	  "screen=discard writes=0", 1, false },
+	{ "Long Back No resumes pending channel text", "ok 5 ok ok 2 long:back", "ok",
+	  "screen=text shows=COUNTY_DMRA writes=0", 1, false },
+	{ "Long Back Back resumes pending channel text", "ok 5 ok ok 2 long:back", "back",
+	  "screen=text shows=COUNTY_DMRA writes=0", 1, false },
+	{ "Long Back Yes discards pending channel text", "ok 5 ok ok 2 long:back", "down ok",
+	  "screen=home writes=0", 2, false },
+	{ "Long Back No retains dirty channel and pending text", "ok 4 ctx ctx 3 ok 2 long:back", "ok",
+	  "screen=text depth=5 writes=0", 1, false },
+	{ "Deep editor reserves space for discard confirmation", "ok 4 ctx ctx 3 ok 2", "long:back",
+	  "screen=discard depth=6 writes=0", 1, false },
+#if CONFIG_CONTACT_EDIT
+	{ "Long Back No retains pending contact name", "ok 1 ok ok 2 long:back", "ok",
+	  "screen=text showsraw=A_ writes=0", 1, false },
+	{ "Long Back Yes discards pending contact name", "ok 1 ok ok 2 long:back", "down ok",
+	  "screen=home writes=0", 2, false },
+#endif
+	{ "Context Select hold saves like OK", "ok 5 up up up ok", "long:selectab",
+	  "writes=1 toast=Saved_as_channel_41", 1, true },
+	{ "Context Select in discard dialog keeps edits", "ok 4 ctx ctx 3 back", "selectab",
+	  "screen=channel writes=0", 1, false },
+#endif
+
 #if CONFIG_SATELLITE_TLE
 	{ "Satellite asks to load TLEs when the store is empty", "satempty", "ok 6 9",
 	  "screen=satellite-passes shows=No_TLEs:_load_from_site", 4, false },
@@ -1540,10 +1598,12 @@ static const flow_t flows_k[] = {
 	  "set47=17 shows=VFO/Channel", 1, false },
 	{ "K top key hold: call back last", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=12 shows=Call_back",
 	  1, false },
-	{ "K top key hold wraps to default", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=0", 1,
+	{ "K top key hold wraps to default", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=0", 1,
 	  false },
 	{ "K top key hold: TG name / number after call back", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok",
 	  "set47=19 shows=TG_name", 1, false },
+	{ "K top key hold offers Back before wrapping", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok",
+	  "shows=Back", 1, false },
 	{ "K a key set to power", "", "powerkey", "power=5", 1, false },
 	{ "K a key set to power, long", "", "long:powerkey", "power=5", 1, false },
 	{ "K a key set to the next zone", "", "zone+", "zone=1", 1, false },
@@ -1880,7 +1940,13 @@ static void crawl(const sim_geom_t *g, sim_map_t map, const char *mapname)
 			}
 		}
 		snprintf(path, sizeof path, "%s long:back", nodes[i].path);
-		if (replay(g, map, path, &s1) && (s1.depth != 0 || strcmp(s1.screen, "home") != 0) &&
+		bool home_replayed = replay(g, map, path, &s1);
+		if (home_replayed && strcmp(s1.screen, "discard") == 0) {
+			// A dirty editor keeps its confirmation even when Home is requested over another screen.
+			snprintf(path, sizeof path, "%s long:back down ok", nodes[i].path);
+			home_replayed = replay(g, map, path, &s1);
+		}
+		if (home_replayed && (s1.depth != 0 || strcmp(s1.screen, "home") != 0) &&
 				strcmp(s0.screen, "hotspot") != 0) {
 			printf("FAIL crawl [%s] %s: long BACK doesn't reach Home (P4)\n", mapname, s0.screen);
 			fails++;

@@ -201,6 +201,7 @@ typedef enum {
 	RREQ_AIR_TX,		// ... arg 1 key (arg2: the longest time in ms), 0 unkey
 	RREQ_NXDN_SET,		// radio_task.c: the pending NXDN settings were copied (radio_nxdn_set_settings); applied here
 	RREQ_P25_PARROT,		// local codec diagnostic; never keys the transmitter
+	RREQ_VFO_SWAP,		// select the other standalone VFO memory; never starts dual watch
 	// New request types go above
 
 	RREQ_COUNT		// KEEP LAST: sizes req_flags[] (radio_sm.c)

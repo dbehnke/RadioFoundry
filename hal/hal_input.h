@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // Input: the board reports which physical keys are down and how far the encoder moved; core/input turns that
 // into logical actions with gestures through the board's key map (docs/ux/information-architecture.md section 2)
 #ifndef HAL_INPUT_H
@@ -31,6 +32,7 @@ typedef enum {
 	// A home key with a function set (board.home_keys, keyassign.h): the UI turns it into that function on Home and
 	// back into the key's own action elsewhere. The gesture says press or long press
 	ACT_HOME_KEY_1, ACT_HOME_KEY_2, ACT_HOME_KEY_3, ACT_HOME_KEY_4,
+	ACT_SELECT_AB,		// Select normally; Home hold selects the other A/B memory or pane
 	ACT_COUNT
 } input_action_t;
 

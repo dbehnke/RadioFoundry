@@ -8702,6 +8702,19 @@ static void vfo_request(radio_sm_t *sm, const radio_req_t *req, bool busy, uint3
 	}
 }
 
+#if CONFIG_DUAL_WATCH
+static void vfo_swap_request(radio_sm_t *sm, bool busy, uint32_t now_ms)
+{
+	if (busy || !VFO_AVAILABLE || !sm->view.vfo || dual_running(sm)) {
+		return;
+	}
+	// Stop a standalone frequency scan before swapping; a rejected request must leave dual watch running.
+	scan_stop(sm, false, now_ms);
+	vfo_use(sm, (uint8_t)!sm->vfo_idx);
+	enter_vfo(sm, now_ms);
+}
+#endif
+
 static void vfo_set_request(radio_sm_t *sm, const radio_req_t *req, bool busy, uint32_t now_ms)
 {
 	if (busy || !VFO_AVAILABLE || req->arg <= 0 || !board_in_band((uint32_t)req->arg, false)) {
@@ -9386,6 +9399,9 @@ void radio_sm_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_ms)
 	case RREQ_ZONE_POS: zone_pos_request(sm, req, busy, now_ms); break;
 	case RREQ_ZONE: zone_request(sm, req, busy, now_ms); break;
 	case RREQ_VFO: vfo_request(sm, req, busy, now_ms); break;
+#if CONFIG_DUAL_WATCH
+	case RREQ_VFO_SWAP: vfo_swap_request(sm, busy, now_ms); break;
+#endif
 	case RREQ_VFO_COPY:
 		if (!busy) {
 			vfo_copy(sm, now_ms);

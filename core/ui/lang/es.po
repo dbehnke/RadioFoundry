@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 The RadioFoundry Authors
+# Copyright (c) 2026 David Behnke
 #
 # The radio's strings in Español (es; docs/dev/translating.md). Kept in step with the source by
 # tools/i18n.py --sync: translate the empty msgstr lines; an empty one shows the English.
@@ -696,6 +697,11 @@ msgstr "PTT inactivo bloqueado: mantener Atrás para abrir"
 msgctxt "LOCK_TOAST_UNLOCKED"
 msgid "Keys unlocked"
 msgstr "Teclas desbloq."
+
+#: core/ui/ui_app.c
+msgctxt "HOME_WHY_AB_NEEDS_VFO_OR_DUAL"
+msgid "A/B: use VFO or dual watch"
+msgstr "A/B: use VFO o escucha dual"
 
 #: core/ui/ui_app.c
 msgctxt "TALK_WHY_DMR_CHANNELS_ONLY"
@@ -3906,6 +3912,11 @@ msgstr "Rellamar"
 msgctxt "KEYFN_VALUE_TG_NAME_NUMBER"
 msgid "TG name / number"
 msgstr "Nombre / número TG"
+
+#: core/ui/ui_menus.c
+msgctxt "KEYFN_VALUE_BACK"
+msgid "Back"
+msgstr "Atrás"
 
 #: core/ui/ui_menus.c core/ui/ui_screens.c
 msgctxt "TITLE_EMERGENCY"

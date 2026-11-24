@@ -1518,6 +1518,16 @@ void radio_req_vfo(bool on)
 	t3_view();
 #endif
 }
+#if CONFIG_VFO && CONFIG_DUAL_WATCH
+void radio_req_vfo_swap(void)
+{
+	if (!view.vfo || view.scan == 3 || view.state == RS_TX)
+		return;
+	view.scan = 0;	// a standalone scan stops before the memory swap
+	sim_vfo_use(!view.vfo_index);
+	sim_vfo(true);
+}
+#endif
 static void sim_vfo(bool on)
 {
 	view.vfo = on;
@@ -2917,7 +2927,7 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 
 static const struct { const char *name; uint8_t action; } keys[] = {
 	{ "up", ACT_NAV_UP }, { "down", ACT_NAV_DOWN }, { "left", ACT_NAV_LEFT }, { "right", ACT_NAV_RIGHT },
-	{ "ok", ACT_SELECT }, { "back", ACT_BACK }, { "quick", ACT_QUICK }, { "ctx", ACT_CONTEXT },
+	{ "ok", ACT_SELECT }, { "selectab", ACT_SELECT_AB }, { "back", ACT_BACK }, { "quick", ACT_QUICK }, { "ctx", ACT_CONTEXT },
 	{ "tt", ACT_TALK_TARGET }, { "mon", ACT_MONITOR }, { "emerg", ACT_EMERGENCY }, { "user1", ACT_USER_1 },
 	{ "user2", ACT_USER_2 }, { "user3", ACT_USER_3 }, { "user4", ACT_USER_4 },
 	// what a reassigned side key sends (core/input/keyassign.h)
@@ -2936,6 +2946,8 @@ static const struct { const char *name; uint8_t action; } keys[] = {
 
 static bool on_map(uint8_t action, bool lng)
 {
+	if (action == ACT_SELECT_AB)
+		return true;
 	if ((action >= ACT_POWER && action <= ACT_VOLUME) || action == ACT_VFO_TOGGLE || action == ACT_DUAL_WATCH ||
 	    action == ACT_AB || action == ACT_TALK_TARGET || action == ACT_TALK_LABEL ||
 	    action == ACT_SCAN_SKIP || action == ACT_MONITOR_TOGGLE)
@@ -3040,6 +3052,7 @@ static bool check(const char *kv, char *err, size_t len)
 	else if (strcmp(key, "focus") == 0) { snprintf(got, sizeof got, "%s", ui_app_focus_label()); prefix = true; }
 	else if (strcmp(key, "zone") == 0) snprintf(got, sizeof got, "%u", view.zone_index);
 	else if (strcmp(key, "pos") == 0) snprintf(got, sizeof got, "%u", view.zone_pos + 1u);
+	else if (strcmp(key, "vfoindex") == 0) snprintf(got, sizeof got, "%u", view.vfo_index);
 	else if (strcmp(key, "vfo") == 0) snprintf(got, sizeof got, "%u", view.vfo);
 	else if (strcmp(key, "freq") == 0) snprintf(got, sizeof got, "%u", (unsigned)view.ch.rx_hz);
 	else if (strcmp(key, "txfreq") == 0) snprintf(got, sizeof got, "%u", (unsigned)view.ch.tx_hz);

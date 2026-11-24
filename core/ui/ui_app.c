@@ -52,7 +52,8 @@ ui_state_t ui_st;
 ui_target_t ui_target;
 static const radio_view_t *view;
 static const radio_view_t view_none;	// until the first tick (const: flash, not RAM)
-static ui_frame_t stack[UI_STACK_MAX];
+// A discard question must not replace the pending editor even at the normal depth limit.
+static ui_frame_t stack[UI_STACK_MAX + CONFIG_CHANNEL_EDIT];
 static uint8_t sp;			// stack[sp] is on screen; stack[0] is Home
 static uint32_t toast_until, entry_last, last_refresh, now;
 #if CONFIG_VOLUME_BAR
@@ -169,7 +170,11 @@ static void left(uint8_t from)
 
 void ui_push(uint8_t scr, uint16_t arg)
 {
-	if (sp + 1 >= UI_STACK_MAX) {
+	if (sp + 1 >= UI_STACK_MAX
+#if CONFIG_CHANNEL_EDIT
+	    && !(scr == SCR_DISCARD && sp == UI_STACK_MAX - 1)
+#endif
+	) {
 		left(UI_STACK_MAX - 1);
 		sp = UI_STACK_MAX - 2;	// never deeper than the stack: the oldest levels stay, the newest is replaced
 	}
@@ -2143,6 +2148,14 @@ static void call_back_key(void)
 
 void ui_app_key(const input_event_t *ev)
 {
+	// A contextual Select key keeps every screen's normal OK behavior. Only an idle Home hold selects A/B.
+	bool select_ab = ev->action == ACT_SELECT_AB;
+	input_event_t select_ev;
+	if (select_ab) {
+		select_ev = *ev;
+		select_ev.action = ACT_SELECT;
+		ev = &select_ev;
+	}
 	// A programmed home key (P1, P2: board.home_keys): its function on Home, its arrow everywhere else. Home is the
 	// bottom of the stack, not while a frequency is typed there
 	input_event_t home_ev;
@@ -2233,8 +2246,37 @@ void ui_app_key(const input_event_t *ev)
 		return;
 	}
 #endif
+	if (select_ab && ev->gesture == GESTURE_LONG && sp == 0 && !ui_st.entry) {
+		if (ptt_held || view->state == RS_TX)
+			return;
+#if CONFIG_DUAL_WATCH
+		if (ui_st.dual.on) {
+			ui_dual_ab_key();
+			return;
+		}
+#if CONFIG_VFO
+		if (view->vfo) {
+			radio_req_vfo_swap();
+			return;
+		}
+#endif
+#endif
+		ui_toast(TR(HOME_WHY_AB_NEEDS_VFO_OR_DUAL, "A/B: use VFO or dual watch"));
+		return;
+	}
 	// Long BACK = Home from anywhere; long CONTEXT = the talk target picker (P3; as the keycap and the AnyTone radios)
 	if (ev->action == ACT_BACK && ev->gesture == GESTURE_LONG) {
+		if (stack[sp].scr == SCR_DISCARD)
+			return;
+		bool text_open = false;
+		for (uint8_t i = sp; i > 0; i--)
+			text_open |= stack[i].scr == SCR_TEXT;
+		for (uint8_t i = sp; i > 0; i--) {
+			if (ui_menus_home_leave(stack[i].scr, text_open)) {
+				ui_push(SCR_DISCARD, 0);
+				return;
+			}
+		}
 		ui_go_home();
 		return;
 	}

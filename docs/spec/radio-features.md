@@ -120,6 +120,9 @@ There are two VFOs, so each channel can have its own: a VFO ref's `pos` says whi
 the one in use in `vfo_ch` and the other in `vfo_other`; a hop to a VFO pane swaps them first. Both are saved, with
 the one in use (`settings-store.md` 3, second VFO). Outside dual watch the VFO key opens the one last used. Copy to
 VFO during the watch copies into a VFO the other channel isn't on: the one last used, else the other.
+`radio_req_vfo_swap()` selects the other standalone VFO memory without starting dual watch. It is ignored on a
+channel, during dual watch, while transmitting or in hotspot mode, and when VFO or two-memory support is absent.
+A valid swap stops a standalone frequency scan first. Each memory retains its own settings.
 
 | Event | What happens |
 |---|---|
