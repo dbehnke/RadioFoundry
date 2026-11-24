@@ -16,7 +16,7 @@
 #include "dsp/speech_meter.h"
 #endif
 
-#define P25_TX_TARGET_RMS	1843u	// -25 dBFS relative to 32768
+#define P25_TX_TARGET_RMS	3277u	// -20 dBFS relative to 32768
 
 // the call layer packs what a frame's codes corrected as the decoder reads it
 _Static_assert(P25_VOICE_ERRS(11, 2, 1) == IMBE_ERRS(11, 2, 1) && P25_VOICE_ERRS(15, 3, 1) != IMBE_ERRS_LOST,
