@@ -253,7 +253,7 @@ def package_readme(version, parrot, without_aes):
                   'Open Settings > Advanced > P25 calibration. Press OK on Record speech and speak continuously.\n'
                   'After a 100 ms startup discard it records up to two seconds once, then automatically tests five AGC targets.\n'
                   'Each target replays the same phrase twice for warmup and once for measurement, then decodes all three.\n'
-                  'A sixth pass verifies an interpolated target against the decoded goal of -25 dBFS (+/-1 dB).\n'
+                  'A sixth pass verifies the selected target against the decoded goal of -25 dBFS (+/-1 dB).\n'
                   'Allow about 80 seconds for a full calibration. Report status, Suggested AGC target, all candidate encoder/decoded speech levels,\n'
                   'PCM gain and Limited blocks, plus mic DC and recording/startup rail counts.\n'
                   'An invalid result has no recommendation. The energy gate is not a speech classifier: use clear speech in a quiet room.\n'
