@@ -25,6 +25,14 @@ The local ZIP is not automatically uploaded to GitHub by pushing this tag.
 
 ## November 24, 2026
 
+### Upstream synchronization after the tagged test build
+
+- Merged upstream through `bac4b209`, including the FM Home receive-frequency/offset display change (#1043).
+- Reviewed upstream's microphone/P25 limiter follow-up (#1054). Kept the fork's existing shared DSP limiter,
+  computed DC removal, manual P25 gain handling and -20 dBFS microphone AGC target in overlapping code.
+  The AMBE board correction is not added to P25. Existing audio regression tests remain authoritative.
+- These changes are newer than the firmware tag listed above.
+
 ### Receive display rollback after the tagged test build
 
 - Removed the digital RF signal-display enhancement because the added information crowded the display.
