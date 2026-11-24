@@ -3385,6 +3385,56 @@ msgid "Limited blocks"
 msgstr "限制次数"
 
 #: core/ui/ui_menus.c
+msgctxt "P25_PARROT_MIC_DC"
+msgid "Mic DC mean"
+msgstr "麦克风 DC 均值"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_DC_PEAK"
+msgid "Max block DC"
+msgstr "最大 DC 均值"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_RAILS"
+msgid "Mic rail samples"
+msgstr "麦克风上下限计数"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_MIC_AC"
+msgid "Mic AC dBFS"
+msgstr "麦克风 AC dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_MIC_SPEECH"
+msgid "Mic speech dBFS"
+msgstr "麦克风语音 dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_ENC_SPEECH"
+msgid "Enc speech dBFS"
+msgstr "编码语音 dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_DEC_SPEECH"
+msgid "Dec speech dBFS"
+msgstr "解码语音 dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_MIC_BLOCKS"
+msgid "Mic active blocks"
+msgstr "麦克风有效组数"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_ENC_BLOCKS"
+msgid "Enc active blocks"
+msgstr "编码有效组数"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_DEC_BLOCKS"
+msgid "Dec active blocks"
+msgstr "解码有效组数"
+
+#: core/ui/ui_menus.c
 msgctxt "P25_PARROT_TITLE"
 msgid "Codec diagnostic"
 msgstr "编解码测试"

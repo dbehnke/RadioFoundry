@@ -206,6 +206,20 @@ When the keys lock by themselves and what still works while they are locked ([Ke
 
 #### Reporting a codec diagnostic
 
+<img src="../ux/screens/160x120i5/p25_parrot_speech.png" width="320" alt="Codec diagnostic showing DC and speech measurements">
+
+The original RMS readings average the whole recording, including pauses. For comparison with incoming digital
+speech, also report **Mic speech dBFS**, **Enc speech dBFS**, **Dec speech dBFS**, and their **active blocks**.
+These use the receive meter's energy estimate before receive gain. At least 15 qualifying blocks are needed;
+otherwise the speech value shows `--`. Values are held after playback. Use the same phrase and compare settled
+speech rather than a momentary reading. Loud background noise can count as active audio.
+
+Also report **Mic DC mean**, **Max block DC**, **Mic AC dBFS**, and **Mic rail samples**. DC values are sample units,
+not dBFS. A large difference between **Mic RMS dBFS** and **Mic AC dBFS** suggests steady bias is inflating the raw
+level. The maximum block value can reveal changing bias even when the overall mean is near zero. Rail samples
+indicate samples at the digital limits; zero does not rule out microphone distortion. Run a separate silence
+capture and a spoken capture with the same settings. The measurements do not alter transmitted audio.
+
 For comparisons, speak the same phrase at the same distance and volume, and record for about the same duration. Once
 playback finishes, scroll through the results and note the mode, duration, **Test AGC**, **Test target dBFS** or
 **Test mic step**, the mic, encoder and decoded RMS and peak readings, **Last PCM gain**, and **Limited blocks**.

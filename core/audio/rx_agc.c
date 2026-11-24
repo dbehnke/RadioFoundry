@@ -5,12 +5,12 @@
 #include <stddef.h>
 #include <string.h>
 #include "hal_audio.h"
+#include "dsp/speech_meter.h"
 
 #define GAIN_LIMIT (24 * 256)
-#define SPEECH_FLOOR (-55 * 256)
-#define ACQUIRE_BLOCKS 15u
+#define SPEECH_FLOOR SPEECH_FLOOR_Q8
+#define ACQUIRE_BLOCKS SPEECH_ACQUIRE_BLOCKS
 #define HOLD_BLOCKS 50u
-#define AVERAGE_BLOCKS 75u // 1.5 seconds of active speech
 #define GAIN_DEADBAND 128 // half a dB; preserve normal syllable variation
 #define PEAK_LIMIT 29204u // -1 dBFS headroom
 #define LOAD(x) __atomic_load_n(&(x), __ATOMIC_ACQUIRE)
@@ -52,53 +52,6 @@ static uint16_t scale(int16_t gain)
 	if (i == 48u)
 		return scales[i];
 	return (uint16_t)(scales[i] + (uint32_t)(scales[i + 1] - scales[i]) * (pos % 256u) / 256u);
-}
-
-static uint32_t power(const int16_t *pcm, uint32_t *raw)
-{
-	int32_t mean = 0;
-	uint64_t raw_energy = 0;
-	for (unsigned i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
-		mean += pcm[i];
-		if (raw)
-			raw_energy += (uint32_t)((int32_t)pcm[i] * pcm[i]);
-	}
-	if (raw)
-		*raw = (uint32_t)((raw_energy + AUDIO_BLOCK_SAMPLES - 1u) / AUDIO_BLOCK_SAMPLES);
-	mean /= AUDIO_BLOCK_SAMPLES;
-	uint64_t energy = 0;
-	for (unsigned i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
-		int32_t v = (int32_t)pcm[i] - mean;
-		energy += (uint64_t)((int64_t)v * v);
-	}
-	return (uint32_t)(energy / AUDIO_BLOCK_SAMPLES);
-}
-
-// 10 log10(mean square / 32768^2), Q8. Binary logarithm avoids floating point in the audio callback.
-static int16_t level(uint32_t power)
-{
-	if (power == 0)
-		return RX_AGC_SILENT * 256;
-	unsigned bit = 0;
-	for (uint32_t v = power; v > 1; v >>= 1)
-		bit++;
-	uint32_t v = bit > 16 ? power >> (bit - 16) : power << (16 - bit);
-	int32_t log = (int32_t)bit * 256;
-	for (unsigned f = 128; f != 0; f >>= 1) {
-		v = (uint32_t)(((uint64_t)v * v) >> 16);
-		if (v >= 131072u) {
-			v >>= 1;
-			log += (int32_t)f;
-		}
-	}
-	return (int16_t)((log - 30 * 256) * 771 / 256);
-}
-
-// Average energy before converting to dB, so quiet syllables do not bias the talker estimate downward.
-static uint32_t average(uint32_t previous, uint32_t current, unsigned blocks)
-{
-	unsigned divisor = blocks < ACQUIRE_BLOCKS ? blocks + 1 : AVERAGE_BLOCKS;
-	return (uint32_t)((int32_t)previous + ((int32_t)current - (int32_t)previous) / (int32_t)divisor);
 }
 
 // Round RMS up and the gain down: the guard must never underestimate a corrupt block's energy.
@@ -211,13 +164,13 @@ void rx_agc_process(rx_agc_t *s, int16_t *pcm, bool learn)
 		s->choice = choice;
 	}
 	uint32_t raw_power;
-	uint32_t input_power = power(pcm, &raw_power);
+	uint32_t input_power = speech_power(pcm, AUDIO_BLOCK_SAMPLES, &raw_power);
 	bool acquiring = s->speech_blocks < ACQUIRE_BLOCKS;
-	int16_t input = level(input_power);
+	int16_t input = speech_level_q8(input_power);
 	bool speech = learn && input >= SPEECH_FLOOR;
 	if (speech) {
-		s->input_power = average(s->input_power, input_power, s->speech_blocks);
-		s->input_q8 = level(s->input_power);
+		s->input_power = speech_average(s->input_power, input_power, s->speech_blocks);
+		s->input_q8 = speech_level_q8(s->input_power);
 		int16_t desired = clamp_gain(targets[choice] * 256 - s->input_q8);
 		if (choice) {
 			int32_t delta = desired - s->gain_q8;
@@ -259,8 +212,8 @@ void rx_agc_process(rx_agc_t *s, int16_t *pcm, bool learn)
 		s->scale_q12 = 4096;
 	}
 	if (speech) {
-		s->output_power = average(s->output_power, power(pcm, NULL), s->speech_blocks - 1u);
-		s->output_q8 = level(s->output_power);
+		s->output_power = speech_average(s->output_power, speech_power(pcm, AUDIO_BLOCK_SAMPLES, NULL), s->speech_blocks - 1u);
+		s->output_q8 = speech_level_q8(s->output_power);
 		s->measured = true;
 	}
 	if (++s->display_blocks >= 12 || !s->measured) {

@@ -20,6 +20,7 @@
 #include "p25/p25_codeplug.h"
 #if CONFIG_P25_PARROT
 #include "dsp/tx_level.h"
+#include "dsp/speech_meter.h"
 #endif
 #endif
 #include "dmr/dmrDataService.h"
@@ -5618,7 +5619,11 @@ enum {
 	PARROT_ROW_MODE, PARROT_ROW_RECORD, PARROT_ROW_AGC, PARROT_ROW_TARGET, PARROT_ROW_STATUS,
 	PARROT_ROW_MIC_RMS, PARROT_ROW_ENC_RMS, PARROT_ROW_DEC_RMS, PARROT_ROW_TEST_AGC,
 	PARROT_ROW_TEST_TARGET, PARROT_ROW_TEST_MIC, PARROT_ROW_MIC_PEAK, PARROT_ROW_ENC_PEAK,
-	PARROT_ROW_DEC_PEAK, PARROT_ROW_GAIN, PARROT_ROW_LIMITED, PARROT_ROW_COUNT,
+	PARROT_ROW_DEC_PEAK, PARROT_ROW_GAIN, PARROT_ROW_LIMITED,
+	PARROT_ROW_MIC_DC, PARROT_ROW_DC_PEAK, PARROT_ROW_MIC_AC,
+	PARROT_ROW_MIC_SPEECH, PARROT_ROW_ENC_SPEECH, PARROT_ROW_DEC_SPEECH,
+	PARROT_ROW_MIC_BLOCKS, PARROT_ROW_ENC_BLOCKS, PARROT_ROW_DEC_BLOCKS,
+	PARROT_ROW_RAILS, PARROT_ROW_COUNT,
 };
 static bool parrot_ui_agc = true;
 static int8_t parrot_ui_target = -25;
@@ -5720,10 +5725,33 @@ static void parrot_ui_item(uint16_t i, ui_item_t *it)
 			sbuf_t b; sb_init(&b, it->value, sizeof it->value);
 			sb_u32(&b, gain100 / 100, 1); sb_chr(&b, '.'); sb_u32(&b, gain100 % 100, 2); sb_chr(&b, 'x');
 		}
-	} else {
+	} else if (i == PARROT_ROW_LIMITED) {
 		str_copy(it->label, sizeof it->label, TR(P25_PARROT_LIMITED, "Limited blocks"));
 		if (v.frames == 0 || !v.limiter) str_copy(it->value, sizeof it->value, "--");
 		else { sbuf_t b; sb_init(&b, it->value, sizeof it->value); sb_u32(&b, v.limited_blocks, 1); }
+	} else if (i == PARROT_ROW_MIC_DC || i == PARROT_ROW_DC_PEAK || i == PARROT_ROW_RAILS) {
+		str_copy(it->label, sizeof it->label, i == PARROT_ROW_MIC_DC ? TR(P25_PARROT_MIC_DC, "Mic DC mean") :
+			i == PARROT_ROW_DC_PEAK ? TR(P25_PARROT_DC_PEAK, "Max block DC") : TR(P25_PARROT_RAILS, "Mic rail samples"));
+		if (v.frames == 0) str_copy(it->value, sizeof it->value, "--");
+		else {
+			sbuf_t b; sb_init(&b, it->value, sizeof it->value);
+			if (i == PARROT_ROW_MIC_DC) sb_i32(&b, v.mic_mean);
+			else sb_u32(&b, i == PARROT_ROW_DC_PEAK ? v.mic_dc_peak : v.input_rail_samples, 1);
+		}
+	} else if (i == PARROT_ROW_MIC_AC) {
+		str_copy(it->label, sizeof it->label, TR(P25_PARROT_MIC_AC, "Mic AC dBFS"));
+		parrot_ui_db(it->value, sizeof it->value, v.mic_ac_db10);
+	} else if (i <= PARROT_ROW_DEC_SPEECH) {
+		unsigned index = i - PARROT_ROW_MIC_SPEECH;
+		str_copy(it->label, sizeof it->label, index == 0 ? TR(P25_PARROT_MIC_SPEECH, "Mic speech dBFS") :
+			index == 1 ? TR(P25_PARROT_ENC_SPEECH, "Enc speech dBFS") : TR(P25_PARROT_DEC_SPEECH, "Dec speech dBFS"));
+		// Acquisition uses the same 15 qualifying blocks as the receive meter.
+		parrot_ui_db(it->value, sizeof it->value, v.speech_blocks[index] < SPEECH_ACQUIRE_BLOCKS ? -960 : v.speech_db10[index]);
+	} else {
+		unsigned index = i - PARROT_ROW_MIC_BLOCKS;
+		str_copy(it->label, sizeof it->label, index == 0 ? TR(P25_PARROT_MIC_BLOCKS, "Mic active blocks") :
+			index == 1 ? TR(P25_PARROT_ENC_BLOCKS, "Enc active blocks") : TR(P25_PARROT_DEC_BLOCKS, "Dec active blocks"));
+		sbuf_t b; sb_init(&b, it->value, sizeof it->value); sb_u32(&b, v.speech_blocks[index], 1);
 	}
 }
 static void parrot_ui_select(uint16_t i, bool hold)

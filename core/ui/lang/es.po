@@ -3383,6 +3383,56 @@ msgid "Limited blocks"
 msgstr "Bloques limitados"
 
 #: core/ui/ui_menus.c
+msgctxt "P25_PARROT_MIC_DC"
+msgid "Mic DC mean"
+msgstr "Media CC mic."
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_DC_PEAK"
+msgid "Max block DC"
+msgstr "CC máxima bloque"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_RAILS"
+msgid "Mic rail samples"
+msgstr "Muestras al límite"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_MIC_AC"
+msgid "Mic AC dBFS"
+msgstr "CA mic. dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_MIC_SPEECH"
+msgid "Mic speech dBFS"
+msgstr "Voz mic. dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_ENC_SPEECH"
+msgid "Enc speech dBFS"
+msgstr "Voz cod. dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_DEC_SPEECH"
+msgid "Dec speech dBFS"
+msgstr "Voz dec. dBFS"
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_MIC_BLOCKS"
+msgid "Mic active blocks"
+msgstr "Bloques activos mic."
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_ENC_BLOCKS"
+msgid "Enc active blocks"
+msgstr "Bloques activos cod."
+
+#: core/ui/ui_menus.c
+msgctxt "P25_PARROT_DEC_BLOCKS"
+msgid "Dec active blocks"
+msgstr "Bloques activos dec."
+
+#: core/ui/ui_menus.c
 msgctxt "P25_PARROT_TITLE"
 msgid "Codec diagnostic"
 msgstr "Prueba de códec"

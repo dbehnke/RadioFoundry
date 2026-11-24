@@ -4100,7 +4100,7 @@ void ui_svc_p25_parrot_view(p25_parrot_view_t *out)
 {
 	memset(out, 0, sizeof *out);
 	out->state = parrot_sim_state;
-	out->input_db10 = out->encoder_db10 = out->output_db10 = -960;
+	out->input_db10 = out->encoder_db10 = out->output_db10 = out->mic_ac_db10 = -960;
 	if (parrot_sim_state == P25_PARROT_DONE) {
 		out->frames = 100;
 		out->agc = parrot_sim_agc;
@@ -4112,6 +4112,10 @@ void ui_svc_p25_parrot_view(p25_parrot_view_t *out)
 		out->encoder_peak = 28000; out->output_peak = 6500;
 		out->gain_q16 = parrot_sim_agc ? 292946 : 65536;
 		out->limited_blocks = 3;
+		out->mic_mean = -2500; out->mic_dc_peak = 2600; out->mic_ac_db10 = -410;
+		out->input_rail_samples = 2;
+		out->speech_db10[0] = -390; out->speech_db10[1] = -250; out->speech_db10[2] = -260;
+		for (unsigned i = 0; i < 3; i++) out->speech_blocks[i] = 80;
 	}
 }
 #endif

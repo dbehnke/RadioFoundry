@@ -172,14 +172,14 @@ p25TrunkTest: p25TrunkTest.c $(P25TRUNK) $(wildcard $(CORE)/p25/*.h) $(wildcard 
 
 # The P25 voice path: engine frames through the full-rate decoder to PCM blocks (core/p25/p25Voice.c)
 TESTS   += p25VoiceTest p25VoiceLevelTest p25VoiceParrotTest p25ViewTest txLevelTest
-p25VoiceLevelTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/mic_gain.h $(CORE)/p25/p25_parrot.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(CORE)/dsp/tx_level.h $(MBE)
+p25VoiceLevelTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h $(CORE)/dsp/mic_gain.h $(CORE)/p25/p25_parrot.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(CORE)/dsp/tx_level.h $(MBE)
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -o $@ $(CORE)/audio/rx_agc.c p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm
 # Diagnostic leveling remains available with transmit AGC compiled out.
-p25VoiceParrotTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/mic_gain.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(CORE)/p25/p25_parrot.h $(CORE)/dsp/tx_level.h $(MBE)
+p25VoiceParrotTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h $(CORE)/dsp/mic_gain.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(CORE)/p25/p25_parrot.h $(CORE)/dsp/tx_level.h $(MBE)
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=0 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -o $@ $(CORE)/audio/rx_agc.c p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm
 txLevelTest: txLevelTest.c $(CORE)/dsp/tx_level.h $(CORE)/dsp/mic_gain.h
 	$(CC) $(CFLAGS) -Wshadow -o $@ txLevelTest.c -lm
-p25VoiceTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/mic_gain.h $(CORE)/dsp/tx_level.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(MBE) $(wildcard $(CORE)/mbe/*.h)
+p25VoiceTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h $(CORE)/dsp/mic_gain.h $(CORE)/dsp/tx_level.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(MBE) $(wildcard $(CORE)/mbe/*.h)
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -o $@ $(CORE)/audio/rx_agc.c p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm
 P25VIEW := p25ViewTest.c $(CORE)/debuglink/debuglink_view_p25.c $(CORE)/debuglink/dl_fmt.c
 p25ViewTest: $(P25VIEW) $(wildcard $(CORE)/debuglink/*.h) $(CORE)/p25/p25Voice.h $(CORE)/p25/p25_parrot.h \
@@ -737,7 +737,7 @@ ABOUT_H := out/gen/rfoundry_about.h
 $(shell python3 $(ROOT)/tools/gen_about.py $(ROOT)/AUTHORS $(ROOT)/platform/stm32f4/THIRD_PARTY $(ABOUT_H) >/dev/null)
 UIFLAGS := -std=gnu99 -Wall -Wextra -Wno-unused-parameter -Wshadow -g $(COVFLAGS) $(SANFLAGS) -I$(CORE) -I$(ROOT)/hal -I. -Iout/gen \
            '-DGFX_FB_BYTES=(320u*320u*2u)' -DGFX_MAX_ROWS=320 -DCONFIG_FONT_XL=1 -DFONT_BOTH -DGFX_INDEXED=1 -DGFX_FIT_TRACE
-UIDEPS  := $(UIAPP) $(ABOUT_H) $(LANG_H) $(wildcard $(CORE)/ui/*.h $(CORE)/ui/fonts/*.inc sim/ui_sim.h)
+UIDEPS  := $(UIAPP) $(ABOUT_H) $(LANG_H) $(CORE)/dsp/speech_meter.h $(wildcard $(CORE)/ui/*.h $(CORE)/ui/fonts/*.inc sim/ui_sim.h)
 TESTS   += uiFlowTest uiFlowTestNoColor uiSim
 TESTS   += uiFlowTestSatellite
 
@@ -831,14 +831,14 @@ TESTS   += ambeFecTest ambeVoiceTest ambeVoiceCaptureTest ambeVoiceLevelTest
 ambeFecTest: ambeFecTest.c $(CORE)/dmr/ambe/ambeFec.c $(CORE)/dmr/ambe/ambeFec.h
 	$(CC) $(CFLAGS) -Wshadow -o $@ ambeFecTest.c $(CORE)/dmr/ambe/ambeFec.c
 
-ambeVoiceTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/tx_level.h $(CORE)/dsp/mic_gain.h ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/dmr/ambe/ambeVoice.h $(CORE)/dmr/ambe/ambeFec.c \
+ambeVoiceTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h $(CORE)/dsp/tx_level.h $(CORE)/dsp/mic_gain.h ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/dmr/ambe/ambeVoice.h $(CORE)/dmr/ambe/ambeFec.c \
 	       $(ROOT)/drivers/vocoder/ambe2_flags.h $(ROOT)/hal/hal_vocoder.h
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -o $@ $(CORE)/audio/rx_agc.c ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/radio/sigtone.c $(CORE)/radio/beep.c $(CORE)/dmr/ambe/ambeFec.c
 # Exercise the shared fixed-gain limiter through the actual AMBE voice glue.
-ambeVoiceLevelTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/mic_gain.h ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/dmr/ambe/ambeVoice.h $(CORE)/dsp/tx_level.h $(CORE)/dmr/ambe/ambeFec.c
+ambeVoiceLevelTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h $(CORE)/dsp/mic_gain.h ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/dmr/ambe/ambeVoice.h $(CORE)/dsp/tx_level.h $(CORE)/dmr/ambe/ambeFec.c
 	$(CC) $(CFLAGS) -DCONFIG_TX_MIC_LIMITER=1 -I$(ROOT)/hal -Wshadow -o $@ $(CORE)/audio/rx_agc.c ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/radio/sigtone.c $(CORE)/radio/beep.c $(CORE)/dmr/ambe/ambeFec.c
 # The same with the voice capture built (CONFIG_VOICE_CAPTURE)
-ambeVoiceCaptureTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/tx_level.h $(CORE)/dsp/mic_gain.h ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/dmr/ambe/ambeVoice.h $(CORE)/dmr/ambe/ambeFec.c \
+ambeVoiceCaptureTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h $(CORE)/dsp/tx_level.h $(CORE)/dsp/mic_gain.h ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/dmr/ambe/ambeVoice.h $(CORE)/dmr/ambe/ambeFec.c \
 	       $(ROOT)/drivers/vocoder/ambe2_flags.h $(ROOT)/hal/hal_vocoder.h
 	$(CC) $(CFLAGS) -DCONFIG_VOICE_CAPTURE=1 -I$(ROOT)/hal -Wshadow -o $@ $(CORE)/audio/rx_agc.c ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c \
 	      $(CORE)/radio/sigtone.c $(CORE)/radio/beep.c $(CORE)/dmr/ambe/ambeFec.c
@@ -1978,7 +1978,7 @@ run-hrc-pcm: hrc7000PcmTest
 
 # Shared receive speech normalization, using generated PCM only.
 TESTS += rxAgcTest
-rxAgcTest: rxAgcTest.c $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h
+rxAgcTest: rxAgcTest.c $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/speech_meter.h
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -o $@ rxAgcTest.c $(CORE)/audio/rx_agc.c
 run: run-rx-agc
 .PHONY: run-rx-agc

@@ -308,6 +308,7 @@
  "screen.p25_parrot": "P25 codec parrot",
  "screen.p25_parrot_levels": "P25 parrot levels",
  "screen.p25_parrot_report": "P25 parrot report",
+ "screen.p25_parrot_speech": "P25 parrot DC and speech levels",
  "screen.freq_trim": "Frequency trim",
  "screen.freq_trim_typing": "Typing a frequency trim",
  "screen.crash_log": "Crash log",

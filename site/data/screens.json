@@ -920,6 +920,12 @@
     "P25_PARROT"
    ]
   },
+  "p25_parrot_speech": {
+   "group": "settings",
+   "needs": [
+    "P25_PARROT"
+   ]
+  },
   "freq_trim": {
    "group": "settings",
    "needs": [

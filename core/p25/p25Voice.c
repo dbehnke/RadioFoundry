@@ -11,6 +11,9 @@
 #include <string.h>
 #include "dsp/fxp.h"
 #include "dsp/tx_level.h"
+#if CONFIG_P25_PARROT
+#include "dsp/speech_meter.h"
+#endif
 
 #define P25_TX_TARGET_RMS	1843u	// -25 dBFS relative to 32768
 
@@ -288,8 +291,12 @@ static uint8_t parrot_lead;
 static uint16_t parrot_target;
 static uint16_t parrot_gain_q8;
 static uint16_t parrot_progress;
-static p25_parrot_view_t parrot_view = { .input_db10 = -960, .encoder_db10 = -960, .output_db10 = -960 };
-static uint64_t parrot_power[3];
+static p25_parrot_view_t parrot_view = { .input_db10 = -960, .encoder_db10 = -960, .output_db10 = -960,
+	.mic_ac_db10 = -960, .speech_db10 = { -960, -960, -960 } };
+static uint64_t parrot_power[3], parrot_ac_power;
+static int64_t parrot_mic_sum;
+static uint32_t parrot_speech_power[3];
+static uint16_t parrot_speech_blocks[3];
 static uint16_t parrot_count, parrot_played;
 
 static uint8_t *parrot_frame(unsigned n)
@@ -299,6 +306,14 @@ static uint8_t *parrot_frame(unsigned n)
 
 static void parrot_view_reset(void)
 {
+	STORE(parrot_view.mic_mean, 0);
+	STORE(parrot_view.mic_dc_peak, 0);
+	STORE(parrot_view.mic_ac_db10, -960);
+	STORE(parrot_view.input_rail_samples, 0);
+	for (unsigned i = 0; i < 3; i++) {
+		STORE(parrot_view.speech_db10[i], -960);
+		STORE(parrot_view.speech_blocks[i], 0);
+	}
 	STORE(parrot_view.frames, 0);
 	STORE(parrot_view.input_db10, -960);
 	STORE(parrot_view.encoder_db10, -960);
@@ -327,12 +342,44 @@ static void parrot_meter(unsigned index, tx_level_meter_t m)
 	else STORE(parrot_view.output_db10, db);
 }
 
+
+static void parrot_speech(unsigned index, const int16_t *pcm)
+{
+	uint32_t power = speech_power(pcm, AUDIO_BLOCK_SAMPLES, NULL);
+	if (index == 0) {
+		int32_t sum = 0;
+		uint32_t rails = LOAD(parrot_view.input_rail_samples);
+		for (unsigned i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
+			sum += pcm[i];
+			if (pcm[i] == INT16_MIN || pcm[i] == INT16_MAX) rails++;
+		}
+		parrot_mic_sum += sum;
+		int32_t mean = sum / AUDIO_BLOCK_SAMPLES;
+		uint16_t dc = (uint16_t)(mean < 0 ? -mean : mean);
+		if (dc > LOAD(parrot_view.mic_dc_peak)) STORE(parrot_view.mic_dc_peak, dc);
+		STORE(parrot_view.mic_mean, (int16_t)(parrot_mic_sum / ((int32_t)parrot_count * AUDIO_BLOCK_SAMPLES)));
+		STORE(parrot_view.input_rail_samples, rails);
+		parrot_ac_power += power;
+		STORE(parrot_view.mic_ac_db10, tx_level_db10((uint32_t)(parrot_ac_power / parrot_count)));
+	}
+	if (speech_level_q8(power) < SPEECH_FLOOR_Q8) return;
+	unsigned blocks = parrot_speech_blocks[index];
+	parrot_speech_power[index] = speech_average(parrot_speech_power[index], power, blocks);
+	parrot_speech_blocks[index]++;
+	STORE(parrot_view.speech_blocks[index], parrot_speech_blocks[index]);
+	STORE(parrot_view.speech_db10[index], (int16_t)(speech_level_q8(parrot_speech_power[index]) * 10 / 256));
+}
+
 static void parrot_block(const int16_t *mic, int16_t *spk)
 {
 	uint8_t command = LOAD(parrot_command);
 	if (command == 1) {
 		uint32_t manual = (uint32_t)parrot_gain_q8 << 8;
 		memset(parrot_power, 0, sizeof parrot_power);
+		memset(parrot_speech_power, 0, sizeof parrot_speech_power);
+		memset(parrot_speech_blocks, 0, sizeof parrot_speech_blocks);
+		parrot_mic_sum = 0;
+		parrot_ac_power = 0;
 		parrot_count = parrot_played = 0;
 		imbe_enc_init(&enc);
 		tx_level_reset(&input_level, parrot_agc ? TX_LEVEL_UNITY : manual);
@@ -352,6 +399,8 @@ static void parrot_block(const int16_t *mic, int16_t *spk)
 		// The driver consumes this buffer after the callback. Use it as scratch and return silence.
 		input_block(mic, spk, parrot_gain_q8, parrot_agc ? parrot_target : 0, &raw);
 		imbe_enc_frame(&enc, spk, parrot_frame(parrot_count++));
+		parrot_speech(0, mic);
+		parrot_speech(1, spk);
 		parrot_meter(0, raw);
 		parrot_meter(1, tx_level_measure(spk, AUDIO_BLOCK_SAMPLES, true));
 		STORE(parrot_view.frames, parrot_count);
@@ -363,6 +412,7 @@ static void parrot_block(const int16_t *mic, int16_t *spk)
 		silence(spk);
 	} else if (state == P25_PARROT_PLAY && parrot_played < parrot_count) {
 		imbe_dec_frame(&dec, parrot_frame(parrot_played++), 0, spk);
+		parrot_speech(2, spk);
 		parrot_meter(2, tx_level_measure(spk, AUDIO_BLOCK_SAMPLES, true));
 	} else {
 		silence(spk);
@@ -535,6 +585,14 @@ uint16_t p25VoiceParrotProgress(void) { return LOAD(parrot_progress); }
 
 void p25VoiceParrotView(p25_parrot_view_t *out)
 {
+	out->mic_mean = LOAD(parrot_view.mic_mean);
+	out->mic_ac_db10 = LOAD(parrot_view.mic_ac_db10);
+	out->mic_dc_peak = LOAD(parrot_view.mic_dc_peak);
+	out->input_rail_samples = LOAD(parrot_view.input_rail_samples);
+	for (unsigned i = 0; i < 3; i++) {
+		out->speech_db10[i] = LOAD(parrot_view.speech_db10[i]);
+		out->speech_blocks[i] = LOAD(parrot_view.speech_blocks[i]);
+	}
 	out->frames = LOAD(parrot_view.frames);
 	out->input_db10 = LOAD(parrot_view.input_db10);
 	out->encoder_db10 = LOAD(parrot_view.encoder_db10);

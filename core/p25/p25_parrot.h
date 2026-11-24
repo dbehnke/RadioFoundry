@@ -16,5 +16,11 @@ typedef struct {
 	bool agc, limiter;
 	int8_t target_dbfs;
 	uint8_t mic_step;
+	int16_t mic_mean, mic_ac_db10;
+	uint16_t mic_dc_peak;
+	uint32_t input_rail_samples;
+	// Mic, encoder and decoded PCM: mean-removed, gated energy, using the receive meter's rules.
+	int16_t speech_db10[3];
+	uint16_t speech_blocks[3];
 } p25_parrot_view_t;
 #endif
