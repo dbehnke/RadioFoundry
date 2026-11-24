@@ -1150,6 +1150,27 @@ def test_p25_parrot_level_report(radio):
         skip("state", "owner must finish a local codec diagnostic capture first")
     if "p25parrot.dc" not in values:
         skip("not_built", "firmware predates the extended codec level report")
+    if values.get("p25parrot.mode") == "P25/calibration":
+        status = int(values["p25parrot.cal_status"])
+        passes = int(values["p25parrot.cal_pass"])
+        frames = int(values["p25parrot.frames"])
+        assert 2 <= status <= 6 and 0 <= passes <= 6 and 0 <= frames <= 100
+        assert values["p25parrot.agc"] == values["p25parrot.dc"] == "1"
+        assert 0 <= int(values["p25parrot.rail_samples"]) <= frames * 160
+        assert 0 <= int(values["p25parrot.startup_rails"]) <= 800
+        for i in range(passes):
+            row = tuple(int(n) for n in values[f"p25parrot.cal{i}"].split(","))
+            assert len(row) == 6
+            assert -350 <= row[0] <= -150 and -960 <= row[1] <= 1 and -960 <= row[2] <= 1
+            assert 25 <= row[3] <= frames and 0 <= row[4] <= row[3] and row[5] > 0
+        if status == 2:
+            assert passes == 6
+            target, _, decoded, active, limited, _ = (int(n) for n in values["p25parrot.cal5"].split(","))
+            assert target == int(values["p25parrot.suggested_db10"]) and target % 10 == 0
+            assert abs(decoded + 250) <= 10 and 10 * limited <= active
+        else:
+            assert int(values["p25parrot.suggested_db10"]) == -960
+        return
     assert values["p25parrot.mode"] in ("P25/IMBE", "DMR/AMBE+2")
     assert values["p25parrot.dc"] in ("0", "1")
     assert -960 <= int(values["p25parrot.cond_db10"]) <= 1

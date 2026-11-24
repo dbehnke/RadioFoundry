@@ -8838,30 +8838,22 @@ static void test_p25_parrot(void)
 	req(RREQ_P25_PARROT, P25_PARROT_CLOSE);
 	CHECK(parrot_pcm_offset == 0 && !parrot_mic_route && !aud.started && !aud.pcm && radio_p25_running());
 
-	// AMBE diagnostics keep the board calibration, use codec AGC only when supported, and never key RF.
-	codec_present = true;
+	// Calibration ignores manual gain and AMBE calibration, and separates microphone startup.
 	fake_radio.mic_pcm_db = 12;
 	CHECK(radio_req_p25_parrot(P25_PARROT_OPEN, false, -25));
-	CHECK(ui_svc_codec_diagnostic(P25_PARROT_CAPTURE, true, -25, CODEC_DIAG_AMBE, true));
-	run(40);
+	CHECK(ui_svc_codec_diagnostic(P25_PARROT_CAPTURE, true, -25, CODEC_DIAG_CALIBRATE, true));
+	run(140);
 	p25VoiceParrotView(&v);
-	CHECK(v.mode == CODEC_DIAG_AMBE && v.agc && v.codec_options == 7 && v.frames == 2);
-	CHECK(v.manual_gain_q16 == (uint32_t)mic_gain_db_q8(12) << 8 && parrot_pcm_offset == 0 && parrot_mic_route);
+	CHECK(v.mode == CODEC_DIAG_CALIBRATE && v.agc && v.cal_status == P25_CAL_RUNNING && v.frames == 2);
+	CHECK(v.manual_gain_q16 == 65536u && parrot_pcm_offset == 0 && parrot_mic_route);
 	req(RREQ_P25_PARROT, P25_PARROT_STOP);
 	run(200);
-	CHECK(p25VoiceParrotState() == P25_PARROT_DONE && !parrot_mic_route && hw.tx_calls == tx_before);
-	v_agc_supported = false;
-	CHECK(ui_svc_codec_diagnostic(P25_PARROT_CAPTURE, true, -25, CODEC_DIAG_AMBE, false));
-	run(20);
 	p25VoiceParrotView(&v);
-	CHECK(v.mode == CODEC_DIAG_AMBE && !v.agc && !v.dc_block && v.codec_options == 3);
-	CHECK(v.manual_gain_q16 == (uint32_t)mic_gain_db_q8(12) << 8 && parrot_pcm_offset == 6);
+	CHECK(v.state == P25_PARROT_DONE && v.cal_status == P25_CAL_SHORT && !parrot_mic_route && hw.tx_calls == tx_before);
 	req(RREQ_P25_PARROT, P25_PARROT_CLOSE);
-	v_agc_supported = true;
 	fake_radio.mic_pcm_db = 0;
-	CHECK(!parrot_mic_route && !aud.started && !hw.keyed && hw.tx_calls == tx_before);
 
-	// Each gain hook is optional. A P25 manual test must not leave its ADC step under AMBE software gain.
+	// Each gain hook is optional. A manual test must restore its ADC step before calibration.
 	CHECK(ui_svc_setting_set(UI_SET_MIC_GAIN, 3));
 	for (unsigned hooks = 0; hooks < 4; hooks++) {
 		fake_radio.mic_gain = hooks & 1u ? r_mic_gain : NULL;
@@ -8873,11 +8865,11 @@ static void test_p25_parrot(void)
 		req(RREQ_P25_PARROT, P25_PARROT_STOP);
 		run(200);
 		if (hooks & 2u) CHECK(parrot_pcm_offset == (hooks & 1u ? -4 : 0));
-		CHECK(ui_svc_codec_diagnostic(P25_PARROT_CAPTURE, false, -25, CODEC_DIAG_AMBE, true));
+		CHECK(ui_svc_codec_diagnostic(P25_PARROT_CAPTURE, true, -25, CODEC_DIAG_CALIBRATE, true));
 		run(20);
 		p25VoiceParrotView(&v);
-		CHECK(v.manual_gain_q16 == (hooks == 3 ? 65536u : 161u << 8));
-		if (hooks & 2u) CHECK(parrot_pcm_offset == (hooks == 3 ? -4 : 0));
+		CHECK(v.manual_gain_q16 == 65536u);
+		if (hooks & 2u) CHECK(parrot_pcm_offset == 0);
 		req(RREQ_P25_PARROT, P25_PARROT_CLOSE);
 		CHECK(!aud.started && !parrot_mic_route && !hw.keyed && hw.tx_calls == tx_before);
 	}

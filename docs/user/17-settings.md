@@ -195,7 +195,7 @@ When the keys lock by themselves and what still works while they are locked ([Ke
 | Factory reset | Restores the default preferences and keeps the AES counter and recovery state ([below](#factory-reset)) |
 | Crash log | What the last crash left, and sending it to the developers ([below](#crash-log)) |
 | RX past bands | Only on radios with a range for it: receive above the radio's rated bands, FM only. Off by default. Sensitivity isn't rated there, and the radio never transmits there |
-| Codec diagnostic | A local microphone and codec check in builds with `CONFIG_P25_PARROT`. **Mode** selects P25 / IMBE or DMR / AMBE+2 (requires an installed codec). Press **OK** on **Record** to record up to 10 seconds or stop early for playback. **Input AGC** toggles P25 automatic gain; AMBE uses **Codec AGC**, if supported. AMBE shows no target. **DC removal** enables or bypasses computed microphone bias removal for this test. **Target dBFS** steps from -35 to -15, initially -25. With AGC off, the test uses your saved **Mic gain** step. The test controls apply only here and reset when you reopen the screen. The diagnostic blocks transmission, including Emergency. **Back** stops the test and restores the channel |
+| P25 calibration | A local microphone and IMBE test in builds with `CONFIG_P25_PARROT`. It recommends a P25 input AGC target for -25 dBFS decoded speech. Press **OK** on **Record speech** and speak normally. The radio compares input targets using the same recording. **Back** exits and restores the channel. Transmission, including Emergency, is suspended while this screen is open |
 | Freq trim | Moves the radio's receive and transmit frequency together, for a radio that is off frequency. Measure the error (a frequency counter, a service monitor, or a hotspot's BER test) and enter it with the sign reversed. The page shows what the trim comes to in Hz at 440 MHz and 144 MHz: a radio 2 kHz high at 440 MHz takes about -4.5 ppm (-1980 Hz). The page shows the trim in large type over a slider from -10 to +10, with "+ to increase frequency" under it where the display has room. Up and Down (or the knob) step 0.1 ppm, # flips the sign, digits type it (# 4 5 OK is -4.5 ppm). Takes effect once you stop changing it. Only on radios that have it ([which radios](../feature-matrix.md)). Range -10.0 to +10.0 ppm in 0.1 ppm steps, default 0 |
 | Hardware | Only on radios that need it: facts about the radio the firmware can't detect, such as a board revision (one the radio detects isn't listed). **OK** steps through the choices, holding **OK** stores the one shown. "Not set" shows in the warning color until one is stored, and the radio won't transmit until then. A choice other than the one the radio runs applies from the next start-up |
 | AES recovery | Appears in AES builds when the radio cannot verify a legacy transmit counter. Follow [AES recovery](09-dmr.md#aes-recovery) before resuming AES transmission |
@@ -204,33 +204,26 @@ When the keys lock by themselves and what still works while they are locked ([Ke
 
 <img src="../ux/screens/160x120i5/settings_advanced.png" width="200" alt="Settings, Advanced">
 
-#### Reporting a codec diagnostic
+#### P25 calibration
 
-<img src="../ux/screens/160x120i5/p25_parrot_speech.png" width="320" alt="Codec diagnostic showing DC and speech measurements">
+<img src="../ux/screens/160x120i5/p25_parrot_report.png" width="320" alt="P25 calibration showing the suggested AGC target">
 
-The original RMS readings average the whole recording, including pauses. For comparison with incoming digital
-speech, also report **Mic speech dBFS**, **Enc speech dBFS**, **Dec speech dBFS**, and their **active blocks**.
-These use the receive meter's energy estimate before receive gain. At least 15 qualifying blocks are needed;
-otherwise the speech value shows `--`. Values are held after playback. Use the same phrase and compare settled
-speech rather than a momentary reading. Loud background noise can count as active audio.
+Hold the radio at your usual speaking distance in a quiet room. Press **OK** on **Record speech** and speak
+normally for the two-second capture. Press **OK** on **Stop recording** to finish early. The radio removes
+microphone DC bias and tests several AGC targets with that recording. **Measuring** shows the number of completed passes. A full run can take about 80 seconds. The
+radio reports a target only after a separate encode and decode pass verifies decoded active speech within 1 dB
+of -25 dBFS. It then plays that pass through its speaker. The recommendation is for review and does not save or
+change any settings.
 
-Report **Test mode**, **Test DC removal**, and **Cond RMS dBFS** (after the blocker, before gain). For AMBE, also report **Codec options** and **Codec flags**; option bits are noise reduction 1, tone frames 2 and internal AGC 4, added together.
+Scroll down to read **AGC / Enc / Dec dBFS** and **AGC / Gain / Limited**. Each row starts with the AGC input target.
+The first table shows the active encoder and decoded speech levels. The second shows final PCM gain and the
+number of blocks the peak limiter adjusted. An asterisk marks the verification pass. Decoded measurements are
+taken before speaker volume. **Mic rail samples** counts samples at the digital limits in the measured recording.
+**Startup rails** counts samples at those limits during the brief interval before the capture.
 
-Also report **Mic DC mean**, **Max block DC**, **Mic AC dBFS**, and **Mic rail samples**. DC values are sample units,
-not dBFS. A large difference between **Mic RMS dBFS** and **Mic AC dBFS** suggests steady bias is inflating the raw
-level. The maximum block value can reveal changing bias even when the overall mean is near zero. Rail samples
-indicate samples at the digital limits; zero does not rule out microphone distortion. Run a separate silence
-capture and a spoken capture with the same settings. The raw measurements precede DC removal. Live P25 removes computed bias before gain; the diagnostic DC toggle applies only to the test. Live DMR and FM gain are unchanged.
-
-For comparisons, speak the same phrase at the same distance and volume, and record for about the same duration. Once
-playback finishes, scroll through the results and note the mode, duration, **Test AGC**, **Test target dBFS** or
-**Test mic step**, the mic, encoder and decoded RMS and peak readings, **Last PCM gain**, and **Limited blocks**.
-You can photograph the results on the screen. The recorded settings stay with the result when you change the controls.
-
-The RMS readings include pauses and the codec's startup, so they can be below the target for active voice. Peak levels
-show the highest samples. The decoded readings are digital levels before speaker volume. **Last PCM gain** is the final
-recorded block's software multiplier. **Limited blocks** counts blocks where peak protection reduced gain. `--` marks
-a reading that is unavailable for the current test.
+If the radio reports too little speech, microphone clipping, too much limiting, or no verified target, it leaves
+the recommendation blank. Press **OK** on **Record speech** to try again. For comparisons, repeat the same phrase
+at the same distance and volume.
 
 ## Signaling tones
 

@@ -25,6 +25,21 @@ void debuglink_view_p25(const radio_view_t *v, dl_text_t *t)
 	dl_text(t, "p25parrot.built=1\np25parrot.state=%u\n", pv.state);
 	// Idle diagnostic measurements must not push the conventional counters out of the bounded reply.
 	if (pv.state != P25_PARROT_OFF) {
+		if (pv.mode == CODEC_DIAG_CALIBRATE) {
+			dl_text(t, "p25parrot.mode=P25/calibration\np25parrot.frames=%u\np25parrot.cal_status=%u\np25parrot.cal_pass=%u\np25parrot.suggested_db10=%d\n",
+				pv.frames, pv.cal_status, pv.cal_pass, pv.suggested_db10);
+			dl_text(t, "p25parrot.capture_limit=%u\np25parrot.agc=%u\np25parrot.dc=%u\n", pv.capture_limit, pv.agc, pv.dc_block);
+			dl_text(t, "p25parrot.mic_ac_db10=%d\n", pv.mic_ac_db10);
+			dl_text(t, "p25parrot.input_db10=%d\np25parrot.cond_db10=%d\np25parrot.mic_mean=%d\np25parrot.rail_samples=%u\np25parrot.startup_rails=%u\n",
+				pv.input_db10, pv.conditioned_db10, pv.mic_mean, (unsigned)pv.input_rail_samples, (unsigned)pv.startup_rail_samples);
+			for (unsigned i = 0; i < P25_CAL_PASSES; i++) {
+				const p25_cal_result_t *r = &pv.cal[i];
+				dl_text(t, "p25parrot.cal%u=%d,%d,%d,%u,%u,%u\n", i, r->target_db10, r->encoder_db10, r->decoded_db10,
+					r->active_blocks, r->limited_blocks, (unsigned)r->gain_q16);
+			}
+			dl_text(t, "p25.on=0\n");
+			return;
+		}
 		dl_text(t, "p25parrot.frames=%u\n", pv.frames);
 		dl_text(t, "p25parrot.input_db10=%d\np25parrot.encoder_db10=%d\np25parrot.output_db10=%d\n",
 			pv.input_db10, pv.encoder_db10, pv.output_db10);
@@ -33,7 +48,7 @@ void debuglink_view_p25(const radio_view_t *v, dl_text_t *t)
 		dl_text(t, "p25parrot.agc=%u\np25parrot.target_dbfs=%d\np25parrot.limited_blocks=%u\n",
 			pv.agc, pv.target_dbfs, (unsigned)pv.limited_blocks);
 		dl_text(t, "p25parrot.mode=%s\np25parrot.mic_step=%u\np25parrot.manual_gain_q16=%u\np25parrot.limiter=%u\n",
-			pv.mode == CODEC_DIAG_AMBE ? "DMR/AMBE+2" : "P25/IMBE", pv.mic_step, (unsigned)pv.manual_gain_q16, pv.limiter);
+			"P25/IMBE", pv.mic_step, (unsigned)pv.manual_gain_q16, pv.limiter);
 		dl_text(t, "p25parrot.mic_mean=%d\np25parrot.mic_dc_peak=%u\np25parrot.mic_ac_db10=%d\np25parrot.rail_samples=%u\n",
 			pv.mic_mean, pv.mic_dc_peak, pv.mic_ac_db10, (unsigned)pv.input_rail_samples);
 		for (unsigned i = 0; i < 3; i++)

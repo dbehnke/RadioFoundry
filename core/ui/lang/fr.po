@@ -3278,14 +3278,14 @@ msgid "Recording"
 msgstr "Enregistrement"
 
 #: core/ui/ui_menus.c
+msgctxt "P25_CAL_MEASURING"
+msgid "Measuring"
+msgstr "Mesure en cours"
+
+#: core/ui/ui_menus.c
 msgctxt "P25_PARROT_PLAYING"
 msgid "Playing"
 msgstr "Lecture"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_DONE"
-msgid "Done: no RF"
-msgstr "Terminé : sans RF"
 
 #: core/ui/ui_menus.c
 msgctxt "P25_PARROT_AUDIO_FAILED"
@@ -3293,119 +3293,39 @@ msgid "Audio failed"
 msgstr "Échec audio"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_MODE"
-msgid "Mode"
-msgstr "Mode"
+msgctxt "P25_CAL_TOO_SHORT"
+msgid "Too little speech"
+msgstr "Trop peu de voix"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_STOP_PLAY"
-msgid "Stop and play"
-msgstr "Arrêter et lire"
+msgctxt "P25_CAL_MIC_CLIP"
+msgid "Mic clipped"
+msgstr "Micro saturé"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_RECORD"
-msgid "Record up to 10 s"
-msgstr "Enregistrer 10 s max"
+msgctxt "P25_CAL_LIMIT_EXCESS"
+msgid "Too much limiting"
+msgstr "Limitation excessive"
 
 #: core/ui/ui_menus.c
-msgctxt "CODEC_DIAG_AGC"
-msgid "Codec AGC"
-msgstr "AGC du codec"
+msgctxt "P25_CAL_UNVERIFIED"
+msgid "No verified target"
+msgstr "Cible non vérifiée"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_AGC"
-msgid "Input AGC"
-msgstr "CAG entrée"
+msgctxt "P25_PARROT_DONE"
+msgid "Done: no RF"
+msgstr "Terminé : sans RF"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_ON"
-msgid "On"
-msgstr "Oui"
+msgctxt "P25_CAL_LEVELS"
+msgid "AGC / Enc / Dec dBFS"
+msgstr "AGC / Enc / Déc dBFS"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_OFF"
-msgid "Off"
-msgstr "Non"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_TARGET"
-msgid "Target dBFS"
-msgstr "Cible dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_INPUT"
-msgid "Mic RMS dBFS"
-msgstr "RMS micro dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_ENCODER"
-msgid "Enc RMS dBFS"
-msgstr "RMS cod. dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_OUTPUT"
-msgid "Dec RMS dBFS"
-msgstr "RMS déc. dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_TEST_AGC"
-msgid "Test AGC"
-msgstr "CAG du test"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_TEST_TARGET"
-msgid "Test target dBFS"
-msgstr "Cible test dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_TEST_MIC"
-msgid "Test mic step"
-msgstr "Niv. micro test"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_MIC_PEAK"
-msgid "Mic peak dBFS"
-msgstr "Crête micro dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_ENC_PEAK"
-msgid "Enc peak dBFS"
-msgstr "Crête cod. dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_DEC_PEAK"
-msgid "Dec peak dBFS"
-msgstr "Crête déc. dBFS"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_GAIN"
-msgid "Last PCM gain"
-msgstr "Gain PCM final"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_LIMITED"
-msgid "Limited blocks"
-msgstr "Blocs limités"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_MIC_DC"
-msgid "Mic DC mean"
-msgstr "Moyenne CC micro"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_DC_PEAK"
-msgid "Max block DC"
-msgstr "CC max. par bloc"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_RAILS"
-msgid "Mic rail samples"
-msgstr "Échantillons saturés"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_MIC_AC"
-msgid "Mic AC dBFS"
-msgstr "CA micro dBFS"
+msgctxt "P25_CAL_GAIN_LIMITS"
+msgid "AGC / Gain / Limited"
+msgstr "AGC / Gain / Limités"
 
 #: core/ui/ui_menus.c
 msgctxt "P25_PARROT_MIC_SPEECH"
@@ -3413,69 +3333,59 @@ msgid "Mic speech dBFS"
 msgstr "Voix micro dBFS"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_ENC_SPEECH"
-msgid "Enc speech dBFS"
-msgstr "Voix codée dBFS"
+msgctxt "P25_PARROT_RAILS"
+msgid "Mic rail samples"
+msgstr "Échantillons saturés"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_DEC_SPEECH"
-msgid "Dec speech dBFS"
-msgstr "Voix décodée dBFS"
+msgctxt "P25_CAL_STARTUP_RAILS"
+msgid "Startup rails"
+msgstr "Satur. au départ"
 
 #: core/ui/ui_menus.c
-msgctxt "CODEC_DIAG_DC"
-msgid "DC removal"
-msgstr "Suppression DC"
+msgctxt "P25_PARROT_MIC_DC"
+msgid "Mic DC mean"
+msgstr "Moyenne CC micro"
 
 #: core/ui/ui_menus.c
-msgctxt "CODEC_DIAG_TEST_DC"
-msgid "Test DC removal"
-msgstr "DC du test"
+msgctxt "P25_CAL_STOP"
+msgid "Stop recording"
+msgstr "Arrêter la prise"
 
 #: core/ui/ui_menus.c
-msgctxt "CODEC_DIAG_CONDITIONED"
-msgid "Cond RMS dBFS"
-msgstr "RMS traité dBFS"
+msgctxt "P25_CAL_RECORD"
+msgid "Record speech"
+msgstr "Enregistrer la voix"
 
 #: core/ui/ui_menus.c
-msgctxt "CODEC_DIAG_TEST_MODE"
-msgid "Test mode"
-msgstr "Mode du test"
+msgctxt "P25_CAL_GOAL"
+msgid "Decode goal dBFS"
+msgstr "But déc. dBFS"
 
 #: core/ui/ui_menus.c
-msgctxt "CODEC_DIAG_OPTIONS"
-msgid "Codec options"
-msgstr "Options du codec"
+msgctxt "P25_CAL_SPEAK"
+msgid "Speak normally"
+msgstr "Parler normalement"
 
 #: core/ui/ui_menus.c
-msgctxt "CODEC_DIAG_FLAGS"
-msgid "Codec flags"
-msgstr "Indicateurs codec"
+msgctxt "P25_CAL_SUGGESTED"
+msgid "AGC target dBFS"
+msgstr "Cible AGC dBFS"
 
 #: core/ui/ui_menus.c
-msgctxt "P25_PARROT_MIC_BLOCKS"
-msgid "Mic active blocks"
-msgstr "Blocs actifs micro"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_ENC_BLOCKS"
-msgid "Enc active blocks"
-msgstr "Blocs actifs codés"
-
-#: core/ui/ui_menus.c
-msgctxt "P25_PARROT_DEC_BLOCKS"
-msgid "Dec active blocks"
-msgstr "Blocs actifs décodés"
+msgctxt "P25_CAL_CAPTURE_TIME"
+msgid "Capture time"
+msgstr "Durée"
 
 #: core/ui/ui_menus.c
 msgctxt "P25_PARROT_TITLE"
-msgid "Codec diagnostic"
-msgstr "Test codec"
+msgid "P25 calibration"
+msgstr "Calibrage P25"
 
 #: core/ui/ui_menus.c
 msgctxt "P25_PARROT_HINT"
-msgid "OK / Back: exit"
-msgstr "OK / Retour : quitter"
+msgid "Back: exit"
+msgstr "Retour : quitter"
 
 #: core/ui/ui_menus.c
 msgctxt "ROAM_VALUE_SYNCED"

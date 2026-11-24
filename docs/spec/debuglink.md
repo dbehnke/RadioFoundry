@@ -392,20 +392,20 @@ Value forms: numbers in decimal (`temp`, `input.*keys` in hex with `0x`), states
 `core/debuglink/debuglink_view_dmr.c`, apart from the rest, so DMR work can extend them.
 
 With `CONFIG_P25_PARROT`, the `p25` section reports `p25parrot.built=1` and `state` (0 off, 1 ready,
-2 recording, 3 playing, 4 done, 5 audio failed). While state is not off, it also reports `frames` (20 ms each), `input_db10`, `encoder_db10`,
-`output_db10` (RMS dBFS in tenths, -960 means no measurable signal), `input_peak`, `encoder_peak`,
-`output_peak` (absolute PCM samples), `gain_q16` (last software input gain, 65536 is unity), `agc`,
-`target_dbfs` (P25 target; 0 means unavailable for AMBE), `mic_step` (recorded settings), `manual_gain_q16` (requested software manual gain, unity when the
-board applies it in hardware), `limiter` (peak protection active), `limited_blocks` (peak interventions in either
-mode) and `mode` (`P25/IMBE` or `DMR/AMBE+2`). Whole-recording levels include pauses. While the diagnostic is active, its complete report replaces inactive engine
-counters in this bounded section (`p25.on=0`). Additional fields are `mic_mean` (signed PCM units), `mic_dc_peak`
-(maximum absolute block mean), `mic_ac_db10` (block-mean-removed whole-capture RMS), `rail_samples` (input samples
-at either signed 16-bit rail), and `speech0_db10` / `speech0_blocks` through `speech2_db10` / `speech2_blocks`
-(microphone, encoder, decoded). Speech values share the receive estimator's gate, acquisition and energy average;
-check at least 15 qualifying blocks before comparing them. They retain the last estimate after playback.
-`dc` records whether streaming DC removal was enabled; `cond_db10` is whole-capture RMS after that blocker,
-before gain. `codec_opts` is the applied AMBE option mask (noise reduction 1, tone frames 2, AGC 4);
-`codec_flags` is its codec-specific encode word, or 0 if the HAL does not provide it. P25 reports both as 0. Without the switch it reports `p25parrot.built=0` when P25 is built.
+2 recording, 3 processing/playing, 4 done, 5 audio error). During calibration, `mode=P25/calibration` and
+`frames` counts retained 20 ms blocks; `capture_limit` is at most 100. `agc=1` and `dc=1` describe the forced
+conditioning. `input_db10`, `cond_db10`, `mic_ac_db10`, `mic_mean`, `rail_samples` and `startup_rails` report raw/conditioned
+capture levels, signed microphone mean, and separate retained/startup full-scale sample counts.
+`cal_status` is 0 idle, 1 running, 2 verified, 3 insufficient speech, 4 input rails, 5 excessive peak limiting,
+6 no verified target, or 7 unavailable. `cal_pass` counts completed candidates (0..6).
+`suggested_db10` is the verified whole-dB input target in tenths of a dB, or -960 when no recommendation is valid.
+Each `cal0` through `cal5` is a comma-separated row:
+`target_db10,encoder_db10,decoded_db10,active_blocks,limited_blocks,gain_q16`.
+Uncompleted rows have -960 levels and zero counts. Candidate RMS uses a common padded activity mask;
+active/limited counts use its original unpadded mask. Gain is the final software multiplier in Q16.
+The diagnostic suspends the air engine, so the bounded reply ends with `p25.on=0` and omits conventional counters.
+The legacy non-calibration P25 capture API retains its original raw/encoder/decoded report for host checks.
+Without the switch, the section reports `p25parrot.built=0` when P25 is built.
 
 ### 3.8 RADIO
 

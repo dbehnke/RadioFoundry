@@ -435,74 +435,115 @@ static bool feed_tone(int amplitude, unsigned count)
 	}
 	return heard;
 }
-static unsigned codec_encoded, codec_decoded, codec_resets;
-static uint32_t codec_opts, codec_supported = 7;
-static bool codec_present = true, codec_bits_ok;
-static bool fake_codec_present(void) { return codec_present; }
-static void fake_codec_reset(void) { codec_resets++; memset(&vmem, 0xa5, sizeof vmem); }
-static uint32_t fake_codec_options(void) { return codec_supported; }
-static void fake_codec_set_options(uint32_t options) { codec_opts = options; }
-static uint32_t fake_codec_flags(void) { return codec_opts + 100; }
-static void fake_codec_encode(const int16_t *pcm, uint8_t *bits)
+#if CONFIG_TX_DC_BLOCK
+static bool cal_test_drain;
+static uint8_t cal_test_silence_from_pass;
+static int16_t cal_speech[16000];
+static p25_parrot_view_t runCalibration(int amplitude, int bias, bool clipped, bool startup_rails, unsigned blocks)
 {
-	CHECK(tx_level_measure(pcm, 160, true).peak >= 990 && tx_level_measure(pcm, 160, true).peak <= 1010,
-	      "AMBE applied a P25 RMS target or missed conditioning");
-	for (unsigned i = 0; i < VOCODER_BITS; i++) bits[i] = ((codec_encoded * 13 + i * 7) >> (i % 8)) & 1u;
-	codec_encoded++;
-}
-static void fake_codec_decode(const uint8_t *bits, int16_t *pcm)
-{
-	for (unsigned i = 0; i < VOCODER_BITS; i++)
-		if (bits[i] != (((codec_decoded * 13 + i * 7) >> (i % 8)) & 1u)) codec_bits_ok = false;
-	for (unsigned i = 0; i < 160; i++) pcm[i] = i & 1u ? 1000 : -1000;
-	codec_decoded++;
-}
-static const hal_vocoder_t fake_codec = { .present = fake_codec_present, .reset = fake_codec_reset,
-	.encode = fake_codec_encode, .decode = fake_codec_decode, .options = fake_codec_options,
-	.set_options = fake_codec_set_options, .encode_flags = fake_codec_flags };
-
-static void testAmbeDiagnostic(void)
-{
-	static uint8_t recording[3502];
+	static struct { int16_t before; int16_t pcm[P25_CAL_MAX_BLOCKS * AUDIO_BLOCK_SAMPLES]; int16_t after; } recording;
+	static uint8_t frames[500][IMBE_BYTES];
 	p25_parrot_view_t v;
 	begin();
-	// Model a codec that overwrites all lent RAM on every reset. The recording must survive both resets.
-	p25VoiceParrotReady((uint8_t (*)[IMBE_BYTES])&vmem, 217, (uint8_t (*)[IMBE_BYTES])(recording + 1));
-	recording[0] = recording[3501] = 0x5a;
-	p25VoiceParrotVocoder(&fake_codec, recording + 1, 3500, VOCODER_OPT_NOISE_REDUCTION);
-	codec_encoded = codec_decoded = codec_resets = 0;
-	codec_bits_ok = true;
-	CHECK(p25VoiceParrotCaptureMode(CODEC_DIAG_AMBE, true, true, -15, 5, false, 512), "AMBE refused");
-	int16_t mic[160], out[160];
-	for (unsigned b = 0; b < 500; b++) {
-		for (unsigned i = 0; i < 160; i++) mic[i] = (CONFIG_TX_DC_BLOCK ? 2400 : 0) + (int16_t)lrint(500 * cos(2 * M_PI * i / 40));
+	p25VoiceParrotReady(frames, 500, NULL);
+	recording.before = 1234; recording.after = -1234;
+	p25VoiceParrotPcm(recording.pcm, sizeof recording.pcm / sizeof recording.pcm[0]);
+	CHECK(p25VoiceParrotCaptureMode(CODEC_DIAG_CALIBRATE, false, false, -35, 10, false), "calibration refused");
+	int16_t mic[AUDIO_BLOCK_SAMPLES], out[AUDIO_BLOCK_SAMPLES];
+	for (unsigned b = 0; b < blocks + 5; b++) {
+		for (unsigned n = 0; n < AUDIO_BLOCK_SAMPLES; n++)
+			mic[n] = bias + (amplitude < 0 ? cal_speech[((b >= 5 ? b - 5 : 0) * AUDIO_BLOCK_SAMPLES + n) % 16000] / 4 :
+				(int16_t)lrint(amplitude * cos(2 * M_PI * n / 40)));
+		if (b < 5 && startup_rails) mic[0] = INT16_MAX;
+		if (b >= 5 && clipped) mic[0] = INT16_MAX;
 		p25VoiceAudioBlock(mic, out, NULL);
 	}
+	p25VoiceParrotStop();
+	unsigned n;
+	for (n = 0; n < 5000 && p25VoiceParrotState() != P25_PARROT_DONE; n++) {
+		p25VoiceParrotView(&v);
+		if (cal_test_drain && v.cal_status == P25_CAL_OK) {
+			speaker_pending = true;
+			for (unsigned j = 0; j < 3 * blocks + 10; j++) block();
+			uint16_t progress = p25VoiceParrotProgress();
+			for (unsigned j = 0; j < 5; j++) block();
+			CHECK(p25VoiceParrotState() == P25_PARROT_PLAY && p25VoiceParrotProgress() == progress,
+			      "stalled calibration drain advances watchdog progress");
+			speaker_pending = false;
+			cal_test_drain = false;
+		}
+		block();
+		if (cal_test_silence_from_pass != 0 && v.cal_pass + 1u >= cal_test_silence_from_pass)
+			for (unsigned j = 0; j < 500; j++) memcpy(frames[j], imbe_silence, IMBE_BYTES);
+	}
+	CHECK(n < 5000, "calibration did not finish");
 	p25VoiceParrotView(&v);
-	CHECK(v.mode == CODEC_DIAG_AMBE && v.dc_block == CONFIG_TX_DC_BLOCK && v.agc && v.limiter == CONFIG_TX_MIC_LIMITER && v.codec_options == 5 && v.codec_flags == 105,
-	      "AMBE recorded settings");
-	CHECK(abs(v.conditioned_db10 + 393) <= 2 && abs(v.encoder_db10 + 333) <= 2,
-	      "AMBE conditioning/gain %d/%d", v.conditioned_db10, v.encoder_db10);
-	feed_tone(0, 502);
-	CHECK(codec_encoded == 500 && codec_decoded == 500 && codec_resets == 2 && codec_bits_ok,
-	      "AMBE packed frame round trip %u/%u/%u", codec_encoded, codec_decoded, codec_resets);
-	CHECK(recording[0] == 0x5a && recording[3501] == 0x5a, "AMBE recording overrun");
-	CHECK(p25VoiceParrotCaptureMode(CODEC_DIAG_P25, false, false, -25, 5, false, 256), "return to P25 failed");
-	CHECK(codec_opts == VOCODER_OPT_NOISE_REDUCTION, "AMBE options not restored on codec change");
-	feed_tone(500, 2);
-	p25VoiceParrotView(&v);
-	CHECK(v.mode == CODEC_DIAG_P25 && !v.dc_block && abs(v.conditioned_db10 - v.input_db10) <= 1,
-	      "P25 DC bypass/report");
-	p25VoiceParrotFail();
-	codec_present = false;
-	CHECK(!p25VoiceParrotCaptureMode(CODEC_DIAG_AMBE, true, false, -25, 5, false, 512), "absent codec accepted");
-	codec_present = true;
-	CHECK(p25VoiceParrotCaptureMode(CODEC_DIAG_AMBE, true, true, -25, 5, false, 512), "AMBE retry failed");
-	for (unsigned i = 0; i < 160; i++) mic[i] = (int16_t)lrint(500 * cos(2 * M_PI * i / 40));
-	p25VoiceAudioBlock(mic, out, NULL);
+	CHECK(recording.before == 1234 && recording.after == -1234, "PCM recording overrun");
+	CHECK(v.agc && v.dc_block && v.manual_gain_q16 == TX_LEVEL_UNITY, "calibration accepted manual/AMBE settings");
+	for (unsigned j = 0; j < sizeof recording.pcm / sizeof recording.pcm[0]; j++)
+		if (recording.pcm[j] != 0) { CHECK(false, "raw PCM retained after calibration"); break; }
 	p25VoiceEnd();
-	CHECK(codec_opts == VOCODER_OPT_NOISE_REDUCTION && !running, "AMBE exit did not restore options/stream");
-	for (unsigned i = 1; i <= 3500; i++) CHECK(recording[i] == 0, "recording not erased");
+	return v;
+}
+
+static void testCalibration(void)
+{
+	cal_test_drain = true;
+	p25_parrot_view_t a = runCalibration(600, 2400, false, true, 100);
+	CHECK(a.cal_status == P25_CAL_OK && a.cal_pass == P25_CAL_PASSES, "valid calibration status %u, passes %u", a.cal_status, a.cal_pass);
+	CHECK(a.input_rail_samples == 0 && a.startup_rail_samples == 5, "startup rails mixed with recording");
+	CHECK(a.suggested_db10 >= -350 && a.suggested_db10 <= -150 && a.suggested_db10 % 10 == 0, "suggested target %d", a.suggested_db10);
+	CHECK(abs(a.cal[5].decoded_db10 + 250) <= 10 && a.cal[5].target_db10 == a.suggested_db10, "recommendation not verified");
+	for (unsigned i = 0; i < P25_CAL_PASSES; i++) {
+		CHECK(a.cal[i].active_blocks == 100 && a.cal[i].limited_blocks == 0, "candidate gate or limit %u", i);
+		CHECK(abs(a.cal[i].encoder_db10 - a.cal[i].target_db10) <= 3, "candidate failed target %u %d/%d", i, a.cal[i].encoder_db10, a.cal[i].target_db10);
+	}
+	p25_parrot_view_t b = runCalibration(600, 0, false, false, 100);
+	CHECK(b.cal_status == P25_CAL_OK && abs(a.suggested_db10 - b.suggested_db10) <= 10, "bias changed calibration %d/%d", a.suggested_db10, b.suggested_db10);
+	b = runCalibration(0, 2400, false, false, 100);
+	CHECK(b.cal_status == P25_CAL_SHORT && b.cal_pass == 0 && b.suggested_db10 == -960, "silence yielded recommendation");
+	b = runCalibration(600, 2400, false, false, 20);
+	CHECK(b.cal_status == P25_CAL_SHORT && b.cal_pass == 0, "short recording yielded recommendation");
+	b = runCalibration(600, 2400, true, false, 100);
+	CHECK(b.cal_status == P25_CAL_CLIPPED && b.cal_pass == 0, "railed recording yielded recommendation");
+	cal_test_silence_from_pass = 1;
+	b = runCalibration(600, 2400, false, false, 100);
+	CHECK(b.cal_status == P25_CAL_RANGE && b.cal_pass == 5 && b.suggested_db10 == -960,
+	      "codec output without a bracket yielded recommendation");
+	cal_test_silence_from_pass = 6;
+	b = runCalibration(600, 2400, false, false, 100);
+	CHECK(b.cal_status == P25_CAL_RANGE && b.cal_pass == 6 && b.suggested_db10 == -960,
+	      "failed verification yielded recommendation");
+	cal_test_silence_from_pass = 0;
+	FILE *speech = fopen("../data/voice/test_transmission.pcm", "rb");
+	if (speech == NULL) speech = fopen("tests/data/voice/test_transmission.pcm", "rb");
+	CHECK(speech != NULL, "speech fixture unavailable");
+	if (speech != NULL) {
+		CHECK(fread(cal_speech, sizeof *cal_speech, 16000, speech) == 16000, "speech fixture too short");
+		fclose(speech);
+		b = runCalibration(-1, 2400, false, false, 100);
+		printf("P25 speech calibration: status %u, target %.1f, decoded %.1f\n", b.cal_status, b.suggested_db10 / 10.0, b.cal[5].decoded_db10 / 10.0);
+		for (unsigned i = 0; i < b.cal_pass; i++) printf("speech pass%u: target %d enc %d dec %d limited %u/%u gain %u\n", i, b.cal[i].target_db10, b.cal[i].encoder_db10, b.cal[i].decoded_db10, b.cal[i].limited_blocks, b.cal[i].active_blocks, b.cal[i].gain_q16);
+		CHECK(b.cal_status == P25_CAL_OK && abs(b.cal[5].decoded_db10 + 250) <= 10 &&
+		      b.cal[5].limited_blocks * 10u <= b.cal[5].active_blocks, "speech target not verified");
+	}
+	printf("P25 calibration: verified target %d dBFS, decoded %.1f dBFS\n", a.suggested_db10 / 10, a.cal[5].decoded_db10 / 10.0);
+}
+#endif
+
+static void testCalibrationUnavailable(void)
+{
+	static uint8_t frames[500][IMBE_BYTES];
+	static int16_t tiny[160];
+	p25_parrot_view_t v;
+	begin();
+	p25VoiceParrotReady(frames, 500, NULL);
+	p25VoiceParrotPcm(tiny, 160);
+	CHECK(!p25VoiceParrotCaptureMode(CODEC_DIAG_CALIBRATE, true, true, -25, 5, false), "short PCM workspace accepted");
+	p25VoiceParrotView(&v);
+	CHECK(v.cal_status == P25_CAL_UNAVAILABLE && v.state == P25_PARROT_ERROR && v.suggested_db10 == -960,
+	      "unavailable workspace retained old report");
+	p25VoiceEnd();
 }
 
 static void testParrot(void)
@@ -829,7 +870,10 @@ int main(void)
 	testTxAgc();
 #endif
 #if CONFIG_P25_PARROT
-	testAmbeDiagnostic();
+#if CONFIG_TX_DC_BLOCK
+	testCalibration();
+#endif
+	testCalibrationUnavailable();
 	testParrot();
 	testParrotMatchesTx();
 	testParrotMeters();

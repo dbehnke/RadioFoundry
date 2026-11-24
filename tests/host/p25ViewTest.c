@@ -137,21 +137,21 @@ int main(void)
 	}
 	CHECK(strstr(text, "p25.on=0\n") != NULL);
 	CHECK(!t.full);
-	parrot.mode = CODEC_DIAG_AMBE;
-	parrot.target_dbfs = 0;
-	parrot.codec_options = 7;
-	parrot.codec_flags = UINT32_MAX;
-	parrot.gain_q16 = parrot.manual_gain_q16 = 1038676;
-	parrot.limited_blocks = parrot.frames = 500;
-	parrot.input_peak = parrot.encoder_peak = parrot.output_peak = 32768;
+	parrot.mode = CODEC_DIAG_CALIBRATE;
+	parrot.cal_status = P25_CAL_OK;
+	parrot.cal_pass = P25_CAL_PASSES;
+	parrot.suggested_db10 = -250;
+	parrot.capture_limit = 100;
+	parrot.startup_rail_samples = UINT32_MAX;
+	for (unsigned i = 0; i < P25_CAL_PASSES; i++) {
+		parrot.cal[i] = (p25_cal_result_t){ -350, -960, -960, 100, 100, UINT32_MAX };
+	}
 	render(&t, text, sizeof text);
 	CHECK(!t.full);
-	CHECK(strstr(text, "p25parrot.mode=DMR/AMBE+2\n") != NULL);
-	CHECK(strstr(text, "p25parrot.target_dbfs=0\n") != NULL);
-	CHECK(strstr(text, "p25parrot.dc=1\n") != NULL);
-	CHECK(strstr(text, "p25parrot.cond_db10=-960\n") != NULL);
-	CHECK(strstr(text, "p25parrot.codec_opts=7\n") != NULL);
-	CHECK(strstr(text, "p25parrot.codec_flags=4294967295\n") != NULL);
+	CHECK(strstr(text, "p25parrot.mode=P25/calibration\n") != NULL);
+	CHECK(strstr(text, "p25parrot.suggested_db10=-250\n") != NULL);
+	CHECK(strstr(text, "p25parrot.startup_rails=4294967295\n") != NULL);
+	CHECK(strstr(text, "p25parrot.cal5=-350,-960,-960,100,100,4294967295\n") != NULL);
 	CHECK(strstr(text, "p25.on=0\n") != NULL);
 	printf("p25ViewTest: RX %zu bytes, RX with load %zu bytes, diagnostic %zu bytes, %d failures\n",
 	       without_load, with_load, t.len, failures);

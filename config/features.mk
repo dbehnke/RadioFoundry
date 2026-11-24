@@ -331,7 +331,7 @@ CONFIG_P25_ID_LOOKUP ?= $(CONFIG_P25)
 CONFIG_CALLER_DETAILS ?= $(CONFIG_DMR)
 # Shared digital microphone peak protection; fixed manual gain for AMBE and P25.
 CONFIG_TX_MIC_LIMITER ?= $(CONFIG_DMR)
-# P25 microphone leveling and local codec parrot (10 seconds of encoded frames).
+# P25 microphone leveling and temporary local AGC calibration (32 KB PCM plus encoded frames).
 CONFIG_TX_DC_BLOCK ?= $(CONFIG_P25)
 CONFIG_P25_TX_AGC ?= $(CONFIG_P25)
 CONFIG_P25_PARROT ?= n
