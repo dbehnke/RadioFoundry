@@ -415,17 +415,13 @@ int32_t ui_svc_reply_shown(const radio_settings_t *s)
 	return 10;
 }
 
-// Mic gain: the step, or step 5 (the board's levels, FM included) while the vocoder's AGC sets the level (Mic gain
-// dimmed)
 static void apply_mic_gain(int32_t step, bool agc)
 {
-	if (CONFIG_DMR && agc && board.vocoder != NULL && board.vocoder->options != NULL &&
-	    (board.vocoder->options() & VOCODER_OPT_AGC) != 0) {
-		step = (int32_t)MIC_GAIN_UNITY;
-	} else if (step < 0) {
+	if (step < 0)
 		step = 0;
-	}
-	radio_set_mic_gain((uint8_t)(step > (int32_t)MIC_GAIN_STEPS ? (int32_t)MIC_GAIN_STEPS : step));
+	if (step > (int32_t)MIC_GAIN_STEPS)
+		step = MIC_GAIN_STEPS;
+	radio_set_mic_gain_with_agc((uint8_t)step, agc);
 }
 
 // The UI's settings that live in radio_settings_t. The radio core saves them (settings store) and restores them at
@@ -464,9 +460,6 @@ void ui_svc_apply(uint8_t id, int32_t value)
 		bool agc = (id == UI_SET_MIC_AGC ? value : ui_svc_setting_get(UI_SET_MIC_AGC)) != 0;
 		ambeVoiceSetEncodeOptions(VOCODER_OPT_TONE_FRAMES | (nr ? VOCODER_OPT_NOISE_REDUCTION : 0u) |
 					  (agc ? VOCODER_OPT_AGC : 0u));
-#if CONFIG_P25
-		if (id == UI_SET_MIC_AGC) p25VoiceSetAgc(agc);
-#endif
 		if (id == UI_SET_MIC_AGC) {
 			apply_mic_gain(ui_svc_setting_get(UI_SET_MIC_GAIN), agc);
 		}

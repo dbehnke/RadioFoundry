@@ -698,7 +698,7 @@ static void mic_gain(int8_t db)
 	mic_offset_db = db;
 }
 
-#if CONFIG_P25_PARROT
+#if CONFIG_P25
 static void pcm_mic_gain(int8_t db)
 {
 	hrc7000_set_mic_gain(&modem, hrc7000_mic_db(MIC_GAIN_DMR_DB, db));
@@ -813,7 +813,7 @@ const hal_radio_t dm1801pro_radio = {
 	.rx_am = rx_am,
 #endif
 	.mic_gain = mic_gain,
-#if CONFIG_P25_PARROT
+#if CONFIG_P25
 	.pcm_mic_gain = pcm_mic_gain,
 #endif
 #if CONFIG_REF_TRIM

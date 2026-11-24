@@ -121,6 +121,7 @@ void radio_p25_trunk_talk_end(void);
 // call); drop: the radio's transmit checks refused it
 uint32_t radio_p25_trunk_burst_hz(void);
 bool radio_p25_trunk_burst_start(void);
+void radio_p25_trunk_burst_go(void);
 void radio_p25_trunk_burst_drop(void);
 #endif
 

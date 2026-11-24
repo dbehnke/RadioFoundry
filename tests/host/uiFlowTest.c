@@ -415,6 +415,10 @@ static const flow_t flows[] = {
 	{ "S P25 parrot manual gain and limiting", "ok 7 up ok up ok down ok up ok ok", "up",
 	  "screen=p25parrot shows=Last_PCM_gain shows=1.00x shows=Limited_blocks shows=3", 1, false },
 	{ "S P25 parrot quick keeps session visible", "ok 7 up ok up ok ok", "quick", "screen=p25parrot shows=Stop_and_play", 1, false },
+	{ "S P25 parrot blocks FM Monitor toggle", "down ok 7 up ok up ok ok", "long:monkey",
+	  "screen=p25parrot monitor=0 shows=Stop_and_play", 1, false },
+	{ "S P25 parrot blocks DMR Monitor toggle", "ok 7 up ok up ok ok", "monkey",
+	  "screen=p25parrot hearall=0 shows=Stop_and_play", 1, false },
 	{ "S P25 parrot back", "ok 7 up ok up ok", "back", "screen=group", 1, false },
 	{ "S P25 parrot home", "ok 7 up ok up ok", "long:back", "screen=home", 1, false },
 	{ "S P25 parrot unlock and exit", "autolock:30 ok 7 up ok up ok wait:31000 expect:locked=1",
@@ -836,6 +840,15 @@ static const flow_t flows[] = {
 	// Mic AGC on: Mic gain (the row above) shows "AGC", is dimmed and says why
 	{ "S mic AGC on", "", "ok 7 3 down down down down down ok", "set71=1 shows=AGC", 9, false },
 	{ "S mic gain while AGC is on", "ok 7 3 down down down down down ok", "up ok", "toast=Mic_AGC_sets set13=5", 2, false },
+#if CONFIG_P25
+#if CONFIG_P25_TX_AGC
+	{ "S P25 mic gain is dimmed by P25 AGC", "dlmode:p25 ok 7 3 down down down down down ok", "up ok",
+	  "toast=Mic_AGC_sets set13=5", 2, false },
+#else
+	{ "S P25 mic gain is editable with AMBE AGC on", "dlmode:p25 ok 7 3 down down down down down ok",
+	  "up ok up up up ok", "set71=1 set13=8", 6, false },
+#endif
+#endif
 	{ "S message tone", "", "msg:9991234,Hi", "beep=2", 0, false },
 	// Settings > Signaling tones (the group before Advanced): six outputs, then a row per event that opens its steps
 	// (screen sig-chain). Start 1 is set100 (Hz) and set130 (ms), step 2 set101 and set131. A step: OK, the frequency,
@@ -1345,30 +1358,38 @@ static const flow_t flows_k[] = {
 #endif
 	{ "E emergency: hold the top key", "", "long:emerg", "toast=EMERGENCY_sent", 1, false },
 	{ "E emergency: hold again cancels", "long:emerg", "long:emerg", "toast=Emergency_canceled", 1, false },
+#if CONFIG_P25_PARROT
+	{ "E codec diagnostic ignores Emergency", "ok 7 up ok up ok ok", "long:emerg",
+	  "screen=p25parrot shows=Stop_and_play hides=EMERGENCY_sent", 1, false },
+	{ "E Emergency starts normally after exiting codec diagnostic", "ok 7 up ok up ok long:emerg long:back",
+	  "long:emerg", "screen=home toast=EMERGENCY_sent", 1, false },
+	{ "K codec diagnostic suppresses the raw DMR monitor toast", "ok 7 up ok up ok ok", "mon",
+	  "screen=p25parrot hides=Digital_monitor_on", 1, false },
+#endif
 	{ "E top key short: power", "", "user3", "power=5", 1, false },
 	// Side keys (Settings > Keys rows 4-9, core/input/keyassign.h; set42 = side key 1 ... set47 = top key hold)
 	{ "K key rows retain their press and hold labels", "", "ok 7 8",
 	  "screen=group shows=SK1 shows=SK1_hold shows=SK2", 3, false },
 	{ "K side key 1: the next choice", "ok 7 8", "down down down ok", "set42=1 shows=Nothing", 4, false },
 #if CONFIG_FM_TX_TONES
-	{ "K side key 1: tone burst", "ok 7 8 down down down ok ok ok ok ok ok ok ok ok ok", "ok",
+	{ "K side key 1: tone burst", "ok 7 8 down down down ok ok ok ok ok ok ok ok ok ok ok", "ok",
 	  "set42=18 shows=Tone_burst", 1, false },
 #endif
 	{ "K side key 1: monitor", "ok 7 8 down down down ok", "ok", "set42=2", 1, false },
 	{ "K side key 1 hold while it monitors (DMR)", "ok 7 8", "down down down down ok", "set43=1", 5, false },
 	{ "K side key 1 hold once it doesn't", "ok 7 8 down down down ok down", "ok", "set43=1", 1, false },
 	{ "K side key 2 hold", "ok 7 8", "down down down down down down ok", "set45=1", 7, false },
-	{ "K top key hold: emergency after scan", "ok 7 8 up ok ok ok ok ok ok ok", "ok", "set47=8 shows=Emergency", 1,
+	{ "K top key hold: emergency after scan", "ok 7 8 up ok ok ok ok ok ok ok ok", "ok", "set47=8 shows=Emergency", 1,
 	  false },
-	{ "K top key hold: copy to VFO", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok", "ok", "set47=14 shows=Copy_to_VFO", 1,
+	{ "K top key hold: copy to VFO", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=14 shows=Copy_to_VFO", 1,
 	  false },
-	{ "K top key hold: VFO/Channel after copy to VFO", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok", "ok",
+	{ "K top key hold: VFO/Channel after copy to VFO", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok", "ok",
 	  "set47=17 shows=VFO/Channel", 1, false },
-	{ "K top key hold: call back last", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=12 shows=Call_back",
+	{ "K top key hold: call back last", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=12 shows=Call_back",
 	  1, false },
-	{ "K top key hold wraps to default", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=0", 1,
+	{ "K top key hold wraps to default", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=0", 1,
 	  false },
-	{ "K top key hold: TG name / number after call back", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok",
+	{ "K top key hold: TG name / number after call back", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok",
 	  "set47=19 shows=TG_name", 1, false },
 	{ "K a key set to power", "", "powerkey", "power=5", 1, false },
 	{ "K a key set to power, long", "", "long:powerkey", "power=5", 1, false },
@@ -1416,6 +1437,13 @@ static const flow_t flows_k[] = {
 	  false },
 	{ "K monitor key on DMR: digital monitor", "", "mon", "hearall=1 toast=Digital_monitor_on", 1, false },
 	{ "K monitor key on DMR, again: off", "mon", "mon", "hearall=0 toast=Digital_monitor_off", 1, false },
+	// Monitor toggle (KEYFN_MONITOR_TOGGLE) does what quick tile 5 does: FM latches the squelch open, DMR digital monitor
+	{ "K a key set to monitor toggle, FM: latched", "down", "monkey", "monitor=1", 1, false },
+	{ "K a key set to monitor toggle, FM: again closes it", "down monkey", "monkey", "monitor=0", 1, false },
+	{ "K a key set to monitor toggle, FM, long press", "down", "long:monkey", "monitor=1", 1, false },
+	{ "K a key set to monitor toggle, DMR: digital monitor", "", "monkey", "hearall=1 toast=Digital_monitor_on", 1, false },
+	{ "K a key set to monitor toggle, DMR: again off", "monkey", "monkey", "hearall=0 toast=Digital_monitor_off", 1, false },
+	{ "K a key set to monitor toggle, DMR, long press", "", "long:monkey", "hearall=1", 1, false },
 	{ "K a key set to key lock", "", "lockkey", "locked=1", 1, false },
 	{ "K key lock unlocks too", "lockkey", "lockkey", "locked=0", 1, false },
 	{ "K call back: the last talkgroup", CALLER, "cbkey ptt", "txid=91 txpriv=0", 2, false },

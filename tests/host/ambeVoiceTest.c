@@ -3,6 +3,8 @@
 // DMR voice glue (core/dmr/ambe/ambeVoice.c) against a fake audio driver and a fake vocoder
 #include <stdio.h>
 #include <string.h>
+#include "dsp/mic_gain.h"
+#include "dsp/tx_level.h"
 
 #include "dmr/ambe/ambeVoice.h"
 #include "dmr/ambe/ambeFec.h"
@@ -590,36 +592,65 @@ static void testMicGain(void)
 {
 	ambeVoiceInit(&audio, &cap_vocoder);
 	const dmr_voice_source_t *src = ambeVoiceSource();
-	ambeVoiceSetMicGain(8);
+	ambe_voice_stats_t st;
+	ambeVoiceSetMicGain(3);
 	for (unsigned i = 0; i < 160; i++) mic[i] = i & 1 ? -1000 : 1000;
 	ncap = 0;
 	src->begin(src->ctx); block();
 	bool exact = true;
-	for (unsigned i = 0; i < 160; i++) exact = exact && cap_pcm[0][i] == (int32_t)mic[i] * 511 / 256;
+	for (unsigned i = 0; i < 160; i++) exact = exact && cap_pcm[0][i] == (int32_t)mic[i] * 161 / 256;
 	CHECK(exact, "manual gain preserves the legacy below-ceiling scaling");
 	src->end(src->ctx); block();
-#if CONFIG_TX_MIC_LIMITER
-	ambeVoiceSetMicGain(10);
+
+	// A calibrated board uses its +12 dB even when the codec's own AGC selects manual step 5.
+	ambeVoiceSetEncodeOptions(VOCODER_OPT_DEFAULT | VOCODER_OPT_AGC);
+	ambeVoiceSetMicGainQ8(mic_gain_db_q8(12));
+	ncap = 0;
+	src->begin(src->ctx); block();
+	ambeVoiceGetStats(&st);
+	CHECK(cap_pcm[0][0] == 1000 * 1019 / 256 && cap_pcm[0][1] == -1000 * 1019 / 256 &&
+	      st.tx_mic_peak == 1000 && st.tx_enc_peak == (uint32_t)cap_pcm[0][0] &&
+	      cap_opts[0] == (VOCODER_OPT_DEFAULT | VOCODER_OPT_AGC), "board calibration and codec AGC both apply");
+	CHECK(st.tx_mic_low_q8 == (CONFIG_TX_MIC_LIMITER ? 1019 : 0), "lowest gain is available with protection");
+	src->end(src->ctx); block();
+	ambeVoiceSetEncodeOptions(VOCODER_OPT_DEFAULT);
+
+	// The same calibrated board at step 10 uses +22 dB exactly once, including when the limiter is omitted.
+	ambeVoiceSetMicGainQ8(mic_gain_db_q8(22));
+	ncap = 0;
+	src->begin(src->ctx); block();
+	CHECK(cap_pcm[0][0] == 1000 * 3223 / 256 && cap_pcm[0][1] == -1000 * 3223 / 256,
+	      "manual gain adds to board calibration before encoding");
+	src->end(src->ctx); block();
+
 	for (unsigned i = 0; i < 160; i++) mic[i] = i & 1 ? -32768 : 32767;
 	ncap = 0;
 	src->begin(src->ctx); block();
-	bool safe = true;
-	for (unsigned i = 0; i < 160; i++) safe = safe && cap_pcm[0][i] >= -28000 && cap_pcm[0][i] <= 28000;
-	ambe_voice_stats_t st;
 	ambeVoiceGetStats(&st);
-	CHECK(safe && st.tx_enc_peak <= 28000 && st.tx_limited_blocks == 1, "loud PCM protected before codec");
-	CHECK(st.tx_mic_peak == 32768 && st.tx_gain_q16 < 65536, "raw input and applied gain are distinct");
+#if CONFIG_TX_MIC_LIMITER
+	bool safe = true;
+	for (unsigned i = 0; i < 160; i++)
+		safe = safe && cap_pcm[0][i] >= -TX_LEVEL_CEILING && cap_pcm[0][i] <= TX_LEVEL_CEILING;
+	CHECK(safe && st.tx_enc_peak == TX_LEVEL_CEILING && st.tx_limited_blocks == 1, "loud PCM protected before codec");
+	CHECK(st.tx_mic_peak == 32768 && st.tx_gain_q16 < TX_LEVEL_UNITY && st.tx_mic_low_q8 == st.tx_gain_q16 >> 8 &&
+	      mic_gain_q8_db((uint16_t)st.tx_mic_low_q8) == -1, "raw input, applied gain, and limiter telemetry");
+#else
+	CHECK(cap_pcm[0][0] == INT16_MAX && cap_pcm[0][1] == INT16_MIN && st.tx_enc_peak == 32768 &&
+	      st.tx_limited_blocks == 0, "manual gain saturates when protection is omitted");
+#endif
 	src->end(src->ctx); block();
+
+#if CONFIG_TX_MIC_LIMITER
 	ambeVoiceSetMicGain(5);
 	ncap = 0;
 	src->begin(src->ctx); block();
-	CHECK(cap_pcm[0][0] <= 28000 && cap_pcm[0][1] >= -28000, "unity gain still protects peaks");
+	CHECK(cap_pcm[0][0] <= TX_LEVEL_CEILING && cap_pcm[0][1] >= -TX_LEVEL_CEILING, "unity gain still protects peaks");
 	src->end(src->ctx); block();
 	for (unsigned i = 0; i < 160; i++) mic[i] = i & 1 ? -1234 : 1234;
 	ncap = 0;
 	src->begin(src->ctx); block();
 	ambeVoiceGetStats(&st);
-	CHECK(memcmp(cap_pcm[0], mic, sizeof mic) == 0 && st.tx_limited_blocks == 0 && st.tx_gain_q16 == 65536,
+	CHECK(memcmp(cap_pcm[0], mic, sizeof mic) == 0 && st.tx_limited_blocks == 0 && st.tx_gain_q16 == TX_LEVEL_UNITY,
 	      "fresh call resets limiter, clean unity stays exact");
 	src->end(src->ctx); block();
 #if CONFIG_SIG_TONES

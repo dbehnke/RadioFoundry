@@ -92,10 +92,11 @@ void p25VoicePoll(void);
 // A transmission starts (the stream starts if it was not running; from the next block the mic is encoded) or ends.
 // Radio task, around the engine's transmit calls
 void p25VoiceTx(bool on);
-// The mic samples' gain step, as ambeVoiceSetMicGain (radio/mic_gain.h). Any task
+// The mic samples' gain step (radio/mic_gain.h: the Mic gain setting; the board's mic_pcm_db is DMR's only). Any task
 void p25VoiceSetMicGain(uint8_t step);
-// The user AGC setting, independent of AMBE encode options.
+// Set the P25 AGC setting and read whether it applies in this build. Any task.
 void p25VoiceSetAgc(bool on);
+bool p25VoiceAgc(void);
 #if CONFIG_P25_PARROT
 // Radio task controls; codec state and recording belong only to the audio callback.
 // Borrow two frame buffers totaling 500 entries until p25VoiceEnd; they must not overlap the voice workspace.

@@ -126,7 +126,7 @@ uint32_t dmr_emergency_settings_serial(void);
 
 // --- Any task ---
 
-// The emergency key: start (false when one is running already); cancel ends it, whatever the state
+// The emergency key: start (false when one is running already or starts are inhibited); cancel ends it, whatever the state
 bool dmr_emergency_start(void);
 void dmr_emergency_cancel(void);
 // The user has seen the alert(s): the banner goes
@@ -153,6 +153,14 @@ static inline uint32_t dmr_emergency_serial(void) { return 0; }
 static inline void dmr_emergency_get_settings(dmr_emergency_settings_t *out) { dmr_emergency_settings_default(out); }
 static inline void dmr_emergency_set_settings(const dmr_emergency_settings_t *in) { (void)in; }
 
+#endif
+
+// Radio task: reserve a local, non-RF audio session. Refuse while an emergency is pending or running.
+// Admission is locked with start(), so requests during the session are rejected rather than deferred until exit.
+#if CONFIG_DMR_EMERGENCY && CONFIG_P25_PARROT
+bool dmr_emergency_inhibit(bool on);
+#else
+static inline bool dmr_emergency_inhibit(bool on) { (void)on; return true; }
 #endif
 
 #endif

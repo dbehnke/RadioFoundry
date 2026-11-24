@@ -43,9 +43,7 @@
 #include "radio/radio_p25.h"	// P25 conventional (docs/spec/p25.md 7)
 #if CONFIG_IMBE
 #include "p25/p25Voice.h"
-#if CONFIG_P25_PARROT
 #include "radio/mic_gain.h"
-#endif
 #endif
 #endif
 #if CONFIG_NET_USRP || CONFIG_APRS_RX
@@ -57,7 +55,7 @@
 #include "position/nmea.h"	// DMR APRS positions heard (data_position)
 #endif
 #include "radio/radio_keys.h"	// the codeplug settings area's keys: tones, data service
-#if CONFIG_DMR_EMERGENCY
+#if CONFIG_DMR_EMERGENCY || CONFIG_P25_PARROT
 #include "dmr/dmr_emergency.h"
 #endif
 #if CONFIG_SFR
@@ -6690,6 +6688,10 @@ static void air_key(radio_sm_t *sm, uint32_t now_ms, uint32_t hz)
 		return;
 	}
 	sm->air_keyed = true;
+#if CONFIG_P25 && CONFIG_IMBE
+	if (sm->view.ch.mode == RADIO_MODE_P25)
+		radio_p25_mic_gain_apply();
+#endif
 	if (!o->tx_go()) {
 		deny(sm, TXDENY_REFUSED);	// AIR_TX_DONE already: the tick switches off
 		return;
@@ -6759,7 +6761,7 @@ static void p25t_burst(radio_sm_t *sm, uint32_t hz)
 		return;
 	}
 	sm->air_keyed = true;
-	radio_p25_tx_go();			// (false: AIR_TX_DONE already)
+	radio_p25_trunk_burst_go();
 }
 
 // Every tick on a trunked channel: a request's grant keys the transmitter, its failure denies; bursts between calls.
@@ -9112,6 +9114,7 @@ static void parrot_close(radio_sm_t *sm, uint32_t now_ms)
 	audio_mux_local(false);
 #endif
 	sm->p25_parrot = false;
+	(void)dmr_emergency_inhibit(false);
 	tune(sm, now_ms);
 }
 
@@ -9120,6 +9123,8 @@ static void parrot_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_
 	if (req->arg == P25_PARROT_CLOSE) { parrot_close(sm, now_ms); return; }
 	if (req->arg == P25_PARROT_OPEN) {
 		if (sm->p25_parrot || sm->hotspot || BENCH_HELD(sm) || sm->ptt || sm->view.state == RS_TX)
+			return;
+		if (!dmr_emergency_inhibit(true))
 			return;
 #if CONFIG_SFR_CWID
 		cw_cancel(sm);
@@ -9152,6 +9157,7 @@ static void parrot_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_
 		if (sm->p25_parrot) beep_service(true, now_ms); // the diagnostic took the beep stream over
 #endif
 		if (!sm->p25_parrot) {
+			(void)dmr_emergency_inhibit(false);
 #if CONFIG_NET_USRP || CONFIG_APRS_RX
 			audio_mux_local(false);
 #endif

@@ -57,6 +57,7 @@ typedef struct {
 	uint32_t tx_enc_peak;	// largest encoder input sample after microphone gain
 	uint32_t tx_gain_q16;	// last software gain; 65536 is unity
 	uint32_t tx_limited_blocks;	// blocks whose gain was reduced by peak protection
+	uint32_t tx_mic_low_q8;	// lowest software mic gain in the latest transmission; 0 when unavailable
 	uint32_t tx_frames;	// frames encoded
 	uint32_t tx_overflows;	// encoded frames dropped, queue full (the stack didn't pull)
 	// What the mic delivered in the latest transmission, block by block (20 ms), to tell speech from a cut or
@@ -86,9 +87,11 @@ bool ambeVoiceStreaming(void);
 // block, adds into it and returns true while it sounds (the speaker route is kept on for it). NULL = none
 typedef bool (*ambe_voice_mixer_t)(int16_t *spk);
 void ambeVoiceSetMixer(ambe_voice_mixer_t mixer);
-// Microphone gain for DMR transmissions (Settings > Talk & listen > Mic gain): step 0..10, 2 dB a step, 5 = as the
-// board delivers it. CONFIG_TX_MIC_LIMITER protects peaks before scaling; otherwise scaling saturates. Any task. Set through
-// radio_set_mic_gain (radio/mic_gain.h), which keeps it at 5 when the board applies the gain itself
+// Microphone gain for AMBE transmissions, Q8 (256 = as the board delivers it). CONFIG_TX_MIC_LIMITER protects
+// peaks before the vocoder when enabled. Any task; a transmission starts at the gain set then and follows changes
+// from the next block. radio_set_mic_gain adds the manual step where software applies it to the board's mic_pcm_db.
+void ambeVoiceSetMicGainQ8(uint16_t q8);
+// Manual gain step alone (0..10, 2 dB per step, 5 is unity).
 void ambeVoiceSetMicGain(uint8_t step);
 // Test signal for DMR transmissions (the debug link's RADIO op 33, RAM only): on, the encoder gets a generated tone
 // that changes pitch every 60 ms in place of the mic, so an over carries known, varying audio whatever the mic hears

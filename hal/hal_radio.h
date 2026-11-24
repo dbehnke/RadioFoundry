@@ -104,11 +104,15 @@ typedef struct {
 	// start, so any task may call it. NULL = no gain in the board's audio path: DMR then scales the samples before the
 	// vocoder and FM stays as it is
 	void (*mic_gain)(int8_t db);
-	// Optional, for local PCM diagnostics: apply a digital microphone gain offset immediately in digital receive.
-	// Uses the same reference gain as digital TX and leaves the stored transmit offset alone. Radio task only.
+	// Optional: apply a digital microphone gain offset immediately, for P25 TX and local PCM diagnostics in receive.
+	// Uses the digital TX reference and leaves mic_gain's stored offset alone. Supply this hook if mic_gain's
+	// offset would also affect P25 TX. P25 applies manual gain in software when this hook is NULL. Radio task only.
 	void (*pcm_mic_gain)(int8_t db);
 	// Optional: route the transmit microphone to the PCM ADC without arming RF. Restore receive routing on false.
 	void (*pcm_mic_route)(bool on);
+	// Optional: fixed AMBE microphone PCM calibration in dB, combined with the manual software gain before
+	// the shared peak limiter. Zero keeps the board's delivered level. P25 ignores this codec-specific offset.
+	int8_t mic_pcm_db;
 	// Optional: the reference oscillator trim, parts per billion (the Freq trim setting, -10000..+10000 in steps of
 	// 100; core/radio/ref_trim.h). Positive raises the reference. It moves receive and transmit together, FM and DMR. Any task may call it. The board applies
 	// it now (false) or at the next tune (true: the caller asks the radio task for one, radio_req_retune). NULL = the

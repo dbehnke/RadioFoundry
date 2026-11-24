@@ -58,6 +58,7 @@ enum {
 	DL_VIEW_P25,		// P25 on the channel: the call, settings, engine and voice counters (debuglink_view_p25.c)
 	DL_VIEW_P25_TRUNK,	// a trunked P25 channel's follower: system, channels, call followed, counters (the same file)
 	DL_VIEW_NXDN,		// NXDN on the channel: the call, settings, the provider's fit, engine counters (debuglink_view_nxdn.c)
+	DL_VIEW_DMR_TX_AUDIO,	// the AMBE input gain and peak limiter (debuglink_view_dmr.c)
 	DL_VIEW_COUNT
 };
 #define DL_VIEW_VERSION		5	// bumped when a key changes meaning or goes away (new keys don't bump it)
@@ -70,6 +71,7 @@ const char *debuglink_view_name(uint8_t section);
 // The DMR sections (part 0: DL_VIEW_DMR, 1: DL_VIEW_DMR_CALL, 2: DL_VIEW_DMR_STATS), in their own file so the DMR
 // integration can change them without touching the rest; built without DMR they say "dmr.built=0"
 void debuglink_view_dmr(uint8_t part, const radio_view_t *v, dl_text_t *t);
+void debuglink_view_dmr_tx_audio(dl_text_t *t);
 // The DMR voice path counters as diagnostics lines (call stack, AMBE voice): line i < DL_DMR_DIAG_LINES
 #define DL_DMR_DIAG_LINES	4
 bool debuglink_dmr_diag_line(uint8_t i, char *buf, uint8_t len);

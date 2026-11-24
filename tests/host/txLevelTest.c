@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include "dsp/mic_gain.h"
 #include "dsp/tx_level.h"
 
 #define N	160
@@ -111,6 +112,42 @@ static void test_manual(void)
 	CHECK(s.gain_q16 == TX_LEVEL_UNITY && memcmp(in, out, sizeof in) == 0);
 }
 
+static void test_board_calibration(void)
+{
+	for (int db = MIC_GAIN_DB_MIN; db <= MIC_GAIN_DB_MAX; db++) {
+		uint16_t q8 = mic_gain_db_q8(db);
+		CHECK(fabs(q8 - 256.0 * pow(10.0, db / 20.0)) <= 0.5);
+		CHECK(mic_gain_q8_db(q8) == db);
+	}
+	CHECK(mic_gain_db_q8(-40) == mic_gain_db_q8(MIC_GAIN_DB_MIN));
+	CHECK(mic_gain_db_q8(99) == mic_gain_db_q8(MIC_GAIN_DB_MAX));
+	CHECK(mic_gain_q8_db(0) == MIC_GAIN_DB_MIN && mic_gain_q8_db(UINT16_MAX) == MIC_GAIN_DB_MAX);
+
+	int16_t in[N], out[N];
+	uint32_t gain = (uint32_t)mic_gain_db_q8(12) << 8;
+	tx_level_t s;
+	tx_level_reset(&s, gain);
+	// A -31 dBFS reference gets 12 dB of lift with no limiting.
+	tone(in, 1306);
+	uint16_t peak = tx_level_process(&s, in, out, N, gain, 0, NULL);
+	CHECK(peak == 1306 * 1019 / 256 && abs(db10(out) + 190) <= 1 && s.limited_blocks == 0);
+	// A loud sine stays a sine after the block-wide cut.
+	tone(in, INT16_MAX);
+	peak = tx_level_process(&s, in, out, N, gain, 0, NULL);
+	CHECK(peak == TX_LEVEL_CEILING - 1 && s.limited_blocks == 1);
+	CHECK(abs(tx_level_db10((uint32_t)peak * peak) - db10(out) - 30) <= 1);
+	// Quiet blocks recover from that cut to the calibrated gain without exceeding it.
+	tone(in, 1306);
+	unsigned blocks = 0;
+	while (s.gain_q16 < gain && blocks < 30) {
+		uint32_t prev = s.gain_q16;
+		tx_level_process(&s, in, out, N, gain, 0, NULL);
+		CHECK(s.gain_q16 > prev && s.gain_q16 <= prev * TX_LEVEL_RELEASE_Q8 / 256);
+		blocks++;
+	}
+	CHECK(s.gain_q16 == gain && blocks >= 25 && blocks <= 29 && s.limited_blocks == 1);
+}
+
 static void test_ceiling(void)
 {
 	int16_t pcm[1023] = { 0 };
@@ -168,6 +205,7 @@ int main(void)
 {
 	test_target();
 	test_manual();
+	test_board_calibration();
 	test_ceiling();
 	test_meter();
 	printf("txLevelTest: %u checks, %u failed\n", checks, failures);

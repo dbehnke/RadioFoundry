@@ -5945,6 +5945,14 @@ static void test_side_keys(void)
 	ui_svc_keys_poll();
 	CHECK(ui_svc_setting_get(UI_SET_KEY_FIRST) == KEYFN_SCAN_SKIP && got_keymap[1].short_action == ACT_SCAN_SKIP);
 	CHECK(got_keymap[2].long_action == ACT_SCAN_SKIP);
+	// Monitor toggle, stored as 21
+	cp_quick[1] = 21;
+	cp_quick[2] = 21 << 8;
+	cp_serial++;
+	ui_svc_keys_poll();
+	CHECK(ui_svc_setting_get(UI_SET_KEY_FIRST) == KEYFN_MONITOR_TOGGLE &&
+	      got_keymap[1].short_action == ACT_MONITOR_TOGGLE);
+	CHECK(got_keymap[2].long_action == ACT_MONITOR_TOGGLE);
 	cp_quick[1] = KEYFN_SCAN;
 	cp_quick[2] = KEYFN_ZONE_UP << 8;
 	cp_serial++;
@@ -8571,6 +8579,48 @@ static void r_mic_gain(int8_t db) { parrot_saved_offset = db; }
 static void r_pcm_mic_gain(int8_t db) { parrot_pcm_offset = db; }
 static void r_pcm_mic_route(bool on) { parrot_mic_route = on; }
 
+static void test_p25_parrot_emergency(void)
+{
+#if CONFIG_DMR_EMERGENCY
+	setup_codeplug_p25(); codec_present = true; start(); p25_defaults();
+	req(RREQ_ZONE_POS, 3);
+	dmr_emergency_settings_t es;
+	dmr_emergency_settings_default(&es);
+	es.mode = DMR_EMERGENCY_MODE_CALL;
+	es.hot_mic_s = 0;
+	dmr_emergency_set_settings(&es);
+	run(50);
+	int keyed = hw.tx_calls;
+	// A pending request wins admission; opening the diagnostic must not silently discard it.
+	CHECK(dmr_emergency_start());
+	req(RREQ_P25_PARROT, P25_PARROT_OPEN);
+	CHECK(!sm.p25_parrot);
+	dmr_emergency_cancel();
+	run(50);
+	CHECK(!dmr_emergency_in_progress());
+	CHECK(radio_req_p25_parrot(P25_PARROT_OPEN, false, -25));
+	CHECK(sm.p25_parrot);
+	// UI service and the shared debug-link mailbox both reject starts while local audio owns the path.
+	CHECK(!ui_svc_emergency(true));
+	CHECK(!dmr_emergency_start());
+	run(100);
+	req(RREQ_P25_PARROT, P25_PARROT_CLOSE);
+	run(500);
+	CHECK(!dmr_emergency_in_progress() && !hw.keyed && hw.tx_calls == keyed);
+	// Closing releases admission. An already active emergency also prevents diagnostic entry.
+	CHECK(dmr_emergency_start());
+	run(25);
+	CHECK(dmr_emergency_in_progress());
+	req(RREQ_P25_PARROT, P25_PARROT_OPEN);
+	CHECK(!sm.p25_parrot);
+	dmr_emergency_cancel();
+	run(50);
+	CHECK(!dmr_emergency_in_progress());
+	CHECK(radio_req_p25_parrot(P25_PARROT_OPEN, false, -25));
+	req(RREQ_P25_PARROT, P25_PARROT_CLOSE);
+#endif
+}
+
 static void test_p25_parrot(void)
 {
 	setup_codeplug_p25(); start(); p25_defaults();
@@ -8670,6 +8720,76 @@ static void test_p25_parrot(void)
 }
 #endif
 
+static int8_t p25_tx_adc_db, ambe_fm_adc_db;
+static unsigned p25_keying_blocks;
+
+static void r_ambe_fm_gain(int8_t db) { ambe_fm_adc_db = db; }
+static void r_p25_tx_gain(int8_t db) { p25_tx_adc_db = db; }
+
+static void p25_mic_block(void)
+{
+	int16_t mic[AUDIO_BLOCK_SAMPLES], spk[AUDIO_BLOCK_SAMPLES];
+	for (unsigned i = 0; i < AUDIO_BLOCK_SAMPLES; i++)
+		mic[i] = 4000;
+	aud.cb(mic, spk, aud.ctx);
+}
+
+static bool r_p25_keying_block(uint32_t hz, radio_bw_t bw, uint8_t power, const subtone_t *subtone)
+{
+	// The PCM stream can deliver a block during key-up, before the board has set the P25 ADC gain.
+	if (aud.started) {
+		p25_keying_blocks++;
+		p25_mic_block();
+	}
+	return r_tx(hz, bw, power, subtone);
+}
+
+static void test_p25_mic_gain(void)
+{
+	radio_p25_end();	// Release the previous case's PCM callback before the fixture resets it.
+	setup_codeplug_p25();
+	start();
+	p25_defaults();
+	CHECK(ui_svc_setting_set(UI_SET_MIC_GAIN, 8));
+	CHECK(ui_svc_setting_set(UI_SET_MIC_AGC, 1));
+	fake_radio.mic_pcm_db = 12;
+	req(RREQ_ZONE_POS, 2);
+	for (unsigned hardware = 0; hardware < 2; hardware++) {
+		if (hardware) {
+			fake_radio.mic_gain = r_ambe_fm_gain;
+			fake_radio.pcm_mic_gain = r_p25_tx_gain;
+			fake_radio.tx = r_p25_keying_block;
+		}
+		ui_svc_apply(UI_SET_MIC_AGC, 1);
+		CHECK(radio_mic_gain() == MIC_GAIN_UNITY && radio_mic_pcm_db() == 12);
+		p25_voice_stats_t before, after;
+		p25VoiceGetStats(&before);
+		req(RREQ_PTT, 1);
+		CHECK(sm.view.state == RS_TX && aud.started);
+		p25VoiceGetStats(&after);
+		CHECK(after.tx_encoded == before.tx_encoded);
+		if (hardware)
+			CHECK(p25_keying_blocks == 1 && ambe_fm_adc_db == 0 && p25_tx_adc_db == (CONFIG_P25_TX_AGC ? 0 : 6));
+		if (aud.started)
+			p25_mic_block();
+		p25VoiceGetStats(&after);
+		CHECK(after.tx_encoded == before.tx_encoded + 1);
+		if (CONFIG_P25_TX_AGC)
+			CHECK(after.tx_mic_peak <= 1843 && after.tx_gain_q16 < 65536u);
+		else
+			CHECK(after.tx_gain_q16 == (hardware ? 65536u : 511u << 8));
+		req(RREQ_PTT, 0);
+		run(500);
+		CHECK(!hw.keyed);
+	}
+	fake_radio.tx = r_tx;
+	fake_radio.mic_gain = fake_radio.pcm_mic_gain = NULL;
+	fake_radio.mic_pcm_db = 0;
+	ui_svc_apply(UI_SET_MIC_AGC, 0);
+	radio_set_mic_gain(MIC_GAIN_UNITY);
+	radio_p25_end();
+}
+
 static void test_p25(void)
 {
 #if CONFIG_P25_TRUNK
@@ -8679,6 +8799,7 @@ static void test_p25(void)
 	test_p25_conv_wacn_nogo();
 #endif
 #if CONFIG_P25_PARROT
+	test_p25_parrot_emergency();
 	test_p25_parrot();
 #endif
 	test_p25_rx();
@@ -8690,6 +8811,7 @@ static void test_p25(void)
 #endif
 #endif
 	test_p25_tx();
+	test_p25_mic_gain();
 	test_p25_denied();
 	test_p25_leave();
 	test_p25_vfo();

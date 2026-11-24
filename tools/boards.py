@@ -334,10 +334,10 @@ def make_vars(root, board, names, args=()):
     """{name: value} of make variables as the build sees them for BOARD (board.mk, config.mk and their conditionals):
     the Makefile's print-vars target. args: more make arguments (BAND=vhf, VARIANT=amateur)."""
     import subprocess
-    # Without the calling make's variables: run from a build's registry rule, MAKEFLAGS would carry its BUILD and
-    # CONFIG_ overrides into this make, which then read another build's values and touched its build directory
-    env = {k: v for k, v in os.environ.items() if k not in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL", "MAKEOVERRIDES", "BUILD")
-           and not k.startswith("CONFIG_")}
+    # A calling make can export its BUILD and CONFIG_ overrides through MAKEFLAGS and as individual variables.
+    # The registry queries use each board's own features and build directory unless an explicit argument overrides them.
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL", "MAKEOVERRIDES", "BUILD") and not k.startswith("CONFIG_")}
     try:
         r = subprocess.run(["make", "-s", "--no-print-directory", "-C", root, "BOARD=" + board, *args,
                             "print-vars", "VARS=" + " ".join(names)], capture_output=True, text=True, timeout=60,
@@ -1716,6 +1716,21 @@ def self_test():
             fails.append(what)
         print("%s %s" % ("ok  " if cond else "FAIL", what))
 
+    # A nested registry query must read the queried board's defaults even when its caller exports overrides.
+    from unittest.mock import patch
+    with tempfile.TemporaryDirectory(prefix="rfoundry-boards-env-") as tmpenv:
+        with open(os.path.join(tmpenv, "Makefile"), "w", encoding="utf-8") as f:
+            f.write("CONFIG_REGISTRY_PROBE ?= n\nBUILD ?= default\nprint-vars:\n"
+                    "\t@echo CONFIG_REGISTRY_PROBE=$(CONFIG_REGISTRY_PROBE)\n\t@echo BUILD=$(BUILD)\n")
+        names = ["CONFIG_REGISTRY_PROBE", "BUILD"]
+        with patch.dict(os.environ, {"CONFIG_REGISTRY_PROBE": "y", "BUILD": "caller",
+                                    "MAKEFLAGS": "CONFIG_REGISTRY_PROBE=y BUILD=caller",
+                                    "MAKEOVERRIDES": "CONFIG_REGISTRY_PROBE=y BUILD=caller"}):
+            ok(make_vars(tmpenv, "fixture", names) == {"CONFIG_REGISTRY_PROBE": "n", "BUILD": "default"},
+               "make_vars ignores inherited feature and build assignments")
+            ok(make_vars(tmpenv, "fixture", names, ["CONFIG_REGISTRY_PROBE=y", "BUILD=explicit"])
+               == {"CONFIG_REGISTRY_PROBE": "y", "BUILD": "explicit"}, "make_vars honors explicit query arguments")
+
     # list's selection (ci.sh --platform, the workflows' per-platform jobs)
     from types import SimpleNamespace as NS
     fp = {p: NS(id=p, data={"toolchain": {"id": t}}) for p, t in (("p1", "t1"), ("p2", "t2"), ("p3", "t1"))}
@@ -2082,7 +2097,6 @@ def self_test():
                 os.makedirs(os.path.dirname(os.path.join(tmp, p)), exist_ok=True)
                 open(os.path.join(tmp, p), "w").close()
         ok(check(tmp) == [], "the copied registry is consistent: %s" % check(tmp)[:3])
-        from unittest.mock import patch
         one = board_dirs(tmp)[0]
         names = ["CONFIG_DMR", "CONFIG_P25_PARROT", "BUILD"]
         expected = make_vars(tmp, one, names)

@@ -345,7 +345,7 @@ static void parrot_block(const int16_t *mic, int16_t *spk)
 static void tx_block(uint8_t g, const int16_t *mic, int16_t *scaled)
 {
 	uint32_t limited = input_level.limited_blocks;
-	uint16_t target = CONFIG_P25_TX_AGC && LOAD(mic_agc) ? P25_TX_TARGET_RMS : 0;
+	uint16_t target = p25VoiceAgc() ? P25_TX_TARGET_RMS : 0;
 	uint16_t peak = input_block(mic, scaled, LOAD(mic_gain_q8), target, NULL);
 	stats.tx_gain_q16 = input_level.gain_q16;
 	stats.tx_limited_blocks += input_level.limited_blocks - limited;
@@ -392,7 +392,7 @@ void p25VoiceAudioBlock(const int16_t *mic, int16_t *spk, void *ctx)
 			stats.tx_mic_peak = 0;
 			stats.tx_limited_blocks = 0;
 			imbe_enc_init(&enc);
-			uint32_t initial = CONFIG_P25_TX_AGC && LOAD(mic_agc) ? TX_LEVEL_UNITY : (uint32_t)LOAD(mic_gain_q8) << 8;
+			uint32_t initial = p25VoiceAgc() ? TX_LEVEL_UNITY : (uint32_t)LOAD(mic_gain_q8) << 8;
 			tx_level_reset(&input_level, initial);
 		}
 		// The speaker block doubles as the encoder input scratch while transmitting.
@@ -556,6 +556,7 @@ void p25VoiceTx(bool on)
 }
 
 void p25VoiceSetAgc(bool on) { STORE(mic_agc, on); }
+bool p25VoiceAgc(void) { return CONFIG_P25_TX_AGC && LOAD(mic_agc); }
 
 void p25VoiceSetMicGain(uint8_t step)
 {

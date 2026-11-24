@@ -877,17 +877,28 @@ bool radio_p25_tx_prepare(void)
 		trunk_tx_nac(mem);
 	}
 #endif
-	if (!p25_engine_tx_prepare(&mem->eng)) {
-		return false;
-	}
-	voice_tx(true);
-	return true;
+	return p25_engine_tx_prepare(&mem->eng);
 }
 
 bool radio_p25_tx_go(void)
 {
-	return mem != NULL && p25_engine_tx_go(&mem->eng);
+	if (mem == NULL)
+		return false;
+	// The radio has keyed and set the P25 ADC gain. Only blocks from this point belong to the call.
+	voice_tx(true);
+	if (p25_engine_tx_go(&mem->eng))
+		return true;
+	voice_tx(false);
+	return false;
 }
+
+#if CONFIG_P25_TRUNK
+void radio_p25_trunk_burst_go(void)
+{
+	if (mem != NULL)
+		p25_engine_tx_go(&mem->eng);
+}
+#endif
 
 void radio_p25_tx_stop(void)
 {

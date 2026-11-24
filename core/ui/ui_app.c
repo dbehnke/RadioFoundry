@@ -1414,6 +1414,32 @@ static void quick_unavailable(uint8_t kind)
 	}
 }
 
+// Quick tile 5's action, on its own so a side key set to Monitor toggle runs the very same code: FM latches the
+// squelch open (or closes it again), DMR turns digital monitor on or off. kind is QT_MONITOR or QT_HEAR_ALL
+static void quick_monitor(uint8_t kind)
+{
+#if CONFIG_DMR
+	if (kind == QT_HEAR_ALL) {
+		if (ui_svc_hear_all(!ui_st.hear_all)) {
+			ui_st.hear_all = !ui_st.hear_all;
+			ui_toast(dmon_text(ui_st.hear_all));
+		} else {
+			quick_unavailable(kind);
+		}
+		return;
+	}
+#endif
+	if (!ui_svc_monitor(!view->monitor))
+		quick_unavailable(kind);
+}
+
+// A side key set to Monitor toggle: tile 5 of the quick settings, kept to the channel's mode (also in the VFO, where
+// the tile is TX freq and the monitor stays on its key)
+void ui_monitor_toggle(void)
+{
+	quick_monitor(view->ch.mode == RADIO_MODE_DMR ? QT_HEAR_ALL : QT_MONITOR);
+}
+
 static void quick_activate(int tile)
 {
 	char label[20], value[12];
@@ -1474,8 +1500,7 @@ static void quick_activate(int tile)
 		break;
 	}
 	case QT_MONITOR:
-		if (!ui_svc_monitor(!view->monitor))
-			quick_unavailable(kind);
+		quick_monitor(kind);
 		break;
 	case QT_VOX:
 		if (ui_svc_vox(!view->vox_on))
@@ -1508,12 +1533,7 @@ static void quick_activate(int tile)
 		ui_st.quick_edit = true;
 		break;
 	case QT_HEAR_ALL:
-		if (ui_svc_hear_all(!ui_st.hear_all)) {
-			ui_st.hear_all = !ui_st.hear_all;
-			ui_toast(dmon_text(ui_st.hear_all));
-		} else {
-			quick_unavailable(kind);
-		}
+		quick_monitor(kind);
 		break;
 	case QT_PRIVACY:
 		if (ui_svc_privacy(!ui_st.privacy)) {
@@ -2137,6 +2157,17 @@ void ui_app_key(const input_event_t *ev)
 			TR(LOCK_TOAST_PTT_OFF_HOLD_BACK, "PTT is off while locked: hold Back to unlock"));
 		return;
 	}
+	bool lock_key = has_quick_key ? (ev->action == ACT_QUICK && ev->gesture == GESTURE_LONG && (sp == 0 || ui_st.locked)) :
+		(ev->action == ACT_BACK && ev->gesture == GESTURE_LONG && ui_st.locked);
+	// A side key set to key lock (keyassign.h) locks and unlocks on a press or a long press, as long QUICK does
+	if (ev->action == ACT_LOCK && (ev->gesture == GESTURE_PRESS || ev->gesture == GESTURE_LONG))
+		lock_key = true;
+#if CONFIG_P25_PARROT
+	// Keep the diagnostic on screen and skip radio actions, including Emergency. PTT still tracks the key state.
+	if (stack[sp].scr == SCR_P25_PARROT && ev->action != ACT_BACK && ev->action != ACT_SELECT &&
+	    ev->action != ACT_PTT && !is_nav(ev) && !lock_key)
+		return;
+#endif
 	// The monitor key on DMR: a short press toggles digital monitor (the radio core does it on the release; the
 	// view follows). Its hold function (value 1 on the long press) runs on DMR only: on FM holding the key is the
 	// squelch break (#19). The radio task outranks this one and gets the edge first, so the view at the release
@@ -2169,11 +2200,6 @@ void ui_app_key(const input_event_t *ev)
 	// is a delete. It unlocks from anywhere (auto lock can lock with a menu open)
 	bool typing = stack[sp].scr == SCR_TEXT || stack[sp].scr == SCR_APRS_TO ||
 		stack[sp].scr == SCR_MESSAGE_TEXT;
-	bool lock_key = has_quick_key ? (ev->action == ACT_QUICK && ev->gesture == GESTURE_LONG && (sp == 0 || ui_st.locked)) :
-		(ev->action == ACT_BACK && ev->gesture == GESTURE_LONG && ui_st.locked);
-	// A side key set to key lock (keyassign.h) locks and unlocks on a press or a long press, as long QUICK does
-	if (ev->action == ACT_LOCK && (ev->gesture == GESTURE_PRESS || ev->gesture == GESTURE_LONG))
-		lock_key = true;
 	if (ui_st.locked) {
 		if (lock_key) {
 			set_locked(false);
@@ -2188,11 +2214,6 @@ void ui_app_key(const input_event_t *ev)
 		ui_toast(locked_text(true));
 		return;
 	}
-#if CONFIG_P25_PARROT
-	// Keep the local audio session on screen until Back releases it. The normal unlock keys still work.
-	if (stack[sp].scr == SCR_P25_PARROT && ev->action != ACT_BACK && ev->action != ACT_SELECT && !is_nav(ev))
-		return;
-#endif
 #if CONFIG_HOTSPOT
 	if (in_hotspot()) {
 		hotspot_key(ev);
@@ -2239,6 +2260,9 @@ void ui_app_key(const input_event_t *ev)
 			return;
 		case ACT_SCAN_SKIP:
 			ui_scan_skip();
+			return;
+		case ACT_MONITOR_TOGGLE:
+			ui_monitor_toggle();
 			return;
 #if CONFIG_DUAL_WATCH
 		case ACT_DUAL_WATCH:

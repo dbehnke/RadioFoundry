@@ -814,6 +814,8 @@ reflash (debug link SETTING 29). Speech on FM gave 1.4 kHz peak deviation (above
 bandwidth of that measurement isn't recorded, so the target isn't settled. If the path is linear up to the deviation
 limiter, each dB of gain adds 1 dB of deviation. See section 10.
 
+Before P25 encodes its first voice block, the board applies the P25 gain offset relative to `MIC_GAIN_DMR_DB`
+through `hal_radio_t.pcm_mic_gain`. The offset is zero when P25 AGC is on. FM and AMBE retain their stored offset.
 The codec diagnostic uses the digital receive microphone route, which already holds PTB14 high as for digital TX.
 It can apply a temporary ADC gain offset relative to `MIC_GAIN_DMR_DB` while recording and restores the live radio
 offset afterward. The board hook leaves the stored TX offset alone. On-device checks are pending.
