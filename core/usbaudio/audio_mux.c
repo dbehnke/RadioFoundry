@@ -16,6 +16,11 @@ static void *volatile prim_ctx;
 static bool running;				// the board's stream runs (radio task)
 static volatile audio_mux_rx_t host_rx;
 static volatile bool host_tx_dmr;
+#if CONFIG_P25_PARROT
+static volatile bool local;
+#else
+#define local false
+#endif
 #define host_rx_on	(host_rx != AUDIO_MUX_RX_OFF)
 static uint32_t retry_ms;
 static bool retry_armed;
@@ -28,9 +33,9 @@ static int16_t host_mic[AUDIO_BLOCK_SAMPLES];
 static volatile bool aprs_on;
 static int16_t aprs_ring[AUDIO_MUX_APRS_CAP];
 static volatile uint32_t aprs_wr, aprs_rd;	// the audio task writes, the radio task reads
-#define stream_wanted	(host_rx_on || aprs_on)
+#define stream_wanted	(!local && (host_rx_on || aprs_on))
 #else
-#define stream_wanted	host_rx_on
+#define stream_wanted	(!local && host_rx_on)
 #endif
 static audio_mux_stats_t st;
 
@@ -55,7 +60,7 @@ static void block(const int16_t *mic, int16_t *spk, void *ctx)
 	(void)ctx;
 	st.blocks++;
 	const int16_t *in = mic;
-	if (host_tx_dmr) {
+	if (!local && host_tx_dmr) {
 		pcm_slip_pull(&slip, host_mic, AUDIO_BLOCK_SAMPLES);
 		in = host_mic;
 		st.tx_blocks++;
@@ -79,7 +84,7 @@ static void block(const int16_t *mic, int16_t *spk, void *ctx)
 		}
 	}
 #endif
-	audio_mux_rx_t src = host_rx;
+	audio_mux_rx_t src = local ? AUDIO_MUX_RX_OFF : host_rx;
 	if (src == AUDIO_MUX_RX_SILENT) {
 		static const int16_t silence[AUDIO_BLOCK_SAMPLES];
 		rx_put(silence, AUDIO_BLOCK_SAMPLES);
@@ -139,6 +144,7 @@ const hal_audio_t *audio_mux_wrap(const hal_audio_t *board_audio)
 	wrapped.speaker_lead_ms = board_audio->speaker_lead_ms;	// the beep player reads these through the wrapper
 	wrapped.speaker_warm = board_audio->speaker_warm;
 	wrapped.speaker_hang_s = board_audio->speaker_hang_s;
+	wrapped.spk_pending = board_audio->spk_pending;
 	pcm_slip_init(&slip, AUDIO_MUX_TX_TARGET, AUDIO_BLOCK_SAMPLES);
 	return &wrapped;
 }
@@ -175,6 +181,8 @@ uint32_t audio_mux_host_read(int16_t *pcm, uint32_t n)
 
 void audio_mux_host_push(const int16_t *pcm, uint32_t n)
 {
+	if (local)
+		return;
 	uint32_t room = PCM_SLIP_CAP - pcm_slip_fill(&slip);
 	if (n > room) {
 		n = room;	// never let the push move the read side under the consumer
@@ -183,14 +191,17 @@ void audio_mux_host_push(const int16_t *pcm, uint32_t n)
 	st.tx_pushes++;
 }
 
-void audio_mux_host_tx(bool on, bool dmr)
+bool audio_mux_host_tx(bool on, bool dmr)
 {
+	if (on && local)
+		return false;
 	if (on) {
 		pcm_slip_reset(&slip);
 		host_tx_dmr = dmr;
 	} else {
 		host_tx_dmr = false;
 	}
+	return true;
 }
 
 uint32_t audio_mux_host_pushes(void)
@@ -231,6 +242,17 @@ uint32_t audio_mux_aprs_read(int16_t *pcm, uint32_t n)
 #endif
 
 // --- radio task ---
+
+#if CONFIG_P25_PARROT
+void audio_mux_local(bool on)
+{
+	if (on)
+		local = true;
+	host_tx_dmr = false;
+	if (!on)
+		local = false;
+}
+#endif
 
 void audio_mux_service(uint32_t now_ms)
 {
@@ -282,6 +304,9 @@ void audio_mux_reset(void)
 	running = false;
 	host_rx = AUDIO_MUX_RX_OFF;
 	host_tx_dmr = false;
+#if CONFIG_P25_PARROT
+	local = false;
+#endif
 	retry_armed = false;
 	rx_wr = rx_rd = 0;
 #if CONFIG_APRS_RX

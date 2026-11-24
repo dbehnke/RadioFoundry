@@ -43,6 +43,9 @@ static dmr_emergency_stats_t stats;
 static dmr_emergency_alert_t alert;
 static volatile uint32_t serial;
 static volatile uint8_t shown_state;
+#if CONFIG_P25_PARROT
+static bool start_inhibited;
+#endif
 
 // Requests from other tasks
 static struct {
@@ -96,6 +99,9 @@ void dmr_emergency_init(const dmr_emergency_settings_t *s)
 	cfg_serial++;
 	lock();
 	memset(&mbox, 0, sizeof(mbox));
+#if CONFIG_P25_PARROT
+	start_inhibited = false;
+#endif
 	memset(&alert, 0, sizeof(alert));
 	unlock();
 	serial++;
@@ -309,6 +315,9 @@ bool dmr_emergency_start(void)
 	bool ok;
 	lock();
 	ok = !mbox.start && !dmr_emergency_in_progress();
+#if CONFIG_P25_PARROT
+	ok = ok && !start_inhibited;
+#endif
 	if (ok) {
 		mbox.start = true;
 		mbox.cancel = false;
@@ -316,6 +325,19 @@ bool dmr_emergency_start(void)
 	unlock();
 	return ok;
 }
+
+#if CONFIG_P25_PARROT
+bool dmr_emergency_inhibit(bool on)
+{
+	lock();
+	bool ok = !on || (!mbox.start && !dmr_emergency_in_progress());
+	if (ok) {
+		start_inhibited = on;
+	}
+	unlock();
+	return ok;
+}
+#endif
 
 void dmr_emergency_cancel(void)
 {

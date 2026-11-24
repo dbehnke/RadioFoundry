@@ -10,6 +10,9 @@
 #include "radio/radio_trunk.h"
 #include "hal_time.h"
 #include "config.h"
+#if CONFIG_P25_PARROT
+#include "p25/p25_parrot.h"
+#endif
 #if CONFIG_HOTSPOT
 #include "hotspot/hotspot.h"
 #include "radio/radio_hotspot.h"
@@ -98,6 +101,10 @@ static volatile bool power_off_busy;	// radio_req_power_off until the radio core
 static volatile bool power_off_wanted;	// published view.power_off
 static SemaphoreHandle_t view_lock;
 static QueueHandle_t requests;
+#if CONFIG_P25_PARROT
+static volatile uint8_t parrot_request_state;
+static volatile bool parrot_close_pending;
+#endif
 
 static volatile uint32_t req_handled, req_dropped;
 
@@ -311,9 +318,25 @@ static void radio_task(void *arg)
 #endif
 				else {
 					radio_sm_request(&sm, &req, hal_millis());
+#if CONFIG_P25_PARROT
+					if (req.type == RREQ_P25_PARROT && req.arg == P25_PARROT_OPEN &&
+					    parrot_request_state == P25_PARROT_OPENING)
+						parrot_request_state = sm.p25_parrot ? P25_PARROT_READY : P25_PARROT_REFUSED;
+					else if (!sm.p25_parrot && (parrot_request_state == P25_PARROT_READY ||
+						 (req.type == RREQ_P25_PARROT && req.arg == P25_PARROT_CLOSE)))
+						parrot_request_state = P25_PARROT_OFF;
+#endif
 				}
 			} while (xQueueReceive(requests, &req, 0) == pdTRUE);
 		}
+#if CONFIG_P25_PARROT
+		if (parrot_close_pending) {
+			const radio_req_t close = { .type = RREQ_P25_PARROT, .arg = P25_PARROT_CLOSE };
+			radio_sm_request(&sm, &close, hal_millis());
+			parrot_close_pending = false;
+			parrot_request_state = P25_PARROT_OFF;
+		}
+#endif
 		TickType_t now = xTaskGetTickCount();
 		if (woken || (int32_t)(now - next_tick) >= 0) {
 			radio_sm_tick(&sm, hal_millis());
@@ -708,6 +731,32 @@ void radio_req_p25_settings(const radio_p25_settings_t *s)
 	xSemaphoreGive(view_lock);
 	post(RREQ_P25_SET, 0, pdMS_TO_TICKS(50));
 }
+#endif
+#if CONFIG_P25_PARROT
+bool radio_req_p25_parrot(uint8_t command, bool agc, int8_t target_dbfs)
+{
+	if (requests == NULL) return false;
+	radio_req_t req = { .type = RREQ_P25_PARROT, .arg = command,
+		.arg2 = (uint8_t)target_dbfs | (agc ? 256u : 0u) };
+	if (command == P25_PARROT_CLOSE) {
+		parrot_request_state = P25_PARROT_CLOSING;
+		// A full queue can delay exit, but the next radio turn must give the stream back.
+		if (!send(&req, 0))
+			parrot_close_pending = true;
+		return true;
+	}
+	if (command != P25_PARROT_OPEN)
+		return send(&req, 0);
+	if (parrot_request_state != P25_PARROT_OFF)
+		return false;
+	parrot_request_state = P25_PARROT_OPENING;
+	if (send(&req, 0))
+		return true;
+	parrot_request_state = P25_PARROT_OFF;
+	return false;
+}
+
+uint8_t radio_p25_parrot_state(void) { return parrot_request_state; }
 #endif
 #if CONFIG_NXDN
 void radio_req_nxdn_settings(const radio_nxdn_settings_t *s)

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // Feature switches (config/features.mk sets them for firmware builds; everything defaults on here, e.g. for host
 // tests). Always defined to 0 or 1: test with #if CONFIG_X, never #ifdef. See docs/build-config.md.
 #ifndef RFOUNDRY_CONFIG_H
@@ -342,6 +343,15 @@
 #ifndef CONFIG_P25
 #define CONFIG_P25			0
 #endif
+#ifndef CONFIG_TX_MIC_LIMITER
+#define CONFIG_TX_MIC_LIMITER 0
+#endif
+#ifndef CONFIG_P25_TX_AGC
+#define CONFIG_P25_TX_AGC 0
+#endif
+#ifndef CONFIG_P25_PARROT
+#define CONFIG_P25_PARROT 0
+#endif
 // NXDN conventional voice (core/nxdn, docs/spec/nxdn.md). AIR is on with any air-framed mode
 #ifndef CONFIG_NXDN
 #define CONFIG_NXDN			0
@@ -577,6 +587,12 @@
 #endif
 #if CONFIG_CALLER_DETAILS && !CONFIG_DMR
 #error "CONFIG_CALLER_DETAILS needs CONFIG_DMR"
+#endif
+#if CONFIG_TX_MIC_LIMITER && !CONFIG_DMR
+#error "CONFIG_TX_MIC_LIMITER needs CONFIG_DMR"
+#endif
+#if (CONFIG_P25_TX_AGC || CONFIG_P25_PARROT) && !CONFIG_P25
+#error "P25 input leveling and parrot need CONFIG_P25"
 #endif
 #if CONFIG_P25_TRUNK && !CONFIG_P25
 #error "CONFIG_P25_TRUNK needs CONFIG_P25"

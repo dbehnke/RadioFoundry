@@ -68,13 +68,12 @@ static void key(void)
 	}
 	const hal_audio_tap_t *tap = board.audio_tap;
 	bool fm_ok = tap != NULL && tap->fm_tx_inject != NULL && (tap->caps & AUDIO_TAP_FM_TX) != 0;
-	if (hostlink_view.hotspot || (!dmr_mode() && !fm_ok)) {
+	if (hostlink_view.hotspot || (!dmr_mode() && !fm_ok) || !audio_mux_host_tx(true, dmr_mode())) {
 		st.refused++;
 		return;
 	}
 	tx_on = true;
 	st.ptt_downs++;
-	audio_mux_host_tx(true, dmr_mode());
 	radio_req_ptt_host(true);
 }
 

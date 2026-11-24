@@ -30,6 +30,8 @@
 #include "../mbe/imbe.h"
 #include "../mbe/mbe_est.h"
 #include "p25_engine.h"
+#include "config.h"
+#include "p25_parrot.h"
 
 #define P25_VOICE_QUEUE		32	// frames (640 ms), power of two: two LDUs and room for jitter
 #define P25_VOICE_PRIME		P25_VOICE_FRAMES	// frames queued before playback starts: one LDU
@@ -82,6 +84,8 @@ typedef struct {
 	uint32_t tx_dropped;	// encoded frames dropped, queue full (the engine took none in time)
 	uint32_t tx_silent;	// of tx_encoded, the frames the encoder made silence frames (no signal at all)
 	uint32_t tx_mic_peak;	// largest mic sample (absolute, after the gain) in the latest transmission
+	uint32_t tx_gain_q16;	// final software gain of the latest transmit block
+	uint32_t tx_limited_blocks;	// blocks peak limited in the latest transmission
 } p25_voice_stats_t;
 
 // The board's PCM audio (NULL: frames are counted, nothing plays). Once, at start-up
@@ -95,6 +99,23 @@ void p25VoicePoll(void);
 void p25VoiceTx(bool on);
 // The mic samples' gain step (radio/mic_gain.h: the Mic gain setting; the board's mic_pcm_db is DMR's only). Any task
 void p25VoiceSetMicGain(uint8_t step);
+// Set the P25 AGC setting and read whether it applies in this build. Any task.
+void p25VoiceSetAgc(bool on);
+bool p25VoiceAgc(void);
+#if CONFIG_P25_PARROT
+// Radio task controls; codec state and recording belong only to the audio callback.
+// Borrow two frame buffers totaling 500 entries until p25VoiceEnd; they must not overlap the voice workspace.
+void p25VoiceParrotReady(uint8_t (*frames)[IMBE_BYTES], unsigned count, uint8_t (*extra)[IMBE_BYTES]);
+// Record the chosen gain step. When the board applies the step, software gain starts at unity.
+bool p25VoiceParrotCapture(bool agc, int8_t target_dbfs, uint8_t mic_step, bool hardware_gain);
+void p25VoiceParrotStop(void);
+// Stop the stalled stream, retaining its report and the workspace for another capture.
+void p25VoiceParrotFail(void);
+uint8_t p25VoiceParrotState(void);
+// Advances during capture, speaker lead-in, and decode. Waiting on queued speaker PCM leaves it unchanged.
+uint16_t p25VoiceParrotProgress(void);
+void p25VoiceParrotView(p25_parrot_view_t *out);
+#endif
 // Stop (radio task, after p25_engine_end): the stream stops and mem is free again
 void p25VoiceEnd(void);
 // Whether the voice stream runs (its callback owns hal_audio_t). Radio task only

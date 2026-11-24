@@ -4,8 +4,10 @@
 #include "dmr/ambe/ambeVoice.h"
 #include "dmr/ambe/ambeFec.h"
 #include "config.h"
+#include "dsp/fxp.h"
+#include "dsp/mic_gain.h"
+#include "dsp/tx_level.h"
 #include "radio/sigtone.h"
-#include "audio/miclimit/miclimit.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -85,8 +87,11 @@ static bool cb_mixing;
 // one block (hal_vocoder_t), so a decode then would cost the transmission its encoder. A call heard meanwhile plays as
 // silence, and the decoder starts fresh once the transmission is over (cb_dec_fresh)
 static bool cb_tx_on, cb_dec_fresh;
-static uint16_t mic_gain_q8 = MICLIMIT_UNITY;	// ambeVoiceSetMicGainQ8: the mic samples times this / 256 before encoding
-static miclimit_t cb_limit;		// its limiter (audio callback)
+static uint16_t mic_gain_q8 = 256;	// ambeVoiceSetMicGainQ8: the mic samples times this / 256 before encoding
+#if CONFIG_TX_MIC_LIMITER
+static tx_level_t mic_level;
+static uint16_t mic_low_q8;		// lowest limiter gain in the current transmission, audio callback only
+#endif
 static bool test_signal;		// ambeVoiceSetTestSignal
 
 #if CONFIG_SIG_TONES
@@ -560,10 +565,13 @@ static void tx_block(const int16_t *mic)
 		if (voc_ok()) {
 			voc->reset();	// fresh encoder: the first frame of a transmission
 		}
-		stats.tx_mic_peak = 0;
-		stats.tx_enc_peak = 0;
-		miclimit_reset(&cb_limit, LOAD(mic_gain_q8));
-		stats.tx_mic_low_q8 = cb_limit.low_q8;
+		stats.tx_mic_peak = stats.tx_enc_peak = stats.tx_limited_blocks = 0;
+		uint16_t gain_q8 = LOAD(mic_gain_q8);
+		stats.tx_gain_q16 = (uint32_t)gain_q8 << 8;
+#if CONFIG_TX_MIC_LIMITER
+		tx_level_reset(&mic_level, stats.tx_gain_q16);
+		stats.tx_mic_low_q8 = mic_low_q8 = gain_q8;
+#endif
 		tx_have_prev = false;
 		test_blocks = 0;
 #if CONFIG_SIG_TONES
@@ -602,30 +610,15 @@ static void tx_block(const int16_t *mic)
 		cb_enc_opts = opts;
 		cb_enc_opts_set = true;
 	}
-	for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
-		uint32_t a = (uint32_t)(mic[i] < 0 ? -mic[i] : mic[i]);
-		if (a > stats.tx_mic_peak) {
-			stats.tx_mic_peak = a;
-		}
+	uint16_t mic_peak = tx_level_measure(mic, AUDIO_BLOCK_SAMPLES, false).peak;
+	if (mic_peak > stats.tx_mic_peak) {
+		stats.tx_mic_peak = mic_peak;
 	}
 	uint8_t bits[VOCODER_BITS];
 	static int16_t scaled[AUDIO_BLOCK_SAMPLES];	// the audio callback only (off its stack)
 	if (LOAD(test_signal)) {
 		test_block(scaled);
 		mic = scaled;
-	}
-	// The gain with its limiter; skipped at unity, so a board at its own level encodes the samples as delivered
-	uint16_t g = LOAD(mic_gain_q8);
-	if (g != MICLIMIT_UNITY) {
-		miclimit_block(&cb_limit, g, mic, scaled, AUDIO_BLOCK_SAMPLES);
-		stats.tx_mic_low_q8 = cb_limit.low_q8;
-		mic = scaled;
-	}
-	for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
-		uint32_t a = (uint32_t)(mic[i] < 0 ? -mic[i] : mic[i]);
-		if (a > stats.tx_enc_peak) {
-			stats.tx_enc_peak = a;
-		}
 	}
 #if CONFIG_SIG_TONES
 	// The tone's last block: tone_active stays set until its frame is queued and tone_last_* published below, so
@@ -641,6 +634,40 @@ static void tx_block(const int16_t *mic)
 		mic = scaled;
 	}
 #endif
+	uint16_t enc_peak;
+#if CONFIG_SIG_TONES
+	if (tone_active || tone_mute) {
+		// Generated signaling bypasses mic gain; discarded microphone blocks must not alter recovery or counts.
+		stats.tx_gain_q16 = TX_LEVEL_UNITY;
+		enc_peak = tx_level_measure(mic, AUDIO_BLOCK_SAMPLES, false).peak;
+	} else
+#endif
+	{
+		uint16_t gain_q8 = LOAD(mic_gain_q8);
+		stats.tx_gain_q16 = (uint32_t)gain_q8 << 8;
+#if CONFIG_TX_MIC_LIMITER
+		enc_peak = tx_level_process(&mic_level, mic, scaled, AUDIO_BLOCK_SAMPLES, stats.tx_gain_q16, 0, NULL);
+		stats.tx_gain_q16 = mic_level.gain_q16;
+		stats.tx_limited_blocks = mic_level.limited_blocks;
+		uint16_t applied_q8 = (uint16_t)(mic_level.gain_q16 >> 8);
+		if (applied_q8 < mic_low_q8) {
+			mic_low_q8 = applied_q8;
+		}
+		stats.tx_mic_low_q8 = mic_low_q8;
+		mic = scaled;
+#else
+		if (gain_q8 != 256) {
+			for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
+				scaled[i] = fxp_sat16((int32_t)mic[i] * gain_q8 / 256);
+			}
+			mic = scaled;
+		}
+		enc_peak = tx_level_measure(mic, AUDIO_BLOCK_SAMPLES, false).peak;
+#endif
+	}
+	if (enc_peak > stats.tx_enc_peak) {
+		stats.tx_enc_peak = enc_peak;
+	}
 	if (voc_ok()) {
 		voc->encode(mic, bits);
 	} else {
@@ -710,6 +737,11 @@ void ambeVoiceAudioBlock(const int16_t *mic, int16_t *spk, void *ctx)
 void ambeVoiceSetMicGainQ8(uint16_t q8)
 {
 	STORE(mic_gain_q8, q8);
+}
+
+void ambeVoiceSetMicGain(uint8_t step)
+{
+	ambeVoiceSetMicGainQ8(mic_gain_step_q8(step));
 }
 
 void ambeVoiceSetEncodeOptions(uint32_t opts)

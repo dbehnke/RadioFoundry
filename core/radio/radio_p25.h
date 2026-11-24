@@ -121,6 +121,7 @@ void radio_p25_trunk_talk_end(void);
 // call); drop: the radio's transmit checks refused it
 uint32_t radio_p25_trunk_burst_hz(void);
 bool radio_p25_trunk_burst_start(void);
+void radio_p25_trunk_burst_go(void);
 void radio_p25_trunk_burst_drop(void);
 #endif
 
@@ -171,6 +172,11 @@ extern const radio_air_ops_t radio_p25_air;
 // The memory P25 runs in while it doesn't (another air mode runs in it, one at a time): NULL while P25 runs
 void *radio_p25_idle_mem(size_t *len);
 #endif
+#endif
+
+#if CONFIG_P25_PARROT
+bool radio_p25_parrot_open(void);
+void radio_p25_parrot_close(void);
 #endif
 
 #endif

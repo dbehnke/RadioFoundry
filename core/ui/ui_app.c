@@ -147,7 +147,7 @@ static void update_focus_target(void)
 		ui_svc_focus_target(0, false);
 }
 
-#if CONFIG_BACKLIGHT_TEST || CONFIG_SATELLITE_TLE
+#if CONFIG_BACKLIGHT_TEST || CONFIG_SATELLITE_TLE || CONFIG_P25_PARROT
 // Screens from the top down to stack level `from` leave the stack: each runs its leave hook (the backlight tests give
 // the light back)
 static void left(uint8_t from)
@@ -2157,6 +2157,17 @@ void ui_app_key(const input_event_t *ev)
 			TR(LOCK_TOAST_PTT_OFF_HOLD_BACK, "PTT is off while locked: hold Back to unlock"));
 		return;
 	}
+	bool lock_key = has_quick_key ? (ev->action == ACT_QUICK && ev->gesture == GESTURE_LONG && (sp == 0 || ui_st.locked)) :
+		(ev->action == ACT_BACK && ev->gesture == GESTURE_LONG && ui_st.locked);
+	// A side key set to key lock (keyassign.h) locks and unlocks on a press or a long press, as long QUICK does
+	if (ev->action == ACT_LOCK && (ev->gesture == GESTURE_PRESS || ev->gesture == GESTURE_LONG))
+		lock_key = true;
+#if CONFIG_P25_PARROT
+	// Keep the diagnostic on screen and skip radio actions, including Emergency. PTT still tracks the key state.
+	if (stack[sp].scr == SCR_P25_PARROT && ev->action != ACT_BACK && ev->action != ACT_SELECT &&
+	    ev->action != ACT_PTT && !is_nav(ev) && !lock_key)
+		return;
+#endif
 	// The monitor key on DMR: a short press toggles digital monitor (the radio core does it on the release; the
 	// view follows). Its hold function (value 1 on the long press) runs on DMR only: on FM holding the key is the
 	// squelch break (#19). The radio task outranks this one and gets the edge first, so the view at the release
@@ -2189,11 +2200,6 @@ void ui_app_key(const input_event_t *ev)
 	// is a delete. It unlocks from anywhere (auto lock can lock with a menu open)
 	bool typing = stack[sp].scr == SCR_TEXT || stack[sp].scr == SCR_APRS_TO ||
 		stack[sp].scr == SCR_MESSAGE_TEXT;
-	bool lock_key = has_quick_key ? (ev->action == ACT_QUICK && ev->gesture == GESTURE_LONG && (sp == 0 || ui_st.locked)) :
-		(ev->action == ACT_BACK && ev->gesture == GESTURE_LONG && ui_st.locked);
-	// A side key set to key lock (keyassign.h) locks and unlocks on a press or a long press, as long QUICK does
-	if (ev->action == ACT_LOCK && (ev->gesture == GESTURE_PRESS || ev->gesture == GESTURE_LONG))
-		lock_key = true;
 	if (ui_st.locked) {
 		if (lock_key) {
 			set_locked(false);
@@ -2492,6 +2498,18 @@ bool ui_app_tick(const radio_view_t *v, uint32_t now_ms)
 #endif
 	now = now_ms;
 	ui_st.now_ms = now_ms;
+#if CONFIG_P25_PARROT
+	static uint32_t parrot_draw_ms;
+	if (stack[sp].scr == SCR_P25_PARROT) {
+		if (ui_svc_p25_parrot_state() == P25_PARROT_REFUSED) {
+			ui_pop();
+			ui_toast(TR(P25_PARROT_UNAVAILABLE, "Unavailable"));
+		} else if (now_ms - parrot_draw_ms >= 200u) {
+			parrot_draw_ms = now_ms;
+			ui_dirty();
+		}
+	}
+#endif
 #if CONFIG_VOLUME_BAR
 	knob_tick(v);
 #endif

@@ -881,6 +881,24 @@
     "REF_TRIM"
    ]
   },
+  "p25_parrot": {
+   "group": "settings",
+   "needs": [
+    "P25_PARROT"
+   ]
+  },
+  "p25_parrot_levels": {
+   "group": "settings",
+   "needs": [
+    "P25_PARROT"
+   ]
+  },
+  "p25_parrot_report": {
+   "group": "settings",
+   "needs": [
+    "P25_PARROT"
+   ]
+  },
   "freq_trim": {
    "group": "settings",
    "needs": [

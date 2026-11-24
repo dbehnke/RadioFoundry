@@ -46,6 +46,10 @@ void stm32_i2s_pcm_stats(stm32_i2s_pcm_stats_t *out);
 void stm32_i2s_pcm_reset_stats(void);
 // hal_audio_t.stream_stats
 void stm32_i2s_pcm_stream_stats(audio_stream_stats_t *out);
+#if CONFIG_P25_PARROT
+// hal_audio_t.spk_pending: nonzero PCM queued in the DMA halves or the prompt FIFO path.
+bool stm32_i2s_pcm_spk_pending(void);
+#endif
 // The board's hal_audio_t.speaker_pcm passes its state here: the prompt FIFO (cfg->prompt_fifo) carries the speaker
 // blocks only while the PCM route is on, silence otherwise
 void stm32_i2s_pcm_speaker(bool on);

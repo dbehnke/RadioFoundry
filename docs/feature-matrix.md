@@ -52,7 +52,11 @@ is `tools/bringup.py list --radio <id>`.
 | `bcast_fm` | not recorded | ✕ | not recorded | not written | ✕ | ✕ | ✕ | ✕ |
 | `rx_ext` | not recorded | not recorded | not recorded | not recorded | not written | not recorded | not written | not recorded |
 | `p25` | not recorded | not recorded | not recorded | not recorded | not written | not recorded | not recorded | partial, needs re-run |
+| `caller_details` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `p25_id_lookup` | not recorded | not recorded | not recorded | not recorded | off | not recorded | not recorded | not recorded |
+| `tx_mic_limiter` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
+| `p25_tx_agc` | not recorded | not recorded | not recorded | not recorded | off | not recorded | not recorded | not recorded |
+| `p25_parrot` | off | off | off | off | off | off | off | off |
 | `p25_trunk` | not recorded | not recorded | not recorded | not recorded | not written | not recorded | not recorded | not recorded |
 | `nxdn` | not recorded | not recorded | not recorded | not recorded | not written | not recorded | not recorded | partial, needs re-run |
 | `nxdn_scrambler` | not recorded | not recorded | not recorded | not recorded | not written | not recorded | not recorded | not recorded |
@@ -62,7 +66,7 @@ is `tools/bringup.py list --radio <id>`.
 | `dmr_data_privacy` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `dmr_talker_alias` | not recorded | pass (seed) | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | pass, needs re-run |
 | `dmr_gps` | not recorded | pass (seed) | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | off |
-| `dmr_emergency` | not recorded | pass (seed) | not recorded | not recorded | not recorded | not recorded | pass | pass |
+| `dmr_emergency` | not recorded | pass (seed) | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | pass, needs re-run |
 | `dmr_roaming` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | pass, needs re-run |
 | `dmr_trunk` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `dmr_trunk_tx` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -102,7 +106,7 @@ is `tools/bringup.py list --radio <id>`.
 | `aprs` | pass (seed) | not recorded | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | partial, needs re-run |
 | `aprs_afsk` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | partial, needs re-run |
 | `aprs_dmr` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | partial, needs re-run |
-| `aprs_rx` | pass (seed) | not recorded | not recorded | not written | not written | not recorded | pass | partial |
+| `aprs_rx` | pass (seed) | not recorded | not recorded | not written | not written | not recorded | pass, needs re-run | partial, needs re-run |
 | `aprs_mute` | not recorded | not recorded | not recorded | not written | not written | not recorded | not recorded | not recorded |
 | `aprs_igate` | not recorded | off | not recorded | not written | not written | off | pass, needs re-run | partial, needs re-run |
 | `gps_sky` | not recorded | not recorded | ✕ | not recorded | not recorded | not recorded | not recorded | ✕ |
@@ -306,9 +310,12 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | `ZONE_EDIT` | ● | ● | ● | ● | ● | ● | ● | ✕ |
 | `CONTACT_EDIT` | ● | ● | ● | ● | ● | ● | ● | ✕ |
 | `VOLUME_BAR` | ● | ● | ● | ● | ● | ● | ● | ● |
+| `TX_MIC_LIMITER` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `P25` | ● | ● | ● | ● | … | ● | ● | ● |
 | `P25_ID_LOOKUP` | ● | ● | ● | ● | ○ | ● | ● | ● |
 | `CALLER_DETAILS` | ● | ● | ● | ● | ● | ● | ● | ● |
+| `P25_TX_AGC` | ● | ● | ● | ● | ○ | ● | ● | ● |
+| `P25_PARROT` | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 | `P25_TRUNK` | ● | ● | ● | ● | … | ● | ● | ● |
 | `NXDN` | ● | ● | ● | ● | … | ● | ● | ● |
 | `NXDN_SCRAMBLER` | ● | ● | ● | ● | … | ● | ● | ● |
@@ -463,6 +470,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 
 | Feature | Switch | Bytes DM-1701 | Bytes MD-380 | Notes |
 |---|---|---:|---:|---|
+| P25 local codec parrot | `P25_PARROT` | — | — | Opt-in, up to 10 seconds of local microphone encode/decode/playback with RMS meters. Shares recording RAM with the inactive engine; no transmission ([p25.md](spec/p25.md) 5.3) |
 | Audio path probe (debug link 0x10) | `AUDIO_PROBE` | 1,176* | — | Bench only, never in a release |
 | Air interface bench: raw symbols and tap samples (debug link 0x24) | `AIR_RAW` | 2,780* | — | Bench only, never in a release ([debuglink.md](spec/debuglink.md) 3.28) |
 | Voice capture for receive tests: the next 32 voice frames received, read over the debug link | `VOICE_CAPTURE` | 256* | 344* | Bench only, never in a release ([debuglink](spec/debuglink.md)) |

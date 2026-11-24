@@ -66,6 +66,10 @@ access. The radio core reconfigures the call stack when the emergency starts, en
 It can't start (state `failed`, until the next start) when the channel is not a DMR channel we may transmit on (the
 data service's rule: not RX only, in band, not in hotspot mode, an own ID; a DMR VFO counts) or there is no target.
 
+A local codec diagnostic reserves emergency-start admission under the same lock as the emergency mailbox.
+It refuses to open with an emergency pending or running. While open, UI and debug-link starts return false;
+requests are not queued for later transmission. Closing or failing to open releases the reservation.
+
 On a Tier III trunked system the alarm and its cancel are statuses 126 and 124, and the call is an emergency request
 ([dmr-trunking.md](dmr-trunking.md) 7.8).
 

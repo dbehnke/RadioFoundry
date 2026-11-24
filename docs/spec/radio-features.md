@@ -324,30 +324,45 @@ Squelch level 0 (always open) and the APRS hold (`RADIO_SQL_CLOSE_POLLS_APRS`) k
 ### 3.6 Mic gain
 
 Settings > Talk & listen > Mic gain: a step 0-10, 2 dB a step, 5 = the board's own levels (`core/radio/mic_gain.c`).
-The UI stores it (`settings_t.mic_gain`) and applies it at start-up and on each change with `radio_set_mic_gain()`;
+The UI stores it (`settings_t.mic_gain`) and applies it with `radio_set_mic_gain_with_agc()` at start-up and on each change;
 the debug link's SETTING op 29 sets it in RAM only.
 
-| Board | FM | DMR |
+| Board audio gain hook | FM | AMBE microphone PCM |
 |---|---|---|
-| with `hal_radio_t.mic_gain` (HR_C7000 boards) | the board's FM level for the channel bandwidth plus (step - 5) x 2 dB, written into the modem's mic gain at each FM transmit start | DMR: the board's DMR level plus the same offset, at each DMR entry and DMR transmit start; the PCM gain is the board's `mic_pcm_db` alone |
-| without it | not changed | the PCM gain is the board's `mic_pcm_db` plus (step - 5) x 2 dB |
+| With `hal_radio_t.mic_gain` | the board's FM level for the channel bandwidth plus (step - 5) x 2 dB | the board applies the user step in hardware; software applies only its `mic_pcm_db` calibration |
+| Without it | not changed | software combines the manual step with the board's `mic_pcm_db` calibration |
 
-**PCM gain.** The mic samples go to DMR's AMBE+2 encoder (`ambeVoiceSetMicGainQ8`, pushed by `radio_set_mic_gain`)
-through a gain with a peak limiter (`drivers/audio/miclimit/miclimit.h`): one gain a
-20 ms block, never more than the set gain, never so much that the block's peak passes 28000 (about -1.4 dBFS). It
-falls at once and recovers by 0.5 dB a block. At 0 dB nothing is applied, so a board at its own level encodes the
-samples as delivered. `hal_radio_t.mic_pcm_db` is a board's gain at step 5 for a mic that reaches the PCM quiet:
-one radio has 12 dB (its digital voice decoded off air at -31 dBFS against another maker's handheld's -18 dBFS,
-2026-11-19; its hardware page has the measurement). P25's voice path keeps the step alone and takes no board gain.
-The debug link shows the gain in force (`voice.mic_pcm_db`, the `dmr` section) and the latest transmission: the mic's
-peak, the encoder's peak after the gain and the limiter's lowest gain in dB (`voice.tx_mic_peak voice.tx_enc_peak
-voice.tx_mic_low_db`). A lowest gain under the set gain means the
-limiter cut: some cut on a shout is expected, a cut on normal speech says the gain is too high.
+**PCM calibration and protection.** `hal_radio_t.mic_pcm_db` is an optional fixed AMBE calibration offset.
+It retains each board's measured correction without applying that offset to other boards or codecs. The board's
+hardware page records its measurement. The AMBE path combines this offset and any software manual gain into one
+requested multiplier (`ambeVoiceSetMicGainQ8`); neither is applied as a separate PCM scaling stage. The codec's
+existing internal AGC options remain unchanged. A codec with internal AGC uses the middle manual step, while the
+fixed board calibration still applies. No external AMBE RMS target is introduced until its actual codec baseline
+is measured. The shared AMBE microphone path also serves NXDN.
 
-The board only stores the offset in the hook; a change takes effect at the next transmission (the PCM gain at the
-next block). On an HR_C7000 radio the register is clamped to 0-42 dB (`hrc7000_mic_db`). The VOX meter reads the same
-codec ADC, so on these radios the board's mic gain also moves the VOX level; the PCM gain doesn't. Without
-`CONFIG_DMR` and without the hook the row is dimmed.
+`CONFIG_TX_MIC_LIMITER` defaults to DMR and protects the digital microphone PCM before AMBE or P25 encoding.
+One shared block controller (`core/dsp/tx_level.h`) applies the requested manual software gain once, with a
+28000-sample peak ceiling, immediate reductions and recovery bounded to about 0.49 dB per 20 ms block, ramped
+within each block. Protection also applies at unity, including when the board applies the user gain in hardware.
+The manual steps keep their established scaling and rounding below the ceiling when no fixed calibration applies;
+a new transmission resets recovery. With the switch disabled, manual PCM scaling retains saturation behavior and
+still applies AMBE calibration. P25 automatic RMS leveling uses the same controller and always retains peak
+protection ([p25.md](p25.md) 5.2).
+
+P25 uses the saved manual step when its AGC is off or compiled out, independent of AMBE AGC. When enabled, P25 AGC
+uses the board's baseline ADC gain and derives a software gain from the measured PCM and the -25 dBFS target.
+The local P25 diagnostic follows the same rules with its own AGC setting. The AMBE PCM calibration applies only
+to AMBE. The ADC gain must remain low enough to avoid clipping before software can measure the samples.
+
+The debug link exposes the requested AMBE software gain (`voice.mic_pcm_db`), input and encoder peaks
+(`voice.tx_mic_peak voice.tx_enc_peak`), lowest gain in dB (`voice.tx_mic_low_db`). The separate `dmr_tx_audio` view exposes the last actual Q16 gain
+(`voice.tx_gain_q16`), peak-limited block count (`voice.tx_limited_blocks`) and limiter availability
+(`voice.mic_limiter`). A peak-limited block means the
+peak ceiling reduced the requested gain, rather than ordinary recovery or RMS attenuation.
+
+The board stores the user offset and applies it on its normal transmit entry. Its codec ADC may also feed VOX;
+software PCM calibration does not change the VOX measurement. Without `CONFIG_DMR` and without a hardware gain
+hook the Mic gain row is dimmed.
 
 ### 3.7 DTMF transmit (CONFIG_DTMF)
 

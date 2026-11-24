@@ -106,6 +106,9 @@ static volatile uint16_t tx_drive;	// DAC B value for the transmission
 static pa_keyup_t ku;			// the transmission's DMR key-up, set before the RF task is armed
 static uint16_t last_rssi_raw, last_noise_raw;
 static bool pcm_on;		// a beep or DMR voice plays through the codec
+#if CONFIG_P25_PARROT
+static bool pcm_mic_local;	// local capture needs the digital transmit microphone route
+#endif
 static bool rx_audio;		// the squelch is open (the radio's audio hook)
 static bool asleep;		// the receiver is powered down between listen windows (rx_sleep)
 static bool aprs_listen;	// APRS takes the HR_C7000's FM audio (aprs_listen_route)
@@ -710,7 +713,11 @@ static void speaker_source(void)
 	bool analog = fm_open && !aprs_listen;
 	hrc_pin_write(PIN_SPK_SOURCE, analog);
 	if (!transmitting) {
-		hrc_pin_write(PIN_MIC_PATH, !analog);
+		bool mic = !analog;
+#if CONFIG_P25_PARROT
+		mic = mic && !pcm_mic_local;
+#endif
+		hrc_pin_write(PIN_MIC_PATH, mic);
 	}
 	if (mode == RADIO_MODE_FM && !transmitting) {
 		bool play = fm_open && aprs_listen;
@@ -719,6 +726,16 @@ static void speaker_source(void)
 		hrc_irq_restore(s);
 	}
 }
+
+#if CONFIG_P25_PARROT
+static void pcm_mic_route(bool on)
+{
+	uint32_t s = hrc_irq_save();	// the PCM speaker hook also sets this route
+	pcm_mic_local = on;
+	speaker_source();
+	hrc_irq_restore(s);
+}
+#endif
 
 #if CONFIG_APRS_AFSK
 // APRS listens (hrc_afsk.c): the FD6818's audio stays on the HR_C7000's input, which also plays it to the speaker
@@ -897,6 +914,9 @@ const hal_radio_t dm32_radio = {
 #endif
 	.status = status,
 	.audio = audio,
+#if CONFIG_P25_PARROT
+	.pcm_mic_route = pcm_mic_route,
+#endif
 	.volume = NULL,
 #if CONFIG_REF_TRIM
 	.ref_trim = ref_trim,

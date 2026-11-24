@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 The RadioFoundry Authors
+# Copyright (c) 2026 David Behnke
 # Copyright (c) 2026 Open25-DM32 Authors
 ## Host unit tests for the hardware independent parts of the firmware
 ##
@@ -170,9 +171,20 @@ p25TrunkTest: p25TrunkTest.c $(P25TRUNK) $(wildcard $(CORE)/p25/*.h) $(wildcard 
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_AIR=1 -DCONFIG_P25=1 -DCONFIG_P25_TRUNK=1 -o $@ p25TrunkTest.c $(P25TRUNK) -lm
 
 # The P25 voice path: engine frames through the full-rate decoder to PCM blocks (core/p25/p25Voice.c)
-TESTS   += p25VoiceTest
-p25VoiceTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(MBE) $(wildcard $(CORE)/mbe/*.h)
-	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -I$(ROOT)/hal -o $@ $(CORE)/audio/rx_agc.c p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm
+TESTS   += p25VoiceTest p25VoiceLevelTest p25VoiceParrotTest p25ViewTest txLevelTest
+p25VoiceLevelTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/mic_gain.h $(CORE)/p25/p25_parrot.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(CORE)/dsp/tx_level.h $(MBE)
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -o $@ $(CORE)/audio/rx_agc.c p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm
+# Diagnostic leveling remains available with transmit AGC compiled out.
+p25VoiceParrotTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/mic_gain.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(CORE)/p25/p25_parrot.h $(CORE)/dsp/tx_level.h $(MBE)
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=0 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -o $@ $(CORE)/audio/rx_agc.c p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm
+txLevelTest: txLevelTest.c $(CORE)/dsp/tx_level.h $(CORE)/dsp/mic_gain.h
+	$(CC) $(CFLAGS) -Wshadow -o $@ txLevelTest.c -lm
+p25VoiceTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/mic_gain.h $(CORE)/dsp/tx_level.h p25VoiceTest.c $(CORE)/p25/p25Voice.c $(CORE)/p25/p25Voice.h $(MBE) $(wildcard $(CORE)/mbe/*.h)
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -o $@ $(CORE)/audio/rx_agc.c p25VoiceTest.c $(CORE)/p25/p25Voice.c $(MBE) -lm
+P25VIEW := p25ViewTest.c $(CORE)/debuglink/debuglink_view_p25.c $(CORE)/debuglink/dl_fmt.c
+p25ViewTest: $(P25VIEW) $(wildcard $(CORE)/debuglink/*.h) $(CORE)/p25/p25Voice.h $(CORE)/p25/p25_parrot.h \
+             $(CORE)/radio/radio_p25.h $(CORE)/settings/settings.h
+	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -DCONFIG_P25=1 -DCONFIG_P25_PARROT=1 -o $@ $(P25VIEW)
 
 # The fixed-point kernels the signal code shares (core/dsp/fxp.h)
 TESTS   += fxpTest
@@ -262,6 +274,10 @@ run: $(TESTS)
 	./nxdnEngineTest | tail -1
 	./p25TrunkTest
 	./p25VoiceTest
+	./p25VoiceLevelTest
+	./p25VoiceParrotTest
+	./p25ViewTest
+	./txLevelTest
 	./hrc6000AirTest
 	./radioKeysTest
 	./zoneShareTest
@@ -339,7 +355,13 @@ RCP25   := $(RCORE) $(CORE)/radio/radio_p25.c $(CORE)/p25/p25_engine.c $(CORE)/a
 radioCoreTestP25: $(RCP25) $(wildcard $(CORE)/radio/*.h) $(wildcard $(CORE)/dmr/call/*.h) $(CORE)/dmr/dmrDataService.h \
                   $(CORE)/ui/ui_svc.h $(wildcard $(CORE)/p25/*.h) $(wildcard $(CORE)/air/*.h)
 	$(CC) $(CFLAGS) $(CORE_HAL) -I. -DDMR_RX_TRACE=0 -DCONFIG_DMR_IP_GATEWAY=0 -DCONFIG_SFR=1 -DCONFIG_APRS=0 \
-		-DCONFIG_P25=1 -DCONFIG_AIR_RAW=1 -DCONFIG_SATELLITE_TLE=1 -DHAL_VOCODER_LEND_BYTES=0x4000 -o $@ $(RCP25) -lm
+		-DCONFIG_P25=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -DCONFIG_P25_TX_AGC=1 -DCONFIG_AIR_RAW=1 -DCONFIG_SATELLITE_TLE=1 -DHAL_VOCODER_LEND_BYTES=0x4000 -o $@ $(RCP25) -lm
+
+TESTS   += radioCoreTestP25NoAgc
+radioCoreTestP25NoAgc: $(RCP25) $(wildcard $(CORE)/radio/*.h) $(wildcard $(CORE)/dmr/call/*.h) $(CORE)/dmr/dmrDataService.h \
+                  $(CORE)/ui/ui_svc.h $(wildcard $(CORE)/p25/*.h) $(wildcard $(CORE)/air/*.h)
+	$(CC) $(CFLAGS) $(CORE_HAL) -I. -DDMR_RX_TRACE=0 -DCONFIG_DMR_IP_GATEWAY=0 -DCONFIG_SFR=1 -DCONFIG_APRS=0 \
+		-DCONFIG_P25=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -DCONFIG_P25_TX_AGC=0 -DCONFIG_AIR_RAW=1 -DCONFIG_SATELLITE_TLE=1 -DHAL_VOCODER_LEND_BYTES=0x4000 -o $@ $(RCP25) -lm
 
 # The same with P25 trunking (CONFIG_P25_TRUNK): a trunked site on the fake air, the follower in the radio core
 TESTS   += radioCoreTestP25T
@@ -479,11 +501,6 @@ miclevelTest: miclevelTest.c $(ROOT)/drivers/audio/miclevel/miclevel.h
 TESTS   += resampleTest
 resampleTest: resampleTest.c $(ROOT)/drivers/audio/resample/resample.h
 	$(CC) $(CFLAGS) -Wshadow -o $@ resampleTest.c -lm
-# The mic gain and peak limiter before a vocoder's encoder (drivers/audio/miclimit): DMR's
-TESTS   += miclimitTest
-miclimitTest: miclimitTest.c $(ROOT)/drivers/audio/miclimit/miclimit.h
-	$(CC) $(CFLAGS) -Wshadow -o $@ miclimitTest.c -lm
-
 # The battery average and charge estimate the radios share (drivers/power/battery)
 TESTS   += batteryTest
 batteryTest: batteryTest.c $(ROOT)/drivers/power/battery/battery.h
@@ -494,12 +511,13 @@ boardBandTest: boardBandTest.c $(ROOT)/hal/board.h
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -o $@ boardBandTest.c
 
 run: run-core
-run-core: radioCoreTest radioCoreTestNoVfoDmr radioCoreTestP25 radioCoreTestP25T radioCoreTestNxdn radioCoreTestP25Nxdn radioCoreTestAprs radioCoreTestAprsDmr radioFeaturesTest radioFeaturesTestNoDual roamTest radioListenBandsTest inputTest switchFollowTest aprsRadioTest quadratureTest serialmicTest miclevelTest resampleTest \
+run-core: radioCoreTest radioCoreTestNoVfoDmr radioCoreTestP25 radioCoreTestP25NoAgc radioCoreTestP25T radioCoreTestNxdn radioCoreTestP25Nxdn radioCoreTestAprs radioCoreTestAprsDmr radioFeaturesTest radioFeaturesTestNoDual roamTest radioListenBandsTest inputTest switchFollowTest aprsRadioTest quadratureTest serialmicTest miclevelTest resampleTest \
           rx2LinkTest keyassignTest powerSwitchTest powerKeyTest boardBandTest batteryTest
 	./aprsRadioTest
 	./radioCoreTest
 	./radioCoreTestNoVfoDmr
 	./radioCoreTestP25
+	./radioCoreTestP25NoAgc
 	./radioCoreTestNxdn
 	./radioCoreTestP25Nxdn
 	./radioCoreTestP25T
@@ -723,8 +741,12 @@ UIDEPS  := $(UIAPP) $(ABOUT_H) $(LANG_H) $(wildcard $(CORE)/ui/*.h $(CORE)/ui/fo
 TESTS   += uiFlowTest uiFlowTestNoColor uiSim
 TESTS   += uiFlowTestSatellite
 
-uiFlowTest: uiFlowTest.c $(UIDEPS)
-	$(CC) $(UIFLAGS) -DCONFIG_P25=1 -DCONFIG_P25_TRUNK=1 -DCONFIG_NXDN=1 -o $@ uiFlowTest.c $(UIAPP) -lz
+uiFlowTest: uiFlowTest.c $(UIDEPS) $(CORE)/p25/p25_parrot.h $(CORE)/dsp/tx_level.h
+	$(CC) $(UIFLAGS) -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -DCONFIG_P25_TRUNK=1 -DCONFIG_NXDN=1 -o $@ uiFlowTest.c $(UIAPP) -lz
+
+TESTS   += uiFlowTestP25NoAgc
+uiFlowTestP25NoAgc: uiFlowTest.c $(UIDEPS) $(CORE)/p25/p25_parrot.h $(CORE)/dsp/tx_level.h
+	$(CC) $(UIFLAGS) -DCONFIG_P25=1 -DCONFIG_P25_TX_AGC=0 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -DCONFIG_P25_TRUNK=1 -DCONFIG_NXDN=1 -o $@ uiFlowTest.c $(UIAPP) -lz
 
 # The same flows built as a radio with only a monochrome screen builds them (CONFIG_UI_COLOR=n): no color rows;
 # without a translation (CONFIG_LANG_ES=n): the Language screen dims Spanish; and with the backlight tests
@@ -747,6 +769,9 @@ uiFlowTestSatellite: uiFlowTest.c $(UIDEPS)
 UI_LANG_FLAG := $(if $(UI_LANG),-DCONFIG_LANG_$(shell echo '$(UI_LANG)' | tr a-z A-Z)=1)
 uiSim: uiSim.c $(UIDEPS) $(CJK)
 	$(CC) $(UIFLAGS) $(UI_LANG_FLAG) -DCONFIG_SATELLITE_TLE=1 -DCONFIG_P25=1 -o $@ uiSim.c $(UIAPP) $(CJK) -lz
+
+uiSimParrot: uiSim.c $(UIDEPS) $(CJK) $(CORE)/p25/p25_parrot.h $(CORE)/dsp/tx_level.h
+	$(CC) $(UIFLAGS) $(UI_LANG_FLAG) -DCONFIG_SATELLITE_TLE=1 -DCONFIG_P25=1 -DCONFIG_TX_MIC_LIMITER=1 -DCONFIG_P25_PARROT=1 -o $@ uiSim.c $(UIAPP) $(CJK) -lz
 
 # The beep reel (tools/beep_reel.py). BEEP_DIR picks the beep.c and beep.h to build with, so CI can build the base
 # commit's beeps for a before and after comparison. We copy that beep.h into out/beep/radio/ and put out/beep first on
@@ -773,16 +798,17 @@ beepReel: beepReel.c beep_names.awk $(UIDEPS) $(BEEP_DIR)/beep.c $(BEEP_DIR)/bee
 # committed gallery and a pull request's before / after pictures show the same colors
 UI_GALLERY_COLORS ?= $(shell sed -n 's/^ *UI_GALLERY_COLORS: *"\([^"]*\)".*/\1/p' $(ROOT)/.github/workflows/ui-gallery.yml)
 
-ui-gallery: uiSim
+ui-gallery: uiSim uiSimParrot
 	rm -rf $(ROOT)/docs/ux/screens/*/
 	UI_GALLERY_COLORS="$(UI_GALLERY_COLORS)" ./uiSim --gallery $(ROOT)/docs/ux/screens
+	./uiSimParrot --parrot-gallery $(ROOT)/docs/ux/screens
 
 # Contact sheets only (every screen of a display class on one page, to audit layouts), outside docs/: GEOM=128x64
 ui-sheets: uiSim
 	UI_GALLERY_COLORS="$(UI_GALLERY_COLORS)" ./uiSim --sheets out/sheets $(GEOM)
 
 run: run-ui
-run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault uiFlowTest uiFlowTestNoCallerLookup uiFlowTestNoColor uiFlowTestSatellite uiSim beepReel
+run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault uiFlowTest uiFlowTestNoCallerLookup uiFlowTestP25NoAgc uiFlowTestNoColor uiFlowTestSatellite uiSim beepReel
 	./gfxTest
 	./gfxTestZh
 	./gfxFbEdgeTest
@@ -791,6 +817,7 @@ run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault 
 	./i18nTestDefault
 	./uiFlowTest
 	./uiFlowTestNoCallerLookup
+	./uiFlowTestP25NoAgc
 	./uiFlowTestNoColor
 	./uiFlowTestSatellite
 	./uiSim --layout
@@ -799,16 +826,19 @@ run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault 
 
 # AMBE+2 3600x2450 air frame FEC and interleaving (core/dmr/ambe), with vectors from the stock DM-1701 codec's FEC
 # and the DMR voice glue between the call stack, the FEC, the vocoder and the audio driver (fakes)
-TESTS   += ambeFecTest ambeVoiceTest ambeVoiceCaptureTest
+TESTS   += ambeFecTest ambeVoiceTest ambeVoiceCaptureTest ambeVoiceLevelTest
 
 ambeFecTest: ambeFecTest.c $(CORE)/dmr/ambe/ambeFec.c $(CORE)/dmr/ambe/ambeFec.h
 	$(CC) $(CFLAGS) -Wshadow -o $@ ambeFecTest.c $(CORE)/dmr/ambe/ambeFec.c
 
-ambeVoiceTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/dmr/ambe/ambeVoice.h $(CORE)/dmr/ambe/ambeFec.c \
+ambeVoiceTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/tx_level.h $(CORE)/dsp/mic_gain.h ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/dmr/ambe/ambeVoice.h $(CORE)/dmr/ambe/ambeFec.c \
 	       $(ROOT)/drivers/vocoder/ambe2_flags.h $(ROOT)/hal/hal_vocoder.h
 	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -o $@ $(CORE)/audio/rx_agc.c ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/radio/sigtone.c $(CORE)/radio/beep.c $(CORE)/dmr/ambe/ambeFec.c
+# Exercise the shared fixed-gain limiter through the actual AMBE voice glue.
+ambeVoiceLevelTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/mic_gain.h ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/dmr/ambe/ambeVoice.h $(CORE)/dsp/tx_level.h $(CORE)/dmr/ambe/ambeFec.c
+	$(CC) $(CFLAGS) -DCONFIG_TX_MIC_LIMITER=1 -I$(ROOT)/hal -Wshadow -o $@ $(CORE)/audio/rx_agc.c ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/radio/sigtone.c $(CORE)/radio/beep.c $(CORE)/dmr/ambe/ambeFec.c
 # The same with the voice capture built (CONFIG_VOICE_CAPTURE)
-ambeVoiceCaptureTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/dmr/ambe/ambeVoice.h $(CORE)/dmr/ambe/ambeFec.c \
+ambeVoiceCaptureTest: $(CORE)/audio/rx_agc.c $(CORE)/audio/rx_agc.h $(CORE)/dsp/tx_level.h $(CORE)/dsp/mic_gain.h ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c $(CORE)/dmr/ambe/ambeVoice.h $(CORE)/dmr/ambe/ambeFec.c \
 	       $(ROOT)/drivers/vocoder/ambe2_flags.h $(ROOT)/hal/hal_vocoder.h
 	$(CC) $(CFLAGS) -DCONFIG_VOICE_CAPTURE=1 -I$(ROOT)/hal -Wshadow -o $@ $(CORE)/audio/rx_agc.c ambeVoiceTest.c $(CORE)/dmr/ambe/ambeVoice.c \
 	      $(CORE)/radio/sigtone.c $(CORE)/radio/beep.c $(CORE)/dmr/ambe/ambeFec.c
@@ -822,11 +852,18 @@ run: run-aes
 run-aes: dmrAesTest
 	./dmrAesTest
 
-# The mic gain setting (core/radio/mic_gain.c): to the board's hook or to DMR's sample scaling, never both
+# The mic gain setting and the AMBE PCM calibration (core/radio/mic_gain.c)
 TESTS   += micGainTest
 micGainTest: micGainTest.c $(CORE)/radio/mic_gain.c $(CORE)/radio/mic_gain.h $(ROOT)/hal/hal_radio.h \
-             $(ROOT)/drivers/audio/miclimit/miclimit.h
-	$(CC) $(CFLAGS) -I$(ROOT)/hal -Wshadow -o $@ micGainTest.c $(CORE)/radio/mic_gain.c
+             $(CORE)/dsp/mic_gain.h $(CORE)/dmr/ambe/ambeVoice.h $(CORE)/p25/p25Voice.h
+	$(CC) $(CFLAGS) -DCONFIG_P25=1 -DCONFIG_IMBE=1 -I$(ROOT)/hal -Wshadow -o $@ micGainTest.c $(CORE)/radio/mic_gain.c
+
+# The DMR debug view must leave room for all existing fields in a single reply.
+TESTS   += dmrViewTest dmrViewNoLimiterTest
+DMRVIEW := dmrViewTest.c $(CORE)/debuglink/debuglink_view_dmr.c $(CORE)/debuglink/dl_fmt.c
+dmrViewTest: DMRVIEW_LIMITER := -DCONFIG_TX_MIC_LIMITER=1
+dmrViewTest dmrViewNoLimiterTest: $(DMRVIEW) $(wildcard $(CORE)/debuglink/*.h) $(CORE)/dmr/ambe/ambeVoice.h $(CORE)/dsp/mic_gain.h
+	$(CC) $(CFLAGS) $(DMRVIEW_LIMITER) -I$(ROOT)/hal -Wshadow -o $@ $(DMRVIEW)
 
 # The debug link's Tier III view sections (core/debuglink/debuglink_t3.c): each fits a reply at its widest
 TESTS   += t3ViewTest
@@ -910,13 +947,15 @@ paKeyrunTest: paKeyrunTest.c $(CORE)/radio/pa_keyrun.c $(CORE)/radio/pa_keyrun.h
 	$(CC) $(CFLAGS) -Wshadow -o $@ paKeyrunTest.c $(CORE)/radio/pa_keyrun.c
 
 run: run-ambe
-run-ambe: ambeFecTest ambeVoiceTest ambeVoiceCaptureTest sigToneTest micGainTest miclimitTest refTrimTest paKeyupTest paSweepTest paKeyrunTest
+run-ambe: ambeFecTest ambeVoiceTest ambeVoiceCaptureTest ambeVoiceLevelTest sigToneTest micGainTest refTrimTest paKeyupTest paSweepTest paKeyrunTest dmrViewTest dmrViewNoLimiterTest
 	./ambeFecTest
 	./ambeVoiceTest
+	./ambeVoiceLevelTest
 	./ambeVoiceCaptureTest
 	./sigToneTest
 	./micGainTest
-	./miclimitTest
+	./dmrViewTest
+	./dmrViewNoLimiterTest
 	./refTrimTest
 	./paKeyupTest
 	./paSweepTest
@@ -1747,7 +1786,7 @@ UNET    := usrpNetTest.c $(CORE)/usbaudio/usrp_net.c $(CORE)/hostlink/hostlink_v
 TESTS   += usrpNetTest
 
 usrpNetTest: $(UNET) $(wildcard $(CORE)/usbaudio/*.h)
-	$(CC) $(CFLAGS) $(CORE_HAL) -DCONFIG_NET_USRP=1 -o $@ $(UNET) -lm
+	$(CC) $(CFLAGS) -DCONFIG_P25=1 -DCONFIG_P25_PARROT=1 $(CORE_HAL) -DCONFIG_NET_USRP=1 -o $@ $(UNET) -lm
 
 run: run-usbaudio
 run-usbaudio: usrpTest usrpNetTest

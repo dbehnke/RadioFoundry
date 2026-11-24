@@ -2808,6 +2808,7 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	ui_svc_setting_set(UI_SET_HEAR_ALL_DEFAULT, 0);
 	ui_svc_setting_set(UI_SET_NOISE_REDUCTION, 1);
 	ui_svc_setting_set(UI_SET_MIC_AGC, 0);
+	ui_svc_setting_set(UI_SET_MIC_GAIN, 5);
 	ui_svc_setting_set(UI_SET_UPDOWN_HOME, 0);
 	ui_svc_setting_set(UI_SET_VFO_STEP, 0);
 	sim_step = 0;
@@ -4045,3 +4046,43 @@ bool sim_run(const char *script, char *err, size_t err_len)
 	(void)cur_map;
 	return true;
 }
+
+#if CONFIG_P25_PARROT
+static uint8_t parrot_sim_state;
+static bool parrot_sim_agc;
+static int8_t parrot_sim_target;
+static uint8_t parrot_sim_mic_step;
+bool ui_svc_p25_parrot(uint8_t command, bool agc, int8_t target)
+{
+	if (command == P25_PARROT_OPEN && (view.state == RS_TX || view.hotspot)) {
+		parrot_sim_state = P25_PARROT_REFUSED;
+		return true;
+	}
+	if (command == P25_PARROT_CAPTURE) {
+		parrot_sim_agc = agc;
+		parrot_sim_target = target;
+		parrot_sim_mic_step = (uint8_t)ui_svc_setting_get(UI_SET_MIC_GAIN);
+	}
+	parrot_sim_state = command == P25_PARROT_CLOSE ? P25_PARROT_OFF : command == P25_PARROT_CAPTURE ? P25_PARROT_RECORD : command == P25_PARROT_STOP ? P25_PARROT_DONE : P25_PARROT_READY;
+	return true;
+}
+uint8_t ui_svc_p25_parrot_state(void) { return parrot_sim_state; }
+void ui_svc_p25_parrot_view(p25_parrot_view_t *out)
+{
+	memset(out, 0, sizeof *out);
+	out->state = parrot_sim_state;
+	out->input_db10 = out->encoder_db10 = out->output_db10 = -960;
+	if (parrot_sim_state == P25_PARROT_DONE) {
+		out->frames = 100;
+		out->agc = parrot_sim_agc;
+		out->limiter = parrot_sim_agc || CONFIG_TX_MIC_LIMITER;
+		out->target_dbfs = parrot_sim_target;
+		out->mic_step = parrot_sim_mic_step;
+		out->input_db10 = -380; out->encoder_db10 = parrot_sim_agc ? -250 : -380; out->output_db10 = -260;
+		out->input_peak = parrot_sim_agc ? 6800 : 29000;
+		out->encoder_peak = 28000; out->output_peak = 6500;
+		out->gain_q16 = parrot_sim_agc ? 292946 : 65536;
+		out->limited_blocks = 3;
+	}
+}
+#endif

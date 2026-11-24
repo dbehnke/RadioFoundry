@@ -268,6 +268,37 @@ static void test_mux_dmr_tx(void)
 	CHECK(audio_mux_host_tx_fill() == PCM_SLIP_CAP - 41);	// far above the target: one sample slipped
 }
 
+#if CONFIG_P25_PARROT
+static void test_mux_local(void)
+{
+	reset();
+	audio_mux_host_rx(AUDIO_MUX_RX_OUTPUT);
+	audio_mux_host_tx(true, true);
+	audio_mux_service(now);
+	CHECK(hw.streaming);
+	mic[0] = 123;
+	CHECK(radio_audio->start(prim, NULL));
+	audio_mux_local(true);
+	CHECK(!audio_mux_host_tx(true, true));
+	audio_mux_host_push(mic, AUDIO_BLOCK_SAMPLES);
+	CHECK(audio_mux_host_tx_fill() == 0);
+	block();
+	CHECK(prim_mic[0] == 123 && spk[0] == 7 && audio_mux_host_avail() == 0);
+	radio_audio->stop();
+	CHECK(!hw.streaming);
+	audio_mux_service(now);
+	CHECK(!hw.streaming);
+	audio_mux_local(false);
+	audio_mux_service(now);
+	CHECK(hw.streaming && radio_audio->start(prim, NULL));
+	block();
+	CHECK(prim_mic[0] == 123 && audio_mux_host_avail() == AUDIO_BLOCK_SAMPLES);
+	CHECK(audio_mux_host_tx(true, true));
+	block();
+	CHECK(prim_mic[0] == 0);
+}
+#endif
+
 // The web control's receive audio (webctl.c): handed every frame the reader takes, with the squelch state
 static int wc_frames, wc_open;
 static int16_t wc_first;
@@ -505,6 +536,9 @@ int main(void)
 {
 	test_mux_passthrough();
 	test_mux_dmr_tx();
+#if CONFIG_P25_PARROT
+	test_mux_local();
+#endif
 	test_usrp_rx();
 	test_usrp_rx_slow_link();
 	test_usrp_tx();

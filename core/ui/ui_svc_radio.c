@@ -32,6 +32,7 @@
 #endif
 #if CONFIG_P25
 #include "radio/radio_p25.h"
+#include "p25/p25Voice.h"
 #endif
 
 
@@ -425,16 +426,13 @@ int32_t ui_svc_reply_shown(const radio_settings_t *s)
 	return 10;
 }
 
-// Mic gain: the step, or step 5 (the board's levels, FM included) while the vocoder's AGC sets the level (Mic gain
-// dimmed)
 static void apply_mic_gain(int32_t step, bool agc)
 {
-	if (CONFIG_DMR && agc) {
-		step = (int32_t)MIC_GAIN_UNITY;
-	} else if (step < 0) {
+	if (step < 0)
 		step = 0;
-	}
-	radio_set_mic_gain((uint8_t)(step > (int32_t)MIC_GAIN_STEPS ? (int32_t)MIC_GAIN_STEPS : step));
+	if (step > (int32_t)MIC_GAIN_STEPS)
+		step = MIC_GAIN_STEPS;
+	radio_set_mic_gain_with_agc((uint8_t)step, agc);
 }
 
 // The UI's settings that live in radio_settings_t. The radio core saves them (settings store) and restores them at
@@ -558,3 +556,22 @@ void ui_svc_apply(uint8_t id, int32_t value)
 	}
 	rs_send(&was);
 }
+
+#if CONFIG_P25_PARROT
+bool ui_svc_p25_parrot(uint8_t command, bool agc, int8_t target)
+{
+	return radio_req_p25_parrot(command, agc, target);
+}
+uint8_t ui_svc_p25_parrot_state(void) { return radio_p25_parrot_state(); }
+void ui_svc_p25_parrot_view(p25_parrot_view_t *out)
+{
+	uint8_t state = radio_p25_parrot_state();
+	if (state == P25_PARROT_READY) {
+		p25VoiceParrotView(out);
+	} else {
+		memset(out, 0, sizeof *out);
+		out->state = state;
+		out->input_db10 = out->encoder_db10 = out->output_db10 = -960;
+	}
+}
+#endif

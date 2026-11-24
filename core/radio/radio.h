@@ -632,6 +632,10 @@ void radio_req_mode(uint8_t mode);
 #if CONFIG_P25
 // The P25 settings (RAM only, radio_p25.h): copied now, in force from the radio task's next turn
 void radio_req_p25_settings(const radio_p25_settings_t *s);
+#if CONFIG_P25_PARROT
+bool radio_req_p25_parrot(uint8_t command, bool agc, int8_t target_dbfs);
+uint8_t radio_p25_parrot_state(void);
+#endif
 #endif
 #if CONFIG_NXDN
 // The NXDN settings (RAM only, radio_nxdn.h): the same

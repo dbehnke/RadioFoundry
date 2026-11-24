@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
-// The DMR parts of the debug link: the GET_VIEW sections dmr, dmr_call and dmr_stats, the voice path diagnostics
+// The DMR parts of the debug link: the GET_VIEW sections dmr, dmr_call, dmr_stats, and dmr_tx_audio, the diagnostics
 // lines and their counter reset. Kept apart from debuglink_view.c so DMR work can extend it on its own: add keys
 // freely (new keys don't bump DL_VIEW_VERSION), keep the existing ones.
 #include "config.h"
@@ -9,7 +9,7 @@
 #if CONFIG_DMR
 #include "dmr/call/dmr_call.h"
 #include "dmr/ambe/ambeVoice.h"
-#include "audio/miclimit/miclimit.h"
+#include "dsp/mic_gain.h"
 #include "radio/mic_gain.h"
 #endif
 
@@ -76,12 +76,11 @@ void debuglink_view_dmr(uint8_t part, const radio_view_t *v, dl_text_t *t)
 			ambeVoiceGetStats(&a);
 			dl_text(t, "voice.tx_mic_peak=%u\nvoice.tx_test=%u\n", (unsigned)a.tx_mic_peak,
 				ambeVoiceTestSignal() ? 1u : 0u);
-			// The mic gain (DMR's) in force now; after it, the encoder's largest sample and the
-			// limiter's lowest gain in the latest transmission (- before one). Here, not in features: that section
-			// is at a reply's size
-			dl_text(t, "voice.mic_pcm_db=%d\nvoice.tx_enc_peak=%u\n", radio_mic_pcm_db(), (unsigned)a.tx_enc_peak);
+			dl_text(t, "voice.tx_enc_peak=%u\n", (unsigned)a.tx_enc_peak);
+			// The configured mic gain and the limiter's lowest gain in the latest transmission, if available.
+			dl_text(t, "voice.mic_pcm_db=%d\n", radio_mic_pcm_db());
 			if (a.tx_mic_low_q8 != 0) {
-				dl_text(t, "voice.tx_mic_low_db=%d\n", miclimit_q8_db((uint16_t)a.tx_mic_low_q8));
+				dl_text(t, "voice.tx_mic_low_db=%d\n", mic_gain_q8_db((uint16_t)a.tx_mic_low_q8));
 			} else {
 				dl_text(t, "voice.tx_mic_low_db=-\n");
 			}
@@ -208,6 +207,14 @@ void debuglink_view_dmr(uint8_t part, const radio_view_t *v, dl_text_t *t)
 	}
 }
 
+void debuglink_view_dmr_tx_audio(dl_text_t *t)
+{
+	ambe_voice_stats_t a;
+	ambeVoiceGetStats(&a);
+	dl_text(t, "voice.tx_gain_q16=%u\nvoice.tx_limited_blocks=%u\nvoice.mic_limiter=%u\n",
+		(unsigned)a.tx_gain_q16, (unsigned)a.tx_limited_blocks, CONFIG_TX_MIC_LIMITER);
+}
+
 bool debuglink_dmr_diag_line(uint8_t i, char *buf, uint8_t len)
 {
 	dmr_call_stats_t c;
@@ -251,6 +258,11 @@ void debuglink_view_dmr(uint8_t part, const radio_view_t *v, dl_text_t *t)
 {
 	(void)part;
 	(void)v;
+	dl_text(t, "dmr.built=0\n");
+}
+
+void debuglink_view_dmr_tx_audio(dl_text_t *t)
+{
 	dl_text(t, "dmr.built=0\n");
 }
 

@@ -672,6 +672,31 @@ static int run_sheets(const char *dir, const char *geom)
 	return fails != 0;
 }
 
+#if CONFIG_P25_PARROT
+static int run_parrot_gallery(const char *dir)
+{
+	for (int g = 0; g < sim_geom_count; g++) {
+		char path[512], err[256];
+		sim_reset(&sim_geoms[g], SIM_MAP_K);
+		if (!sim_run("ok 7 up ok up ok expect:screen=p25parrot", err, sizeof err)) {
+			fprintf(stderr, "%s: %s\n", sim_geoms[g].name, err);
+			return 1;
+		}
+		snprintf(path, sizeof path, "%s/%s", dir, sim_geoms[g].name);
+		mkdir(path, 0755);
+		snprintf(path, sizeof path, "%s/%s/p25_parrot.png", dir, sim_geoms[g].name);
+		if (!sim_save_png(path, 2)) return 1;
+		if (!sim_run("ok ok down down down down down down", err, sizeof err)) return 1;
+		snprintf(path, sizeof path, "%s/%s/p25_parrot_levels.png", dir, sim_geoms[g].name);
+		if (!sim_save_png(path, 2)) return 1;
+		if (!sim_run("down down down down down down down down", err, sizeof err)) return 1;
+		snprintf(path, sizeof path, "%s/%s/p25_parrot_report.png", dir, sim_geoms[g].name);
+		if (!sim_save_png(path, 2)) return 1;
+	}
+	return 0;
+}
+#endif
+
 int main(int argc, char **argv)
 {
 	const sim_geom_t *g = &sim_geoms[0];
@@ -681,6 +706,10 @@ int main(int argc, char **argv)
 	for (int i = 1; i < argc; i++) {
 		const char *a = argv[i];
 		const char *v = i + 1 < argc ? argv[i + 1] : NULL;
+#if CONFIG_P25_PARROT
+		if (strcmp(a, "--parrot-gallery") == 0 && v != NULL)
+			return run_parrot_gallery(v);
+#endif
 		if (strcmp(a, "--gallery") == 0 && v != NULL)
 			return run_gallery(v);
 		if (strcmp(a, "--sheets") == 0 && v != NULL)

@@ -488,7 +488,7 @@ ground. Whether F1/F2 are routed anywhere on the DM-32UV board is unknown (3.11)
 | 0x28 | PTB8 | Keypad backlight | out | high = on |
 | 0x2B | PTB11 | PTT | in | low = pressed |
 | 0x2C | PTB12 | GPS power | out | **low = GPS on**, high = off |
-| 0x2E | PTB14 | Audio path select: mic to analog FM path vs to DMR codec | out | 1 = analog (FM TX), 0 = DMR; set at each TX start, and 0 while APRS tones play in FM TX (9.1) |
+| 0x2E | PTB14 | Audio path select: mic to analog FM path vs to DMR codec | out | 1 = analog (FM TX), 0 = DMR. Set at TX start and low while APRS tones play in FM TX (9.1). The codec diagnostic holds it low for local recording while the radio stays in digital receive ([p25.md](p25.md) 5.3) |
 | 0x2F | PTB15 | FD6818 audio switch | out | 1 = the FD6818's audio output to the speaker and away from the C7000's ADC; 0 = the audio into the C7000 (DMR receive needs this) and the speaker on the codec (measured) |
 | 0x31–0x34 | PTB17–20 | Keypad columns 1–4 | in | low = key closed |
 | 0x35 | PTB21 | Audio power amplifier enable | out | high = on |
@@ -1232,7 +1232,8 @@ under another maker's handheld's digital voice decoded the same way (-18 dBFS); 
 full scale (the bench's speech clip on DMR), so the level is lost in the mic path: GCR_ADCL's 11 dB, with no other
 gain. The board leaves the register as it is (it also feeds the VOX meter) and asks for 12 dB on the PCM before the
 AMBE+2 encoder, with the core's peak limiter (`hal_radio_t.mic_pcm_db`, [radio-features.md](radio-features.md) 3.6).
-Expected: about -19 dBFS; not yet measured on air.
+Expected: about -19 dBFS; not yet measured on air. This remains a provisional AMBE calibration. P25 transmit
+and its local diagnostic use their own PCM leveling and do not apply this offset.
 
 APRS AFSK transmit (measured on the SDR bench, a UHF test frequency, 25 kHz, lowest power): the tones go out with
 the microphone on the DMR path (0x2E = 0) and the codec's microphone muted. On the FM path (0x2E = 1) the microphone

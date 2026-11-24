@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // The p25 section: P25 conventional on the channel (docs/spec/p25.md 7, core/radio/radio_p25.h): the call heard, the
 // settings in force, the engine's and the voice path's counters. "p25.built=0" without CONFIG_P25
 #include "config.h"
@@ -18,6 +19,25 @@ void debuglink_view_p25(const radio_view_t *v, dl_text_t *t)
 #if CONFIG_P25
 	dl_text(t, "p25.lookup.built=%u\np25.lookup.enabled=%u\n", CONFIG_P25_ID_LOOKUP,
 		CONFIG_P25_ID_LOOKUP && (SETTINGS_FIELD(caller_flags) & SETTINGS_CALLER_P25_DMR) != 0);
+#if CONFIG_P25_PARROT
+	p25_parrot_view_t pv;
+	p25VoiceParrotView(&pv);
+	dl_text(t, "p25parrot.built=1\np25parrot.state=%u\n", pv.state);
+	// Idle diagnostic measurements must not push the conventional counters out of the bounded reply.
+	if (pv.state != P25_PARROT_OFF) {
+		dl_text(t, "p25parrot.frames=%u\n", pv.frames);
+		dl_text(t, "p25parrot.input_db10=%d\np25parrot.encoder_db10=%d\np25parrot.output_db10=%d\n",
+			pv.input_db10, pv.encoder_db10, pv.output_db10);
+		dl_text(t, "p25parrot.input_peak=%u\np25parrot.encoder_peak=%u\np25parrot.output_peak=%u\np25parrot.gain_q16=%u\n",
+			pv.input_peak, pv.encoder_peak, pv.output_peak, (unsigned)pv.gain_q16);
+		dl_text(t, "p25parrot.agc=%u\np25parrot.target_dbfs=%d\np25parrot.limited_blocks=%u\n",
+			pv.agc, pv.target_dbfs, (unsigned)pv.limited_blocks);
+		dl_text(t, "p25parrot.mode=P25/IMBE\np25parrot.mic_step=%u\np25parrot.manual_gain_q16=%u\np25parrot.limiter=%u\n",
+			pv.mic_step, (unsigned)pv.manual_gain_q16, pv.limiter);
+	}
+#else
+	dl_text(t, "p25parrot.built=0\n");
+#endif
 	const radio_p25_view_t *p = &v->p25;
 	radio_p25_settings_t s;
 	radio_p25_stats_t c;

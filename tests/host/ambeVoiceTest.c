@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // DMR voice glue (core/dmr/ambe/ambeVoice.c) against a fake audio driver and a fake vocoder
 #include <stdio.h>
 #include <string.h>
-#include "audio/miclimit/miclimit.h"
+#include "dsp/mic_gain.h"
+#include "dsp/tx_level.h"
 
 #include "dmr/ambe/ambeVoice.h"
 #include "dmr/ambe/ambeFec.h"
@@ -34,11 +36,8 @@ static int resets, decodes;
 static bool agc_wave;
 static bool fake_present(void) { return true; }
 static void fake_reset(void) { resets++; }
-static int enc_peak;	// the largest sample the encoder was given (after the mic gain)
 static void fake_encode(const int16_t pcm[VOCODER_FRAME_SAMPLES], uint8_t bits[VOCODER_BITS])
 {
-	for (int i = 0; i < VOCODER_FRAME_SAMPLES; i++)
-		enc_peak = pcm[i] > enc_peak ? pcm[i] : -pcm[i] > enc_peak ? -pcm[i] : enc_peak;
 	for (int i = 0; i < VOCODER_BITS; i++)
 		bits[i] = (uint8_t)(pcm[i] & 1);
 }
@@ -596,6 +595,88 @@ static const hal_vocoder_t cap_vocoder = {
 	.options = opt_options, .set_options = opt_set, .encode_flags = opt_encode_flags,
 };
 
+static void testMicGain(void)
+{
+	ambeVoiceInit(&audio, &cap_vocoder);
+	const dmr_voice_source_t *src = ambeVoiceSource();
+	ambe_voice_stats_t st;
+	ambeVoiceSetMicGain(3);
+	for (unsigned i = 0; i < 160; i++) mic[i] = i & 1 ? -1000 : 1000;
+	ncap = 0;
+	src->begin(src->ctx); block();
+	bool exact = true;
+	for (unsigned i = 0; i < 160; i++) exact = exact && cap_pcm[0][i] == (int32_t)mic[i] * 161 / 256;
+	CHECK(exact, "manual gain preserves the legacy below-ceiling scaling");
+	src->end(src->ctx); block();
+
+	// A calibrated board uses its +12 dB even when the codec's own AGC selects manual step 5.
+	ambeVoiceSetEncodeOptions(VOCODER_OPT_DEFAULT | VOCODER_OPT_AGC);
+	ambeVoiceSetMicGainQ8(mic_gain_db_q8(12));
+	ncap = 0;
+	src->begin(src->ctx); block();
+	ambeVoiceGetStats(&st);
+	CHECK(cap_pcm[0][0] == 1000 * 1019 / 256 && cap_pcm[0][1] == -1000 * 1019 / 256 &&
+	      st.tx_mic_peak == 1000 && st.tx_enc_peak == (uint32_t)cap_pcm[0][0] &&
+	      cap_opts[0] == (VOCODER_OPT_DEFAULT | VOCODER_OPT_AGC), "board calibration and codec AGC both apply");
+	CHECK(st.tx_mic_low_q8 == (CONFIG_TX_MIC_LIMITER ? 1019 : 0), "lowest gain is available with protection");
+	src->end(src->ctx); block();
+	ambeVoiceSetEncodeOptions(VOCODER_OPT_DEFAULT);
+
+	// The same calibrated board at step 10 uses +22 dB exactly once, including when the limiter is omitted.
+	ambeVoiceSetMicGainQ8(mic_gain_db_q8(22));
+	ncap = 0;
+	src->begin(src->ctx); block();
+	CHECK(cap_pcm[0][0] == 1000 * 3223 / 256 && cap_pcm[0][1] == -1000 * 3223 / 256,
+	      "manual gain adds to board calibration before encoding");
+	src->end(src->ctx); block();
+
+	for (unsigned i = 0; i < 160; i++) mic[i] = i & 1 ? -32768 : 32767;
+	ncap = 0;
+	src->begin(src->ctx); block();
+	ambeVoiceGetStats(&st);
+#if CONFIG_TX_MIC_LIMITER
+	bool safe = true;
+	for (unsigned i = 0; i < 160; i++)
+		safe = safe && cap_pcm[0][i] >= -TX_LEVEL_CEILING && cap_pcm[0][i] <= TX_LEVEL_CEILING;
+	CHECK(safe && st.tx_enc_peak == TX_LEVEL_CEILING && st.tx_limited_blocks == 1, "loud PCM protected before codec");
+	CHECK(st.tx_mic_peak == 32768 && st.tx_gain_q16 < TX_LEVEL_UNITY && st.tx_mic_low_q8 == st.tx_gain_q16 >> 8 &&
+	      mic_gain_q8_db((uint16_t)st.tx_mic_low_q8) == -1, "raw input, applied gain, and limiter telemetry");
+#else
+	CHECK(cap_pcm[0][0] == INT16_MAX && cap_pcm[0][1] == INT16_MIN && st.tx_enc_peak == 32768 &&
+	      st.tx_limited_blocks == 0, "manual gain saturates when protection is omitted");
+#endif
+	src->end(src->ctx); block();
+
+#if CONFIG_TX_MIC_LIMITER
+	ambeVoiceSetMicGain(5);
+	ncap = 0;
+	src->begin(src->ctx); block();
+	CHECK(cap_pcm[0][0] <= TX_LEVEL_CEILING && cap_pcm[0][1] >= -TX_LEVEL_CEILING, "unity gain still protects peaks");
+	src->end(src->ctx); block();
+	for (unsigned i = 0; i < 160; i++) mic[i] = i & 1 ? -1234 : 1234;
+	ncap = 0;
+	src->begin(src->ctx); block();
+	ambeVoiceGetStats(&st);
+	CHECK(memcmp(cap_pcm[0], mic, sizeof mic) == 0 && st.tx_limited_blocks == 0 && st.tx_gain_q16 == TX_LEVEL_UNITY,
+	      "fresh call resets limiter, clean unity stays exact");
+	src->end(src->ctx); block();
+#if CONFIG_SIG_TONES
+	static const beep_seg_t tone_step[] = { { 1000, 200 } };
+	for (unsigned i = 0; i < 160; i++) mic[i] = -32768;
+	ncap = 0;
+	src->begin(src->ctx);
+	ambeVoiceTxTone(tone_step, 1, false);
+	block();
+	ambeVoiceGetStats(&st);
+	CHECK(st.tx_limited_blocks == 0 && st.tx_enc_peak <= 14000,
+	      "discarded mic during signaling does not alter limiter telemetry");
+	src->end(src->ctx); block();
+#endif
+#endif
+	ambeVoiceSetMicGain(5);
+	ambeVoiceInit(&audio, &vocoder);
+}
+
 static int zeroCrossings(const int16_t *p, int n)
 {
 	int c = 0;
@@ -776,53 +857,6 @@ static void testReceiveAgc(void)
 }
 #endif
 
-// One transmission of `blocks` mic blocks, a square wave of +-amp: the largest sample the encoder got
-static int gainOver(int16_t amp, int blocks, ambe_voice_stats_t *st)
-{
-	const dmr_voice_source_t *src = ambeVoiceSource();
-	uint8_t out[9];
-	src->begin(src->ctx);
-	enc_peak = 0;
-	for (int n = 0; n < blocks; n++) {
-		for (int i = 0; i < 160; i++)
-			mic[i] = (int16_t)((i / 10) & 1 ? amp : -amp);
-		block();
-		while (src->next(out, src->ctx))
-			;
-	}
-	ambeVoiceGetStats(st);
-	src->end(src->ctx);
-	block();
-	return enc_peak;
-}
-
-// The mic gain (radio/mic_gain.h pushes it as Q8): a quiet mic lifted 12 dB (one radio's digital voice came out 13 dB
-// faint without it), a shout held under the limiter's ceiling where the old scaling clipped at full scale, unity
-// passing the samples as delivered
-static void testMicGain(void)
-{
-	ambe_voice_stats_t st;
-	int p = gainOver(1000, 3, &st);
-	CHECK(p == 1000 && st.tx_enc_peak == 1000 && st.tx_mic_low_q8 == MICLIMIT_UNITY, "unity: %d %u %u", p,
-	      st.tx_enc_peak, st.tx_mic_low_q8);
-
-	ambeVoiceSetMicGainQ8(miclimit_db_q8(12));
-	p = gainOver(1000, 3, &st);
-	CHECK(p == 1000 * 1019 / 256 && st.tx_enc_peak == (uint32_t)p && st.tx_mic_peak == 1000, "+12 dB: %d", p);
-	CHECK(st.tx_mic_low_q8 == miclimit_db_q8(12), "the limiter idle: lowest %u", st.tx_mic_low_q8);
-
-	p = gainOver(20000, 3, &st);
-	CHECK(p <= MICLIMIT_CEILING && p > MICLIMIT_CEILING - 300, "a shout under the ceiling: %d", p);
-	CHECK(st.tx_mic_peak == 20000 && miclimit_q8_db(st.tx_mic_low_q8) == 3, "cut to %d dB",
-	      miclimit_q8_db(st.tx_mic_low_q8));
-
-	// A change between transmissions is the next one's gain
-	ambeVoiceSetMicGainQ8(miclimit_db_q8(-6));
-	p = gainOver(1000, 3, &st);
-	CHECK(p == 1000 * 128 / 256, "-6 dB: %d", p);
-	ambeVoiceSetMicGainQ8(MICLIMIT_UNITY);
-}
-
 int main(void)
 {
 	ambeVoiceInit(&audio, &vocoder);
@@ -833,9 +867,9 @@ int main(void)
 	testMicStats();
 	testFlagsMap();
 	testEncodeOptions();
+	testMicGain();
 	testTxTone();
 	testRepeats();
-	testMicGain();
 #if CONFIG_VOICE_CAPTURE
 	testCapture();
 #endif

@@ -72,8 +72,8 @@ Some settings are on the menu before the feature behind them exists, or don't ap
 | Default squelch | 0 to 9 | 5 | The FM squelch level when a channel doesn't set one | Works |
 | VFO step | Auto, 2.5, 5, 6.25, 8.33, 10, 12.5, 20, 25, 50, 100 kHz | Auto | The step of Up, Down and the knob in the VFO. Auto is 25 kHz at width 25K and in AM, else 12.5 kHz. Only on radios with a VFO | Works |
 | FM broadcast step | 200 kHz, 100 kHz | 200 kHz | The VFO step in the broadcast band. 200 kHz lands on the odd tenths (88.1, 88.3), the stations in the Americas. You can still type any frequency. Only on radios with a broadcast receiver ([Air band and FM broadcast](07-channels-zones-vfo.md#air-band-and-fm-broadcast)) | Works |
-| Mic gain | 0 to 10 | 5 | Microphone level, 2 dB a step. 5 is the radio's normal level. Sets DMR, and FM on the radios that set the level in their microphone path ([Radio reference](23-radios.md)). A loud voice is held back rather than distorted. A change counts from the next transmission. Shows "AGC" and can't be changed while Mic AGC is on | Works (DMR); FM not checked on air |
-| Mic AGC | On, Off | Off | Evens out your level on DMR: a quiet voice is raised and a loud one lowered, so you don't need to set Mic gain. While it's on, Mic gain stays at 5. Dimmed on radios whose voice codec can't do it | Needs an on-air check (DMR) |
+| Mic gain | 0 to 10 | 5 | Microphone level, 2 dB a step. 5 is the radio's normal level. Sets DMR and P25, and FM on the radios that set the level in their microphone path ([Radio reference](23-radios.md)). Digital peak protection holds back loud peaks before encoding when built in. A change counts from the next transmission. The row shows "AGC" and is dimmed when AGC applies to the selected mode. P25 uses the saved step when its AGC is off or compiled out | Works (DMR); FM not checked on air |
+| Mic AGC | On, Off | Off | Automatically adjusts microphone level for digital voice. P25 builds with `CONFIG_P25_TX_AGC` target -25 dBFS RMS before encoding. DMR uses the codec's own AGC and retains the board's fixed AMBE calibration. When AGC applies, it takes over from the manual step. Software cannot repair audio already clipped by the microphone input | P25 host tested; on-device checks pending |
 | Mic noise reduction | On, Off | On | Reduces steady background noise (fans, engines, wind) in what you send on DMR, also between words. Turn it off if a steady sound you want heard is cut. Dimmed on radios whose voice codec can't do it | Needs an on-air check (DMR) |
 | Monitor by default | On, Off | Off | Digital monitor (DMR: every talkgroup, promiscuous; Tier III: every talkgroup's call on the system) goes on each time you select a DMR channel, and a scan started from it keeps it on at every channel. **Back** on Home turns it off until the next channel | Works |
 | Show talker alias | On, Off | On | Show received talker aliases (names) under the caller's ID | Works |
@@ -195,12 +195,25 @@ When the keys lock by themselves and what still works while they are locked ([Ke
 | Factory reset | Puts every setting back to its default ([below](#factory-reset)) |
 | Crash log | What the last crash left, and sending it to the developers ([below](#crash-log)) |
 | RX past bands | Only on radios with a range for it: receive above the radio's rated bands, FM only. Off by default. Sensitivity isn't rated there, and the radio never transmits there |
+| Codec diagnostic | A local microphone and codec check in builds with `CONFIG_P25_PARROT`. **Mode** shows P25 / IMBE. Press **OK** on **Record** to record up to 10 seconds or stop early for playback. **Input AGC** toggles automatic gain. **Target dBFS** steps from -35 to -15, initially -25. With AGC off, the test uses your saved **Mic gain** step. The test controls apply only here and reset when you reopen the screen. The diagnostic blocks transmission, including Emergency. **Back** stops the test and restores the channel |
 | Freq trim | Moves the radio's receive and transmit frequency together, for a radio that is off frequency. Measure the error (a frequency counter, a service monitor, or a hotspot's BER test) and enter it with the sign reversed. The page shows what the trim comes to in Hz at 440 MHz and 144 MHz: a radio 2 kHz high at 440 MHz takes about -4.5 ppm (-1980 Hz). The page shows the trim in large type over a slider from -10 to +10, with "+ to increase frequency" under it where the display has room. Up and Down (or the knob) step 0.1 ppm, # flips the sign, digits type it (# 4 5 OK is -4.5 ppm). Takes effect once you stop changing it. Only on radios that have it ([which radios](../feature-matrix.md)). Range -10.0 to +10.0 ppm in 0.1 ppm steps, default 0 |
 | Hardware | Only on radios that need it: facts about the radio the firmware can't detect, such as a board revision (one the radio detects isn't listed). **OK** steps through the choices, holding **OK** stores the one shown. "Not set" shows in the warning color until one is stored, and the radio won't transmit until then. A choice other than the one the radio runs applies from the next start-up |
 
 <img src="../ux/screens/160x120i5/about.png" width="200" alt="Settings > Advanced > About">
 
 <img src="../ux/screens/160x120i5/settings_advanced.png" width="200" alt="Settings, Advanced">
+
+#### Reporting a codec diagnostic
+
+For comparisons, speak the same phrase at the same distance and volume, and record for about the same duration. Once
+playback finishes, scroll through the results and note the mode, duration, **Test AGC**, **Test target dBFS** or
+**Test mic step**, the mic, encoder and decoded RMS and peak readings, **Last PCM gain**, and **Limited blocks**.
+You can photograph the results on the screen. The recorded settings stay with the result when you change the controls.
+
+The RMS readings include pauses and the codec's startup, so they can be below the target for active voice. Peak levels
+show the highest samples. The decoded readings are digital levels before speaker volume. **Last PCM gain** is the final
+recorded block's software multiplier. **Limited blocks** counts blocks where peak protection reduced gain. `--` marks
+a reading that is unavailable for the current test.
 
 ## Signaling tones
 

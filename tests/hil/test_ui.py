@@ -810,3 +810,47 @@ def test_factory_reset(home):
     assert as_int(s.get("settings.failures"), 0) == 0, s
     # The channel position goes back to the default (another zone), so the zone count says the codeplug stayed
     assert r.core().get("zone_count") == zones, "the codeplug changed"
+
+
+@pytest.mark.feature("p25_parrot")
+@pytest.mark.needs_switch("UI_SETTINGS")
+def test_p25_parrot_local_roundtrip(home):
+    """Open the diagnostic, capture briefly and play locally; no PTT or RF command."""
+    r = home
+    if r.view(["p25"]).get("p25parrot.built") != "1":
+        skip("not_built", "firmware without the P25 parrot")
+    try:
+        for key in "ok 7 up ok up".split():
+            r.press(key)
+        # Only optional Hardware and Freq trim can follow the parrot in Advanced.
+        for _ in range(3):
+            r.press("ok")
+            page = r.view(["link"]).get("ui.screen")
+            if page == "p25parrot":
+                break
+            assert page in ("hwopt", "freq-trim"), page
+            r.press("back")
+            r.press("up")
+        wait_screen(r, "p25parrot")
+        r.wait_for(lambda v: v.get("p25parrot.state") == "1", sections=("p25",), what="parrot ready")
+        r.press("ok")
+        r.wait_for(lambda v: as_int(v.get("p25parrot.frames"), 0) >= 25, sections=("p25",),
+                   what="half a second captured")
+        r.press("ok")
+        v = r.wait_for(lambda v: v.get("p25parrot.state") == "4", sections=("p25",), what="local playback done")
+        assert 25 <= as_int(v.get("p25parrot.frames"), 0) <= 500, v
+        for key in ("input_db10", "encoder_db10", "output_db10"):
+            assert -960 <= as_int(v.get("p25parrot." + key), -1000) <= 0, v
+        assert v.get("p25parrot.mode") == "P25/IMBE", v
+        assert v.get("p25parrot.agc") == "1" and v.get("p25parrot.target_dbfs") == "-25", v
+        assert 0 <= as_int(v.get("p25parrot.mic_step"), -1) <= 10, v
+        for key in ("input_peak", "encoder_peak", "output_peak"):
+            assert 0 <= as_int(v.get("p25parrot." + key), -1) <= 32768, v
+        assert as_int(v.get("p25parrot.encoder_peak")) <= 28000, v
+        assert 0 < as_int(v.get("p25parrot.gain_q16")) <= 1038676, v
+        assert v.get("p25parrot.limiter") == "1", v
+        assert 0 <= as_int(v.get("p25parrot.limited_blocks"), -1) <= as_int(v.get("p25parrot.frames")), v
+    finally:
+        r.press("back", LONG)
+        wait_screen(r, "home")
+    r.wait_for(lambda v: v.get("p25parrot.state") == "0", sections=("p25",), what="parrot released")
