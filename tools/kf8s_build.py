@@ -21,7 +21,7 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools' / 'rfoundry'))
-from rfoundry import boards  # noqa: E402
+from rfoundry import boards, manifest as release_manifest  # noqa: E402
 
 
 def git(*args):
@@ -53,11 +53,97 @@ def next_sequence(path, day):
 
 
 
-def run_logged(args, log):
+def run_logged(args, log, env):
     with log.open('w') as stream:
-        subprocess.run(args, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT, check=True)
+        subprocess.run(args, cwd=ROOT, env=env, stdout=stream, stderr=subprocess.STDOUT, check=True)
     if re.search(r'\bwarning:', log.read_text(), re.I):
         raise ValueError('build warnings: ' + str(log))
+
+
+def build_command(board, args):
+    if board.platform == 'hrc7000':
+        return ['tools/docker/csky-toolchain/run.sh', *args]
+    return args
+
+
+def check_csky_checkout(board, commit, env):
+    result = subprocess.run(build_command(board, ['git', 'rev-parse', 'HEAD']),
+                            cwd=ROOT, env=env, capture_output=True, text=True)
+    if result.returncode or result.stdout.splitlines()[-1:] != [commit]:
+        hint = (' For a linked worktree, set RFOUNDRY_THIRD_PARTY to a populated third_party directory '
+                'so the toolchain container can mount the common Git directory.') if (ROOT / '.git').is_file() else ''
+        raise ValueError('C-SKY toolchain could not read the expected Git commit.' + hint + '\n' +
+                         (result.stderr.strip() or result.stdout.strip()))
+
+
+def configured_features(board, flags, env):
+    config = subprocess.check_output(['make', '-s', f'BOARD={board.id}', *flags, 'print-config'],
+                                     cwd=ROOT, env=env, text=True)
+    return {entry[:-2] for entry in config.split() if entry.endswith('=y')}
+
+
+def check_built_profile(stamp, flags, commit, version, expected):
+    if stamp.split()[:2] != [commit, version]:
+        raise ValueError('firmware build Git or release stamp differs from the package')
+    compiled = dict(re.findall(r'-DCONFIG_(\w+)=(0|1)(?=\s|$)', flags))
+    for feature in ('DMR_AES', 'P25', 'P25_PARROT', 'DMR_IP_GATEWAY'):
+        if compiled.get(feature) != ('1' if feature in expected else '0'):
+            raise ValueError(f'compiled CONFIG_{feature} differs from print-config')
+
+
+def check_image_manifest(manifest, expected):
+    enabled = set(filter(None, manifest['features'].split(',')))
+    if enabled != expected:
+        raise ValueError('manifest features differ from print-config: '
+                         f'missing {sorted(expected - enabled)}, unexpected {sorted(enabled - expected)}')
+
+
+def apply_build_info(manifest, stamp):
+    preset, _, disabled = stamp.strip().partition(' ')
+    if not preset:
+        raise ValueError('firmware build did not record its preset')
+    if set(disabled.split(',')) != set(manifest['off'].split(',')):
+        raise ValueError('manifest off switches differ from the compiled build')
+    manifest.update(variant=preset, off=disabled)
+
+
+def write_release_sums(package, images):
+    with (package / 'SHA256SUMS').open('w', encoding='ascii') as sums:
+        for entry in images:
+            for key in ('image', 'manifest'):
+                name = entry[key]
+                sums.write(release_manifest.sha256sums_line(name, (package / name).read_bytes()))
+
+
+def check_archive_images(archive, images):
+    missing = {entry[key] for entry in images for key in ('image', 'manifest')} - set(archive.namelist())
+    if missing:
+        raise ValueError(f'archive is missing image or manifest files: {sorted(missing)}')
+
+
+def package_readme(version, parrot, without_aes):
+    aes = ('DMR AES is disabled in this package. AES channels are unavailable and PTT is rejected.\n'
+           if without_aes else "DMR AES follows each board's default. See the image manifest.\n")
+    diagnostic = ('Codec diagnostic enabled wherever P25 is built. See build.json for each image configuration.\n'
+                  'Images that exceed RAM with the diagnostic disable the DMR IP gateway.\n'
+                  if parrot else 'The codec diagnostic is off. The DMR IP gateway retains its board defaults.\n')
+    return (
+        f'{version}\nPrivate KF8S test build based on RadioFoundry. Contact: dbehnke (KF8S).\n'
+        'Includes transmit and receive audio AGC, dual caller display, and optional P25 caller lookup.\n'
+        f'{aes}{diagnostic}'
+        'An upgrade from older settings resets receive AGC to Off and hides the audio levels display.\n'
+        'An ambiguous legacy counter blocks AES transmission until recovery. On AES-enabled images, open\n'
+        'Settings > Advanced > AES recovery. Choose Keep AES counter, when available, only if you can verify\n'
+        'the stored value is this radio\'s latest genuine AES reservation. Otherwise retire every AES transmit\n'
+        'key previously used on this radio, install new key material, and then choose Use new AES keys.\n'
+        'Recovery saves and restarts. Factory reset preserves the AES counter and recovery state.\n'
+        'Never restore older settings backups after AES use or downgrade to firmware that lacks this migration.\n'
+        'Enable P25 contact lookup under Settings > Talk & listen (default Off).\n'
+        'Match the image and its band/power option to your hardware. See the board reference.\n'
+        'Use each image with its JSON manifest in the RadioFoundry web flasher.\n'
+        'Images contain no AMBE codec. Follow the flasher instructions to preserve or supply your codec.\n'
+        'P25 remains unavailable where upstream has not implemented it. See the feature matrix.\n'
+        'Keep LICENSE, AUTHORS, CONTRIBUTORS and third-party notices with redistributed downloads.\n')
 
 
 def self_test():
@@ -90,32 +176,100 @@ def self_test():
             pass
         else:
             raise AssertionError('an empty counter must fail closed')
-    print('kf8s build: branch guards and daily sequence passed')
-
-
-def require_release_ready():
-    # Both legacy branches used layout 1 / 412 bytes for different fields. Do not publish this integration snapshot.
-    raise ValueError('kf8sfork packaging is blocked pending legacy AGC/AES settings migration; '
-                     'see docs/spec/settings-store.md, Receive audio preferences')
+    standard = {'DMR', 'DMR_AES', 'DMR_IP_GATEWAY', 'P25', 'P25_TX_AGC', 'RX_AGC'}
+    diagnostic = (standard - {'DMR_IP_GATEWAY'}) | {'P25_PARROT'}
+    without_aes = diagnostic - {'DMR_AES'}
+    board_without_aes = {'DMR', 'RX_AGC'}
+    for expected in (standard, diagnostic, without_aes, board_without_aes):
+        check_image_manifest({'features': ','.join(sorted(expected))}, expected)
+    for enabled, expected in ((without_aes, diagnostic), (diagnostic, without_aes),
+                              (diagnostic - {'P25_PARROT'}, diagnostic),
+                              (diagnostic | {'DMR_IP_GATEWAY'}, diagnostic)):
+        try:
+            check_image_manifest({'features': ','.join(sorted(enabled))}, expected)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f'manifest validation accepted {enabled} instead of {expected}')
+    commit, tag = '12345678', 'test-version'
+    stamp = f'{commit} {tag} 1700000000 fork dbehnke/RadioFoundry'
+    flags = '-DCONFIG_DMR_AES=1 -DCONFIG_P25=1 -DCONFIG_P25_PARROT=1 -DCONFIG_DMR_IP_GATEWAY=0'
+    check_built_profile(stamp, flags, commit, tag, diagnostic)
+    for built_stamp, effective_flags in ((stamp.replace(commit, 'unknown'), flags),
+                                          (stamp, flags.replace('DMR_AES=1', 'DMR_AES=0'))):
+        try:
+            check_built_profile(built_stamp, effective_flags, commit, tag, diagnostic)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('compiled provenance check accepted a mismatched stamp or feature')
+    entry = {'image': f'rfoundry-test-{tag}.bin', 'manifest': f'rfoundry-test-{tag}.json'}
+    with tempfile.TemporaryDirectory() as directory:
+        package = Path(directory)
+        image = package / entry['image']
+        image.write_bytes(b'fixture')
+        manifest = {'variant': 'full', 'off': 'VOICE_CAPTURE,DMR_IP_GATEWAY'}
+        apply_build_info(manifest, 'custom DMR_IP_GATEWAY,VOICE_CAPTURE\n')
+        assert manifest == {'variant': 'custom', 'off': 'DMR_IP_GATEWAY,VOICE_CAPTURE'}
+        try:
+            apply_build_info(manifest, 'custom DMR_IP_GATEWAY\n')
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('manifest accepted an off list that differs from the firmware')
+        manifest_path = package / entry['manifest']
+        manifest_path.write_text(release_manifest.dumps(manifest), encoding='utf-8')
+        write_release_sums(package, [entry])
+        sums = (package / 'SHA256SUMS').read_text().splitlines()
+        assert sums == [f'{hashlib.sha256((package / name).read_bytes()).hexdigest()}  {name}'
+                        for name in entry.values()]
+        apply_build_info({'variant': 'full', 'off': ''}, 'full \n')
+    with tempfile.TemporaryFile() as stream, zipfile.ZipFile(stream, 'w') as archive:
+        for name in entry.values():
+            archive.writestr(name, '')
+        check_archive_images(archive, [entry])
+        try:
+            check_archive_images(archive, [dict(entry, image='rfoundry_test.bin')])
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('ZIP validation accepted a source filename instead of the packaged member')
+    default_readme = package_readme('test-version', parrot=False, without_aes=False)
+    diagnostic_readme = package_readme('test-version', parrot=True, without_aes=True)
+    assert "DMR AES follows each board's default" in default_readme and 'diagnostic is off' in default_readme
+    assert 'DMR AES is disabled' in diagnostic_readme and 'disable the DMR IP gateway' in diagnostic_readme
+    assert all('Settings > Advanced > AES recovery' in readme for readme in (default_readme, diagnostic_readme))
+    print('kf8s build: branch guards, daily sequence, provenance, archive and README checks passed')
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--self-test', action='store_true')
     parser.add_argument('--jobs', type=int, default=8)
+    parser.add_argument('--without-aes', action='store_true',
+                        help='disable DMR AES on every image; otherwise keep board defaults')
+    parser.add_argument('--parrot', action='store_true',
+                        help='enable the codec diagnostic where P25 is built; disable the gateway if RAM requires it')
     args = parser.parse_args()
     if args.self_test:
         self_test()
         return
     require_branch(git('branch', '--show-current'))
-    require_release_ready()
     if git('status', '--porcelain', '--untracked-files=normal'):
         raise ValueError('commit or preserve pending changes before building')
+    # Start from board defaults. Docker receives explicit make arguments and release.py needs the same overrides.
+    build_env = {key: value for key, value in os.environ.items()
+                 if not key.startswith('CONFIG_') and key not in ('VARIANT', 'MAKEFLAGS', 'MFLAGS', 'GNUMAKEFLAGS')}
+    profile_flags = ['CONFIG_DMR_AES=n'] if args.without_aes else []
     subprocess.run(['git', 'fetch', 'origin', 'main'], cwd=ROOT, check=True)
     subprocess.run(['git', 'merge-base', '--is-ancestor', 'origin/main', 'HEAD'], cwd=ROOT, check=True)
     upstream_full = git('rev-parse', 'origin/main')
     commit_full = git('rev-parse', 'HEAD')
+    commit_stamp = git('rev-parse', '--short=8', 'HEAD')
     upstream, commit = upstream_full[:8], commit_full[:8]
+    csky_board = next((board for board in boards.BOARDS.values() if board.platform == 'hrc7000'), None)
+    if csky_board is not None:
+        check_csky_checkout(csky_board, commit_full, build_env)
     day = datetime.now(ZoneInfo('America/Detroit')).strftime('%y%m%d')
     common = Path(git('rev-parse', '--git-common-dir'))
     if not common.is_absolute():
@@ -133,34 +287,63 @@ def main():
             options = dict(values)
             name = board.release_id(options)
             build = out / name
+            option_flags = [f'{key}={value}' for key, value in values]
+            baseline = configured_features(board, [*profile_flags, 'CONFIG_P25_PARROT=n', *option_flags], build_env)
+            parrot = args.parrot and 'P25' in baseline
+            image_flags = [*profile_flags, 'CONFIG_P25_PARROT=' + ('y' if parrot else 'n')]
             flags = [f'BOARD={board.id}', f'BUILD={build}', f'RFOUNDRY_RELEASE={version}',
-                     'BUILD_SOURCE=fork', 'BUILD_SOURCE_REPO=dbehnke/RadioFoundry']
-            flags += [f'{key}={value}' for key, value in values]
+                     'BUILD_SOURCE=fork', 'BUILD_SOURCE_REPO=dbehnke/RadioFoundry', *image_flags, *option_flags]
             print('building ' + name, flush=True)
-            run_logged(['make', f'-j{args.jobs}', *flags, 'all', 'stack-check'], out / (name + '.log'))
+            log = out / (name + '.log')
+            try:
+                run_logged(build_command(board, ['make', f'-j{args.jobs}', *flags, 'all', 'stack-check']), log, build_env)
+            except subprocess.CalledProcessError:
+                if not parrot or 'DMR_IP_GATEWAY' not in baseline or not re.search(
+                        r"region [`']RAM['`] overflowed", log.read_text()):
+                    raise
+                log.rename(out / (name + '-gateway-ram-limit.log'))
+                image_flags.append('CONFIG_DMR_IP_GATEWAY=n')
+                flags.append('CONFIG_DMR_IP_GATEWAY=n')
+                print(name + ': diagnostic needs RAM; disabling DMR IP gateway for this image', flush=True)
+                run_logged(build_command(board, ['make', f'-j{args.jobs}', *flags, 'all', 'stack-check']), log, build_env)
             image = build / Path(board.build_image(options)).name
+            expected = configured_features(board, [*image_flags, *option_flags], build_env) if parrot else baseline
+            check_built_profile((build / 'version').read_text(), (build / 'flags').read_text(),
+                                commit_stamp, version, expected)
             release = [sys.executable, 'tools/release.py', '--board', board.id, '--version', version,
-                       '--bin', str(image), '--out', str(package)]
+                       '--git', commit_full, '--bin', str(image), '--out', str(package)]
+            if board.platform == 'hrc7000':
+                output = subprocess.check_output(build_command(board, ['csky-elf-gcc', '--version']),
+                                                 cwd=ROOT, env=build_env, text=True)
+                compiler = next(line for line in output.splitlines() if line.startswith('csky-elf-gcc '))
+                release += ['--toolchain', compiler]
             for key, value in values:
                 release += ['--build-option', f'{key}={value}']
-            subprocess.run(release, cwd=ROOT, check=True)
-            images.append({'board': board.id, 'options': options, 'image': image.name})
+            release_env = build_env.copy()
+            release_env.update(flag.split('=', 1) for flag in image_flags)
+            subprocess.run(release, cwd=ROOT, env=release_env, check=True)
+            manifest_path = package / f'rfoundry-{name}-{version}.json'
+            manifest = json.loads(manifest_path.read_text())
+            check_image_manifest(manifest, expected)
+            apply_build_info(manifest, (build / 'build_info').read_text())
+            manifest_path.write_text(release_manifest.dumps(manifest), encoding='utf-8')
+            images.append({'board': board.id, 'options': options, 'image': manifest['image']['file'],
+                           'manifest': manifest_path.name,
+                           'build_overrides': image_flags})
+            shutil.rmtree(build)
     require_branch(git('branch', '--show-current'))
     if (git('rev-parse', 'HEAD') != commit_full or git('status', '--porcelain') or
             git('rev-parse', 'origin/main') != upstream_full):
         raise ValueError('source changed during the build; refusing to package')
+    write_release_sums(package, images)
+    profile = 'agc-parrot' if args.parrot else 'agc'
+    if args.without_aes:
+        profile += '-test-no-aes'
     metadata = {'version': version, 'upstream': upstream_full,
-                'commit': commit_full, 'images': images}
+                'commit': commit_full, 'profile': profile,
+                'build_overrides': profile_flags, 'images': images}
     (package / 'build.json').write_text(json.dumps(metadata, indent=2) + '\n')
-    (package / 'README.txt').write_text(
-        f'{version}\nPrivate KF8S test build based on RadioFoundry. Contact: dbehnke (KF8S).\n'
-        'Includes receive audio AGC and optional P25 caller lookup.\n'
-        'Enable P25 contact lookup under Settings > Talk & listen (default Off).\n'
-        'Match the image and its band/power option to your hardware; see the board reference.\n'
-        'Use each image with its JSON manifest in the RadioFoundry web flasher.\n'
-        'Images contain no AMBE codec. Follow the flasher instructions to preserve or supply your codec.\n'
-        'P25 remains unavailable where upstream has not implemented it; see the feature matrix.\n'
-        'Keep LICENSE, AUTHORS, CONTRIBUTORS and third-party notices with redistributed downloads.\n')
+    (package / 'README.txt').write_text(package_readme(version, args.parrot, args.without_aes))
     for name in ('LICENSE', 'AUTHORS', 'CONTRIBUTORS'):
         shutil.copy2(ROOT / name, package / name)
     shutil.copytree(ROOT / 'LICENSES', package / 'LICENSES')
@@ -169,6 +352,7 @@ def main():
         for path in sorted(package.rglob('*')):
             if path.is_file():
                 zipped.write(path, path.relative_to(package))
+        check_archive_images(zipped, images)
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     archive.with_suffix('.zip.sha256').write_text(f'{digest}  {archive.name}\n')
     print(f'ZIP: {archive}\nSHA256: {digest}')
