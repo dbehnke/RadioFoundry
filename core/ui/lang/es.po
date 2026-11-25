@@ -5738,11 +5738,6 @@ msgid "Data"
 msgstr "Datos"
 
 #: core/ui/ui_screens.c
-msgctxt "ACTIVITY_STATE_SQUELCH_OPEN"
-msgid "Squelch open"
-msgstr "Squelch abierto"
-
-#: core/ui/ui_screens.c
 msgctxt "STATE_RECEIVING"
 msgid "Receiving"
 msgstr "Recibiendo"

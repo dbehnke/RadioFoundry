@@ -1637,9 +1637,9 @@ static const flow_t flows_k[] = {
 	  1, false },
 #if CONFIG_YSF
 	// (Rooms is the last function in a build with YSF)
-	{ "K top key hold: Rooms last", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=23 shows=Rooms",
+	{ "K top key hold: Rooms last", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=23 shows=Rooms",
 	  1, false },
-	{ "K top key hold wraps to default", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=0", 1,
+	{ "K top key hold wraps to default", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=0", 1,
 	  false },
 #else
 	{ "K top key hold wraps to default", "ok 7 8 up ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok", "ok", "set47=0", 1,

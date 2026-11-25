@@ -745,6 +745,7 @@ void debuglink_view_section(uint8_t section, const radio_view_t *v, dl_text_t *t
 		break;
 	case DL_VIEW_POWER:
 		debuglink_view_power(t);
+		break;
 	case DL_VIEW_YSF:
 		debuglink_view_ysf(v, t);
 		break;
