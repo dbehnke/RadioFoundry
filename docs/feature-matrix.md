@@ -174,6 +174,7 @@ is `tools/bringup.py list --radio <id>`.
 | `nand_storage` | ✕ | ✕ | ✕ | not recorded | ✕ | ✕ | ✕ | ✕ |
 | `codec_check` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | pass, needs re-run |
 | `air_raw` | off | off | off | off | off | off | off | off |
+| `air_rx_adapt` | off | not written | off | off | not written | not written | not written | off |
 | `audio_probe` | not written | off | not written | not written | not written | off | off | not written |
 | `rx_agc` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `signal_meter` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -326,6 +327,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | `NXDN` | ● | ● | ● | ● | … | ● | ● | ● |
 | `NXDN_SCRAMBLER` | ● | ● | ● | ● | … | ● | ● | ● |
 | `AIR_RAW` | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| `AIR_RX_ADAPT` | ○ | … | ○ | ○ | … | … | … | ○ |
 | Voltage reading (board, no switch) | Battery | Battery | Battery | None | Battery | Battery | Supply | Battery |
 | Clock kept through power-off (board, no switch) | Yes | ? | Yes | ? | ? | ? | ? | No (only while on) |
 <!-- end generated -->
@@ -353,6 +355,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | Optional P25 caller names from private contacts and the DMR ID database | `P25_ID_LOOKUP` | — | — | Needs `P25`; shares the deferred label cache with `CALLER_DETAILS`. The Talk & listen option is off by default. Host tested; radio listening check pending ([p25.md](spec/p25.md) 7.3.1) |
 | NXDN conventional voice, 4800 and 9600 bit/s: the frame codec, receive, the call layer, the engine and the NXDN mode in the radio core | `NXDN` | 10,512 | — | Needs `DMR` (its voice goes through the DMR vocoder path) and a board with an air interface provider (`board.air`); where the provider only receives a rate, PTT is refused at that rate. The VFO's mode tile, the debug link or a stored NXDN channel sets it ([nxdn.md](spec/nxdn.md) 6, [nxdn-codeplug.md](spec/nxdn-codeplug.md)). On the DM-1701 and the DM-32UV transmit is checked off air at both rates and receive with a bench transmitter, speech frames through the vocoder included (DM-1701); on the HR_C6000 radios the speaker plays NXDN speech through the chip's prompt tone FIFO, checked by ear on the DM-1701 and the MD-9600 ([modem-hrc6000.md](spec/modem-hrc6000.md) 10.6). RAM: 2,184 B on the DM-1701; with `P25` also on it shares P25's engine memory (9,464 B flash, 256 B RAM on top of P25) |
 | NXDN Scrambler (15-bit) | `NXDN_SCRAMBLER` | 448 | — | Needs `NXDN`; supports conventional voice calls. The NXDN air interface must support the requested direction. Checked on air against another radio running RadioFoundry and a commercial portable ([bring-up record](testing/dm32-bringup.md#nxdn-scrambler-interoperability)). |
+| Soft modem receive options: an equalizer, a CTCSS notch and a DCS remover, for a mode that asks for them | `AIR_RX_ADAPT` | — | — | HR_C7000 only so far (not written on these two radios). On the DM-32UV: 4,104 B flash, of which about 1.1 KB is copied to RAM (`RFOUNDRY_HOT_CODE`), and 20 B of static RAM; the options' state (about 1.6 KB) is lent by the mode's engine. Needs `SUBTONE` ([air-interface.md](spec/air-interface.md) 6.1). Measured 2026-11-25 |
 | Digital receive audio AGC with per-mode targets and recent-caller memory | `RX_AGC` | 3,892 | — | Off until a target is selected. DM-1701 figure with LTO, GCC 13.3 (2026-11-22); hardware listening and timing untested ([receive AGC](spec/rx-agc.md)) |
 | Basic privacy, 8-bit and 16-bit keys | `DMR_PRIVACY` | 6,260 | 7,340 |  |
 | AES-256 DMR voice, PI header and late-entry signaling | `DMR_AES` | 3,484 | 4,692 | Requires `DMR_PRIVACY`. DM-1701: 480 B RAM. TX to a receiver of another make needs the modem driver's burst F field (`set_burst_f`, [dmr-voice.md](spec/dmr-voice.md) 5.1): only the HR_C7000 driver has it (DM-32UV); on the HR_C6000 and other radios our AES overs reach radios running RadioFoundry only (#864). |
