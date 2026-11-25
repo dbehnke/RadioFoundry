@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
-// The DMR parts of the debug link: the GET_VIEW sections dmr, dmr_call, dmr_stats, and dmr_tx_audio, the diagnostics
-// lines and their counter reset. Kept apart from debuglink_view.c so DMR work can extend it on its own: add keys
+// The DMR parts of the debug link: the GET_VIEW sections dmr, dmr_call, dmr_stats, and dmr_tx_audio (the AMBE
+// encoder input leveling and the mic gate's muted-block count), the diagnostics lines and their counter reset. Kept apart from debuglink_view.c so DMR work can extend it on its own: add keys
 // freely (new keys don't bump DL_VIEW_VERSION), keep the existing ones.
 #include "config.h"
 #include "board.h"
@@ -213,6 +213,8 @@ void debuglink_view_dmr_tx_audio(dl_text_t *t)
 	ambeVoiceGetStats(&a);
 	dl_text(t, "voice.tx_gain_q16=%u\nvoice.tx_limited_blocks=%u\nvoice.mic_limiter=%u\n",
 		(unsigned)a.tx_gain_q16, (unsigned)a.tx_limited_blocks, CONFIG_TX_MIC_LIMITER);
+	// Blocks sent as silence while a beep played (the mic gate). Here, not in dmr: that section is at a reply's size
+	dl_text(t, "voice.tx_mic_muted=%u\n", (unsigned)a.tx_mic_muted);
 }
 
 bool debuglink_dmr_diag_line(uint8_t i, char *buf, uint8_t len)

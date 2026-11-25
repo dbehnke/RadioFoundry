@@ -18,7 +18,7 @@ static const ambe_voice_stats_t voice = {
 	.tx_mic_peak = 32768, .tx_enc_peak = 28000, .tx_gain_q16 = 1038592,
 	.tx_limited_blocks = CONFIG_TX_MIC_LIMITER ? 300 : 0,
 	.tx_mic_low_q8 = CONFIG_TX_MIC_LIMITER ? 218 : 0,
-	.tx_mic_level_db = 51, .tx_mic_spread_db = 21, .tx_mic_zc = 84, .tx_mic_blocks = 300,
+	.tx_mic_level_db = 51, .tx_mic_spread_db = 21, .tx_mic_zc = 84, .tx_mic_blocks = 300, .tx_mic_muted = 4,
 };
 
 static void health(dmr_modem_health_t *h)
@@ -96,6 +96,7 @@ int main(void)
 	CHECK(strstr(text, "section=dmr_tx_audio\nvoice.tx_gain_q16=1038592\n") == text);
 	CHECK(strstr(text, CONFIG_TX_MIC_LIMITER ? "voice.tx_limited_blocks=300\nvoice.mic_limiter=1\n" :
 						   "voice.tx_limited_blocks=0\nvoice.mic_limiter=0\n") != NULL);
+	CHECK(strstr(text, "voice.tx_mic_muted=4\n") != NULL);
 	printf("dmrViewTest: dmr %zu bytes, dmr_tx_audio %zu bytes, %d failures\n", dmr_size, t.len, failures);
 	return failures != 0;
 }

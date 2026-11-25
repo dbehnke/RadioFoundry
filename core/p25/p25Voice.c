@@ -72,6 +72,7 @@ static bool cb_rx_good;
 #endif
 static p25_voice_stats_t stats;
 static p25_voice_mixer_t mixer;
+static p25_voice_mic_gate_t mic_gate;
 
 // --- hooks (provider's task) ---
 
@@ -653,16 +654,21 @@ static void parrot_block(const int16_t *mic, int16_t *spk)
 }
 #endif
 
-// One mic block into the transmission g: encoded and queued for the engine
+// One mic block into the transmission g: encoded and queued for the engine. mic NULL: a silent block (the mic gate);
+// the leveling (gain, limiter, DC blocker) is not run, so it holds its state for the speech after it
 static void tx_block(uint8_t g, const int16_t *mic, int16_t *scaled)
 {
-	uint32_t limited = input_level.limited_blocks;
-	uint16_t target = p25VoiceAgc() ? P25_TX_TARGET_RMS : 0;
-	uint16_t peak = input_block(mic, scaled, LOAD(mic_gain_q8), target, NULL, true, NULL);
-	stats.tx_gain_q16 = input_level.gain_q16;
-	stats.tx_limited_blocks += input_level.limited_blocks - limited;
-	if (peak > stats.tx_mic_peak) {
-		stats.tx_mic_peak = peak;
+	if (mic == NULL) {
+		memset(scaled, 0, AUDIO_BLOCK_SAMPLES * sizeof scaled[0]);
+	} else {
+		uint32_t limited = input_level.limited_blocks;
+		uint16_t target = p25VoiceAgc() ? P25_TX_TARGET_RMS : 0;
+		uint16_t peak = input_block(mic, scaled, LOAD(mic_gain_q8), target, NULL, true, NULL);
+		stats.tx_gain_q16 = input_level.gain_q16;
+		stats.tx_limited_blocks += input_level.limited_blocks - limited;
+		if (peak > stats.tx_mic_peak) {
+			stats.tx_mic_peak = peak;
+		}
 	}
 	uint8_t h = tx_head;
 	if ((uint8_t)(h - LOAD(tx_tail)) >= P25_VOICE_TX_QUEUE) {
@@ -706,12 +712,19 @@ void p25VoiceAudioBlock(const int16_t *mic, int16_t *spk, void *ctx)
 			cb_tx_gen = g;
 			stats.tx_mic_peak = 0;
 			stats.tx_limited_blocks = 0;
+			stats.tx_mic_muted = 0;
 			imbe_enc_init(&enc);
 			uint32_t initial = p25VoiceAgc() ? TX_LEVEL_UNITY : (uint32_t)LOAD(mic_gain_q8) << 8;
 			tx_level_reset(&input_level, initial);
+			stats.tx_gain_q16 = initial;	// what a block the mic gate mutes reports: the gain held for the speech
 #if CONFIG_TX_DC_BLOCK
 			dc_block_reset(&input_dc);
 #endif
+		}
+		p25_voice_mic_gate_t gate = LOAD(mic_gate);
+		if (gate != NULL && gate()) {
+			mic = NULL;	// a beep on the speaker is in the mic too: silence (tx_block)
+			stats.tx_mic_muted++;
 		}
 		// The speaker block doubles as the encoder input scratch while transmitting.
 		tx_block(g, mic, spk);
@@ -987,6 +1000,11 @@ bool p25VoiceStreaming(void)
 void p25VoiceSetMixer(p25_voice_mixer_t m)
 {
 	STORE(mixer, m);
+}
+
+void p25VoiceSetMicGate(p25_voice_mic_gate_t g)
+{
+	STORE(mic_gate, g);
 }
 
 const p25_engine_hooks_t *p25VoiceHooks(void)

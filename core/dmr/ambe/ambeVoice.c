@@ -82,6 +82,7 @@ void ambeVoiceRxIdentity(rx_agc_mode_t mode, uint32_t source, uint16_t scope)
 
 static ambe_voice_stats_t stats;
 static ambe_voice_mixer_t mixer;
+static ambe_voice_mic_gate_t mic_gate;
 static bool cb_mixing;
 // Simplex: nothing is decoded while a transmission runs. A platform may keep the encoder's and the decoder's state in
 // one block (hal_vocoder_t), so a decode then would cost the transmission its encoder. A call heard meanwhile plays as
@@ -566,6 +567,7 @@ static void tx_block(const int16_t *mic)
 			voc->reset();	// fresh encoder: the first frame of a transmission
 		}
 		stats.tx_mic_peak = stats.tx_enc_peak = stats.tx_limited_blocks = 0;
+		stats.tx_mic_muted = 0;
 		uint16_t gain_q8 = LOAD(mic_gain_q8);
 		stats.tx_gain_q16 = (uint32_t)gain_q8 << 8;
 #if CONFIG_TX_MIC_LIMITER
@@ -616,6 +618,20 @@ static void tx_block(const int16_t *mic)
 	}
 	uint8_t bits[VOCODER_BITS];
 	static int16_t scaled[AUDIO_BLOCK_SAMPLES];	// the audio callback only (off its stack)
+	// A beep on the speaker is in the mic's samples too: the block goes out as silence. Not a block the test signal or
+	// a signaling tone replaces (below): that one isn't the mic's, so it isn't counted either
+	bool replaced = LOAD(test_signal);
+#if CONFIG_SIG_TONES
+	replaced = replaced || tone_active || tone_mute;
+#endif
+	ambe_voice_mic_gate_t gate = LOAD(mic_gate);
+	bool gated = false;
+	if (!replaced && gate != NULL && gate()) {
+		memset(scaled, 0, sizeof(scaled));
+		mic = scaled;
+		stats.tx_mic_muted++;
+		gated = true;
+	}
 	if (LOAD(test_signal)) {
 		test_block(scaled);
 		mic = scaled;
@@ -642,7 +658,11 @@ static void tx_block(const int16_t *mic)
 		enc_peak = tx_level_measure(mic, AUDIO_BLOCK_SAMPLES, false).peak;
 	} else
 #endif
-	{
+	if (gated) {
+		// Silence for a beep's echo: the limiter's gain, its lowest-gain record and the limited count stay as they
+		// were, so the speech after the beep starts at the gain it had before it
+		enc_peak = 0;
+	} else {
 		uint16_t gain_q8 = LOAD(mic_gain_q8);
 		stats.tx_gain_q16 = (uint32_t)gain_q8 << 8;
 #if CONFIG_TX_MIC_LIMITER
@@ -818,6 +838,11 @@ bool ambeVoiceStreaming(void)
 void ambeVoiceSetMixer(ambe_voice_mixer_t m)
 {
 	STORE(mixer, m);
+}
+
+void ambeVoiceSetMicGate(ambe_voice_mic_gate_t g)
+{
+	STORE(mic_gate, g);
 }
 
 #if CONFIG_SIG_TONES
