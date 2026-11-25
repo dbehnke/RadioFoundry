@@ -252,8 +252,9 @@ static __attribute__((noinline)) int32_t setting_get_flash(uint8_t id)
 #if CONFIG_RX_AGC
 	case UI_SET_RX_AGC_DMR:
 	case UI_SET_RX_AGC_P25:
-	case UI_SET_RX_AGC_NXDN: {
-		uint8_t choice = (uint8_t)settings_read_field(offsetof(settings_t, rx_agc) + id - UI_SET_RX_AGC_DMR, 1);
+	case UI_SET_RX_AGC_NXDN:
+	case UI_SET_RX_AGC_YSF: {
+		uint8_t choice = (uint8_t)settings_read_field(settings_rx_agc_offset(id - UI_SET_RX_AGC_DMR), 1);
 		return choice < RX_AGC_TARGETS ? choice : 0;
 	}
 	case UI_SET_RX_AUDIO_LEVELS:
@@ -464,11 +465,12 @@ bool ui_svc_setting_set(uint8_t id, int32_t value)
 #if CONFIG_RX_AGC
 	case UI_SET_RX_AGC_DMR:
 	case UI_SET_RX_AGC_P25:
-	case UI_SET_RX_AGC_NXDN: {
+	case UI_SET_RX_AGC_NXDN:
+	case UI_SET_RX_AGC_YSF: {
 		uint8_t mode = id - UI_SET_RX_AGC_DMR;
 		uint8_t choice = value >= 0 && value < (int32_t)RX_AGC_TARGETS ? (uint8_t)value : 0;
 		st = settings_begin();
-		st->rx_agc[mode] = choice;
+		settings_set_rx_agc(st, mode, choice);
 		settings_end(hal_millis());
 		rx_agc_configure((rx_agc_mode_t)mode, choice);
 		return true;

@@ -4260,6 +4260,11 @@ msgid "NXDN RX AGC"
 msgstr "NXDN 接收 AGC"
 
 #: core/ui/ui_menus.c
+msgctxt "SET_LABEL_YSF_RX_AGC"
+msgid "YSF RX AGC"
+msgstr "YSF 接收 AGC"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_LABEL_P25_CONTACT_LOOKUP"
 msgid "P25 contact lookup"
 msgstr "P25 联系人查询"

@@ -3,6 +3,8 @@
 // The YSF radio ID (ysf_id.h, docs/spec/ysf.md 6)
 #include "ysf/ysf_id.h"
 
+#include <stddef.h>
+
 // One 32-bit word folded into the hash with a full avalanche: every input bit moves about half the output bits, so
 // IDs that differ in one bit (neighboring parts of one wafer) give unrelated RIDs
 static uint32_t mix(uint32_t h, uint32_t w)
@@ -34,6 +36,30 @@ void ysf_rid_from_uid(const uint32_t uid[3], char out[YSF_RID_LEN + 1])
 	for (uint8_t i = 0; i < 3; i++)
 		h = mix(h, uid[i]);
 	to_rid(mix(h, 3u), out);	// the length last, as a hash of a fixed-size key
+}
+
+uint32_t ysf_caller_key(const char *rid, const char *callsign)
+{
+	uint32_t v = 0;
+	uint8_t n = 0;
+
+	for (; rid != NULL && rid[n] != '\0' && n <= YSF_RID_LEN; n++) {
+		char ch = rid[n];
+		if (ch >= '0' && ch <= '9')
+			v = v * 36u + (uint32_t)(ch - '0');
+		else if (ch >= 'A' && ch <= 'Z')
+			v = v * 36u + (uint32_t)(ch - 'A' + 10);
+		else
+			break;
+	}
+	if (n == YSF_RID_LEN && rid[n] == '\0')
+		return v + 1u;	// 1 to 36^5: 0 stays "no caller"
+	if (callsign == NULL || callsign[0] == '\0')
+		return 0;
+	uint32_t h = 0x811C9DC5u;	// FNV-1a: a callsign is short, and only needs telling from its neighbors
+	for (; *callsign; callsign++)
+		h = (h ^ (uint8_t)*callsign) * 0x01000193u;
+	return h | 0x80000000u;
 }
 
 bool ysf_uid_usable(const uint32_t uid[3])

@@ -333,7 +333,7 @@ values.
 
 ## Digital receive audio levels
 
-**Settings > Talk & listen** has separate **DMR RX AGC**, **P25 RX AGC** and **NXDN RX AGC** targets
+**Settings > Talk & listen** has separate **DMR RX AGC**, **P25 RX AGC**, **NXDN RX AGC** and **YSF RX AGC** targets
 for the modes included in the build. Off is the default. Try **-25 dBFS** to bring quiet and loud callers
 toward the same average level. Volume still controls the speaker. FM is unchanged.
 

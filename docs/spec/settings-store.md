@@ -177,7 +177,7 @@ callsign. The own DMR ID is always the codeplug's.
 | signaling tones | Page 1, offsets 400-405: `sig_dmr[3]` and `sig_fm[3]`, where the start, end and idle tone sound in DMR and in FM (0 default, 1 off, 2 speaker, 3 on air, 4 speaker + air). Offset 399 remains reserved (`reserved10[1]`); offset 407 is `reserved11[1]` (0). Older records read these as 0, the radio's own tone. The chains of steps are not here: each event's is its codeplug record (`CODEPLUG_KEY_SIG_BEGIN` + event, [codeplug-settings.md](codeplug-settings.md) 3.3), read at start and on every change, so `settings_t` copies on task stacks stay small. `radio_settings_t.sig_dmr`, `sig_fm`, `sig_hz`, `sig_ms` ([radio-features.md](radio-features.md) 4.3) |
 | P25 caller lookup | Page 1, offset 406: `caller_flags`, bit 0 (`SETTINGS_CALLER_P25_DMR`) enables caller names from private contacts and the DMR ID database. Other bits are reserved (0). Older records read as 0: off. No layout or record-size change ([p25.md](p25.md) 7.3.1) |
 | DMR AES MI reservation | Page 1, offsets 408-411. `aes_mi_res` is the end of the MI positions reserved for AES voice transmissions. Zero means no position yet. The first AES channel with a key seeds one. The radio writes a reservation before first use after power-up and renews it as the reservation runs low. Factory reset preserves it. See [Receive audio preferences](#receive-audio-preferences) and [DMR voice](dmr-voice.md) 5.1.1. |
-| Receive audio preferences | Page 1, offsets 412-414 hold `rx_agc[3]` in DMR, P25, NXDN order. Offset 415 holds `rx_audio_levels`. All four default to 0. |
+| Receive audio preferences | Page 1, offsets 412-414 hold `rx_agc[3]` in DMR, P25, NXDN order. Offset 415 holds `rx_audio_levels`. Offset 422 holds `rx_agc_ysf`, the YSF target. All five default to 0; an older record reads offset 422 as 0, Off. |
 | DMR AES recovery state | Page 1, offsets 416-419 hold `aes_migration`, a u32 marker. Factory reset preserves it. See [Receive audio preferences](#receive-audio-preferences). |
 | crash report | packed into spare bits, so an older record reads as off with no target: the mode (0 off, 1 ask, 2 send at once) in `accent` bits 4-5; the target's codeplug contact number (0 none, else 1..1024, 11 bits) bits 0-5 in `theme` bits 2-7 and bits 6-10 in `updown_home` bits 2-6. `theme` and `updown_home` keep their value in bits 0-1; read and write them through `settings_theme` / `settings_updown_home` and `settings_crash_*` (`settings.h`). Firmware from before reads a `theme` or `updown_home` with these bits as out of range: the dark theme and Up/Down = channel ([crash-log.md](crash-log.md) 5.2) |
 
@@ -362,7 +362,9 @@ The private firmware keeps `aes_mi_res` at offsets 408-411 and stores the DMR, P
 [receive AGC targets](rx-agc.md) at offsets 412-414. Each target defaults to Off. Offset 415 is
 `rx_audio_levels`, with 0 hidden and 1 shown. The layout stays at 1. Current saves write 424 payload bytes across
 two pages of 236 and 188 bytes. Offsets 420 and 421 hold signed VHF/UHF display RSSI corrections in dB;
-422 and 423 are reserved zero alignment bytes. Older records read zero corrections. Values outside −20 to +20
+422 holds `rx_agc_ysf`, the YSF receive AGC target (it was a reserved zero byte, so an older record reads Off), and
+423 is a reserved zero alignment byte. `settings_rx_agc` and `settings_rx_agc_offset` map an `rx_agc_mode_t` to its
+byte. Older records read zero corrections. Values outside −20 to +20
 are displayed as zero; menu writes reject them. The AES marker and every preceding field retain their offsets.
 
 Earlier private AGC firmware put four audio settings at 408-411, where upstream firmware stores the AES

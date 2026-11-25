@@ -2180,6 +2180,7 @@ bool ui_svc_rx_audio_text(uint8_t mode, char *out, size_t len)
 	case RADIO_MODE_DMR: agc = RX_AGC_DMR; break;
 	case RADIO_MODE_P25: agc = RX_AGC_P25; break;
 	case RADIO_MODE_NXDN: agc = RX_AGC_NXDN; break;
+	case RADIO_MODE_YSF: agc = RX_AGC_YSF; break;
 	default: if (len) out[0] = 0; return false;
 	}
 	if (!rx_audio_levels() || ui_svc_setting_get((uint8_t)(UI_SET_RX_AGC_DMR + agc)) == 0) {
@@ -2602,7 +2603,8 @@ static bool draw_air_audio(const radio_view_t *v, const ui_state_t *s)
 		sb_str(&b, " dBm");
 		y = call_line(L->small, y, buf, ui_col.fg);
 	}
-	rx_audio_text(v->ch.mode == RADIO_MODE_P25 ? RX_AGC_P25 : RX_AGC_NXDN, buf, sizeof buf);
+	rx_audio_text(v->ch.mode == RADIO_MODE_P25 ? RX_AGC_P25 : v->ch.mode == RADIO_MODE_YSF ? RX_AGC_YSF : RX_AGC_NXDN,
+		      buf, sizeof buf);
 	call_line(L->small, y, buf, ui_col.dim);
 	ui_draw_hint(TR(HINT_PTT_REPLIES, "PTT replies"), false);
 	return true;

@@ -21,5 +21,9 @@ bool ysf_uid_usable(const uint32_t uid[3]);
 // The fallback for a radio without a usable unique ID: from its DMR ID and callsign, so it is only as unique as
 // they are. The radio core says so where it shows the RID
 void ysf_rid_fallback(uint32_t dmr_id, const char *callsign, char out[YSF_RID_LEN + 1]);
+// A caller heard, as one number (the receive AGC's per-caller memory): its radio ID rid, 1 to 36^5, when rid is
+// five characters 0-9, A-Z; else a hash of its callsign with bit 31 set, so the two never meet; 0 with neither
+// (rid or callsign may be NULL or ""). Pure: no state
+uint32_t ysf_caller_key(const char *rid, const char *callsign);
 
 #endif

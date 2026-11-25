@@ -495,9 +495,10 @@ typedef enum {
 	// One step of a chain, set whole (its frequency and length in one write of the settings area): the value is
 	// UI_SIG_STEP(event, step, Hz, ms). Write only
 	UI_SET_SIG_STEP,
-	UI_SET_RX_AGC_DMR, UI_SET_RX_AGC_P25, UI_SET_RX_AGC_NXDN, UI_SET_RX_AUDIO_LEVELS,
+	// Receive AGC per rx_agc_mode_t (UI_SET_RX_AGC_DMR + mode), then the levels row: one range, kept together
+	UI_SET_RX_AGC_DMR, UI_SET_RX_AGC_P25, UI_SET_RX_AGC_NXDN, UI_SET_RX_AGC_YSF, UI_SET_RX_AUDIO_LEVELS,
 
-	UI_SET_P25_ID_LOOKUP = 165,	// optional P25 names from private contacts and the DMR ID database
+	UI_SET_P25_ID_LOOKUP,	// optional P25 names from private contacts and the DMR ID database
 	UI_SET_MASTER_POWER,	// -1 factory default, else a board power level for default channels
 	UI_SET_RSSI_VHF, UI_SET_RSSI_UHF,
 	UI_SET_COUNT

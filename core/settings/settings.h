@@ -266,12 +266,31 @@ typedef struct {
 	uint8_t rx_audio_levels; // optional input/output dBFS row
 	uint32_t aes_migration;	// SETTINGS_AES_*: whether the stored AES reservation can be used
 	int8_t rssi_correction[2];	// display-only dB offsets: VHF, UHF; older records read 0
-	uint8_t reserved_rssi[2];	// alignment, 0
+	uint8_t rx_agc_ysf;		// was reserved_rssi[0]: YSF's rx_agc choice (0 Off, as an older record reads)
+	uint8_t reserved_rssi[1];	// alignment, 0
 } settings_t;
 
 // Pages: settings_t is stored as records of SETTINGS_PAGE_BYTES each (settings-store.md 2.1). Only the pages its size
 // needs are written, each with its own length, so settings_t grows by appending fields; the record's page field
 // allows 16 pages (3776 bytes)
+// The stored receive AGC choice of an rx_agc_mode_t: DMR, P25 and NXDN in rx_agc[], YSF in a byte added later
+#define SETTINGS_RX_AGC_STORED	3u
+static inline size_t settings_rx_agc_offset(unsigned mode)
+{
+	return mode < SETTINGS_RX_AGC_STORED ? offsetof(settings_t, rx_agc) + mode : offsetof(settings_t, rx_agc_ysf);
+}
+static inline uint8_t settings_rx_agc(const settings_t *s, unsigned mode)
+{
+	return mode < SETTINGS_RX_AGC_STORED ? s->rx_agc[mode] : s->rx_agc_ysf;
+}
+static inline void settings_set_rx_agc(settings_t *s, unsigned mode, uint8_t choice)
+{
+	if (mode < SETTINGS_RX_AGC_STORED)
+		s->rx_agc[mode] = choice;
+	else
+		s->rx_agc_ysf = choice;
+}
+
 #define SETTINGS_PAGE_BYTES	236u
 #define SETTINGS_PAGES_MAX	16u
 #define SETTINGS_PAGES		((sizeof(settings_t) + SETTINGS_PAGE_BYTES - 1u) / SETTINGS_PAGE_BYTES)

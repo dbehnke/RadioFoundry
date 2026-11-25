@@ -2814,6 +2814,20 @@ static void audio_annotation_checks(void)
 		printf("FAIL audio annotation: target Off must be omitted\n");
 		fails++;
 	}
+#if CONFIG_YSF
+	// YSF has its own target, not NXDN's or P25's
+	if (ui_svc_rx_audio_text(RADIO_MODE_YSF, out, sizeof out)) {
+		printf("FAIL audio annotation: YSF Off must be omitted\n");
+		fails++;
+	}
+	if (!sim_run("agc:3,2,3277", err, sizeof err) ||
+	    !ui_svc_rx_audio_text(RADIO_MODE_YSF, out, sizeof out) || strcmp(out, "AGC -20 > -33 dBFS") != 0 ||
+	    ui_svc_rx_audio_text(RADIO_MODE_NXDN, out, sizeof out)) {
+		printf("FAIL audio annotation: YSF -20 to -33 on its own target, got '%s'\n", out);
+		fails++;
+	}
+	ui_svc_setting_set(UI_SET_RX_AGC_YSF, 0);
+#endif
 }
 #endif
 

@@ -7735,7 +7735,7 @@ static void apply_prefs(radio_sm_t *sm, const settings_t *st)
 {
 #if CONFIG_RX_AGC
 	for (unsigned mode = 0; mode < RX_AGC_MODES; mode++)
-		rx_agc_configure((rx_agc_mode_t)mode, st->rx_agc[mode]);
+		rx_agc_configure((rx_agc_mode_t)mode, settings_rx_agc(st, mode));
 #endif
 	master_power = st->master_power;
 	sm->vol_step = radio_volume_step(st->volume);

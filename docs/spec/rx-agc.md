@@ -14,6 +14,8 @@ measured from 20 ms PCM blocks with their DC means removed. After initial acquis
 1.5-second time constant over qualifying audio before conversion to dB. They are not peak levels or acoustic loudness.
 User volume follows normalization. Local beeps, transmit audio and raw modem input are never normalized.
 
+The modes are DMR, P25, NXDN and YSF (`rx_agc_mode_t`); YSF's target is stored apart from the other three
+([settings-store.md](settings-store.md#receive-audio-preferences)).
 A mode stores the list index (0 = Off), not a protocol enum or a translated string. Append a new mode's setting;
 never reorder the existing mode slots or target choices. Invalid preferences behave as Off.
 
@@ -44,6 +46,9 @@ corrupt audio; it does not repair it. Off remains bit-exact.
 Ten entries remember the most recently heard source IDs across the digital modes. The key is mode, source ID and a
 network scope when supplied by the call path. Unknown source ID 0 never occupies an entry. After five qualifying
 blocks, a smoothed input level updates the history and the mode's fallback. Pauses and concealment never replace it.
+YSF has no numeric source ID: its key is the caller's five-character radio ID read as a base-36 number plus 1
+(1 to 36^5), or, before or without one, a hash of its callsign with bit 31 set (`ysf_caller_key`). The scope is the
+DG-ID. A radio ID heard after the callsign relabels the running estimate, as a late identity does in any mode.
 At the next call, the target and remembered input level determine the initial gain. Unknown callers start from the
 mode's last stable input level, or unity without history. A late identity labels the running estimate without a gain
 jump. History is RAM only and clears at boot. Changing the target preserves useful input-level history.

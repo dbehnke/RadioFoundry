@@ -250,7 +250,7 @@ static int32_t settings[UI_SET_RAM_COUNT] = {
 // stand-ins in a build without the store)
 
 #if CONFIG_RX_AGC
-static uint8_t rx_audio_preferences[4];
+static uint8_t rx_audio_preferences[UI_SET_RX_AUDIO_LEVELS - UI_SET_RX_AGC_DMR + 1];
 #endif
 int32_t ui_svc_ram_get(uint8_t id)
 {

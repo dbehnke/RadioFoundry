@@ -162,7 +162,19 @@ static void params(const channel_t *ch, uint16_t number, const char *radio_name,
 }
 
 // ── Voice: the DMR side's voice path (ambeVoice.h), as radio_nxdn.c uses it ──
-static void v_start(const ysf_call_t *c, void *ctx) { (void)c; (void)ctx; radio_air_voice_rx_start(); }
+// The caller for the receive AGC's memory (rx-agc.md): its radio ID, else its callsign; the DG-ID as the scope. The
+// fields fill in as the call goes on (a late entry learns them from the DCH), so the update passes them again
+#if CONFIG_RX_AGC
+static void v_identify(const ysf_call_t *c)
+{
+	ambeVoiceRxIdentity(RX_AGC_YSF, c != NULL ? ysf_caller_key(c->src_id, c->src) : 0, c != NULL ? c->dgid : 0);
+}
+static void v_update(const ysf_call_t *c, void *ctx) { (void)ctx; v_identify(c); }
+#else
+static void v_identify(const ysf_call_t *c) { (void)c; }
+#define v_update NULL
+#endif
+static void v_start(const ysf_call_t *c, void *ctx) { (void)ctx; v_identify(c); radio_air_voice_rx_start(); }
 static void v_voice(const uint8_t v[YSF_VOICE_BYTES], void *ctx) { (void)ctx; radio_air_voice_rx_frame(v); }
 static void v_end(void *ctx) { (void)ctx; radio_air_voice_rx_end(); }
 static bool v_tx(uint8_t v[YSF_VOICE_BYTES], void *ctx) { (void)ctx; return radio_air_voice_tx_next(v); }
@@ -188,7 +200,7 @@ static void v_wx(const ysf_wx_t *w, void *ctx)
 	wx_seq++;
 }
 
-static const ysf_engine_hooks_t voice_hooks = { v_start, NULL, v_voice, v_end, v_tx, v_wx };
+static const ysf_engine_hooks_t voice_hooks = { v_start, v_update, v_voice, v_end, v_tx, v_wx };
 
 bool radio_ysf_wx_arm(uint8_t cmd, uint32_t arg, const char *text)
 {

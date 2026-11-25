@@ -4258,6 +4258,11 @@ msgid "NXDN RX AGC"
 msgstr "AGC RX NXDN"
 
 #: core/ui/ui_menus.c
+msgctxt "SET_LABEL_YSF_RX_AGC"
+msgid "YSF RX AGC"
+msgstr "AGC RX YSF"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_LABEL_P25_CONTACT_LOOKUP"
 msgid "P25 contact lookup"
 msgstr "Ricerca contatti P25"
