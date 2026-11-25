@@ -135,6 +135,30 @@ in analog, DMR, and P25. Confirm digital RSSI is RF power, including during voic
 or a stale prior tune. Characterize saturation/floor and both rising/falling input levels. Fix conversion errors
 at the receiver/calibration layer. Do not tune an S-meter offset from microphone/codec diagnostic dBFS.
 
+### Proposed Advanced setting: RSSI correction
+
+This setting is part of the proposal and awaits requester review before implementation.
+
+| Item | Proposed behavior |
+|---|---|
+| Location | Advanced → RSSI correction |
+| Range | −20 to +20 dB, in 1 dB steps |
+| Default | 0 dB |
+| Storage | Separate persistent VHF and UHF values |
+| Sign | Positive raises the displayed reading; negative lowers it |
+| Scope | Apply the same corrected value to numeric dBm and S-meter segments in analog and digital modes |
+| Reset | Reset to default restores both corrections to 0 dB |
+
+Select the correction by the measured receiver's receive band, including during dual watch. Apply it once to a
+valid RSSI estimate before deriving the displayed S value and segment count. Preserve invalid or stale readings
+as unavailable. The correction changes the display only; it does not affect squelch, scanning decisions, receiver
+gain, or factory calibration data.
+
+For example, if a known −93 dBm signal reads −99 dBm, a +6 dB correction makes the display read −93 dBm, or S9.
+A constant offset cannot correct an error that varies with signal strength. Such errors need receiver calibration
+at multiple input levels. Additional independent receiver paths may need separate correction values; that storage
+detail remains an implementation review item.
+
 ## Power and squelch semantics
 
 The current API is `board_power_name(level, tx_hz)` in [hal/board.h](../../../hal/board.h), exposed to the UI by
