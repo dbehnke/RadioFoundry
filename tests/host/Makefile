@@ -740,7 +740,10 @@ UIFLAGS := -std=gnu99 -Wall -Wextra -Wno-unused-parameter -Wshadow -g $(COVFLAGS
            '-DGFX_FB_BYTES=(320u*320u*2u)' -DGFX_MAX_ROWS=320 -DCONFIG_FONT_XL=1 -DFONT_BOTH -DGFX_INDEXED=1 -DGFX_FIT_TRACE
 UIDEPS  := $(UIAPP) $(ABOUT_H) $(LANG_H) $(CORE)/dsp/speech_meter.h $(wildcard $(CORE)/ui/*.h $(CORE)/ui/fonts/*.inc sim/ui_sim.h)
 TESTS   += uiFlowTest uiFlowTestNoColor uiSim
-TESTS   += uiFlowTestSatellite uiFlowTestNoPowerMenu
+TESTS   += uiFlowTestSatellite uiFlowTestNoPowerMenu uiFlowTestNoSignalMeter
+
+uiFlowTestNoSignalMeter: uiFlowTest.c $(UIDEPS)
+	$(CC) $(UIFLAGS) -DCONFIG_SIGNAL_METER=0 -o $@ uiFlowTest.c $(UIAPP) -lz
 
 uiFlowTestNoPowerMenu: uiFlowTest.c $(UIDEPS)
 	$(CC) $(UIFLAGS) -DCONFIG_TX_POWER_MENU=0 -o $@ uiFlowTest.c $(UIAPP) -lz
@@ -813,7 +816,7 @@ ui-sheets: uiSim
 	UI_GALLERY_COLORS="$(UI_GALLERY_COLORS)" ./uiSim --sheets out/sheets $(GEOM)
 
 run: run-ui
-run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault uiFlowTest uiFlowTestNoCallerLookup uiFlowTestP25NoAgc uiFlowTestNoColor uiFlowTestSatellite uiFlowTestNoPowerMenu uiSim beepReel
+run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault uiFlowTest uiFlowTestNoCallerLookup uiFlowTestP25NoAgc uiFlowTestNoColor uiFlowTestSatellite uiFlowTestNoPowerMenu uiFlowTestNoSignalMeter uiSim beepReel
 	./gfxTest
 	./gfxTestZh
 	./gfxFbEdgeTest
@@ -825,6 +828,7 @@ run-ui: gfxTest gfxTestZh gfxFbEdgeTest i18nTest i18nTestNoLang i18nTestDefault 
 	./uiFlowTestP25NoAgc
 	./uiFlowTestNoColor
 	./uiFlowTestNoPowerMenu
+	./uiFlowTestNoSignalMeter
 	./uiFlowTestSatellite
 	./uiSim --layout
 	./beepReel --out out/beep-reel --no-frames > /dev/null	# checks every beep has a scene and the scenes still run

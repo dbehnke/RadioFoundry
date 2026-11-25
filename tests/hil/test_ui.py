@@ -145,6 +145,39 @@ def test_full_power_picker_cancel(home):
     assert r.core()["power"] == before["power"]
 
 
+@pytest.mark.feature("signal_meter")
+@pytest.mark.needs_switch("SIGNAL_METER")
+@pytest.mark.needs_switch("UI_SETTINGS")
+def test_rssi_correction_cancel(home, shots):
+    """Advanced opens the correction group and its editor; cancel leaves operation unchanged."""
+    r = home
+    before = r.core()
+    r.press("ok")
+    wait_screen(r, "hub")
+    r.press("7")
+    wait_screen(r, "settings")
+    r.press("up")
+    r.press("ok")
+    wait_screen(r, "group", "Advanced")
+    features = r.features()
+    index = 4 + sum(name in features for name in ("BACKLIGHT_TEST", "CRASH_SCREEN"))
+    for _ in range(index):
+        r.press("down")
+    assert as_int(ui(r).get("ui.focus")) == index
+    r.press("ok")
+    state = wait_screen(r, "group", "RSSI correction group")
+    assert state["ui.count"] == "3", state
+    r.press("ok")
+    wait_screen(r, "group", "inline VHF correction editor")
+    r.press("back")
+    wait_screen(r, "group")
+    info, data = r.shot_until(lambda d: True, what="RSSI correction")
+    r.save_screenshot(f"{shots}/ui_rssi_correction.png", data=data, info=info)
+    after = r.core()
+    for key in ("channel", "rx_hz", "tx_hz", "power"):
+        assert after.get(key) == before.get(key), (key, before, after)
+
+
 @pytest.mark.feature("ui_navigation")
 def test_find_by_digits(home, shots):
     """Digits on Home start type-to-find (task-flows.md: find a contact by name with the keypad letters)."""

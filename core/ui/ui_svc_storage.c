@@ -255,6 +255,13 @@ static __attribute__((noinline)) int32_t setting_get_flash(uint8_t id)
 	case UI_SET_RX_AUDIO_LEVELS:
 		return SETTINGS_FIELD(rx_audio_levels) != 0;
 #endif
+#if CONFIG_SIGNAL_METER
+	case UI_SET_RSSI_VHF:
+	case UI_SET_RSSI_UHF: {
+		int8_t offset = (int8_t)settings_read_field(offsetof(settings_t, rssi_correction) + id - UI_SET_RSSI_VHF, 1);
+		return offset >= -20 && offset <= 20 ? offset : 0;
+	}
+#endif
 	case UI_SET_MASTER_POWER: {
 		uint8_t power = SETTINGS_FIELD(master_power);
 		return power < board.power_count ? power : -1;
@@ -563,6 +570,16 @@ bool ui_svc_setting_set(uint8_t id, int32_t value)
 			settings_set_crash_mode(st, (uint8_t)clamp16(value, UI_CRASH_SEND_OFF, UI_CRASH_SEND_AUTO));
 		else
 			settings_set_crash_contact(st, clamp16(value, 0, CODEPLUG_CONTACTS_MAX));
+		settings_end(hal_millis());
+		return true;
+#endif
+#if CONFIG_SIGNAL_METER
+	case UI_SET_RSSI_VHF:
+	case UI_SET_RSSI_UHF:
+		if (value < -20 || value > 20)
+			return false;
+		st = settings_begin();
+		st->rssi_correction[id - UI_SET_RSSI_VHF] = (int8_t)value;
 		settings_end(hal_millis());
 		return true;
 #endif

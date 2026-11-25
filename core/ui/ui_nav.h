@@ -167,6 +167,11 @@ void ui_talk(const ui_target_t *t, bool permanent);
 bool ui_has_action(uint8_t action);
 // A setting the UI acts on itself changed (brightness, hints, large text, theme, lock, Home keys, ...)
 void ui_apply_setting(uint8_t id, int32_t v);
+// Settings navigation shared with Find and host UI flows.
+uint8_t ui_set_group_count(void);
+uint8_t ui_set_item_count(uint8_t g);
+const char *ui_set_item_name(uint8_t g, uint8_t i, bool english, const char **synonyms);
+void ui_open_setting(uint8_t g, uint8_t i);
 // Scan on / off (quick 7, Tools 1, long SK2), with a toast that says what scans: the zone, or the band in the VFO
 void ui_scan_toggle(void);
 void ui_monitor_toggle(void);	// a side key set to Monitor toggle: what quick tile 5 does

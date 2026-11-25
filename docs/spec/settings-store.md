@@ -76,7 +76,7 @@ so with two pages a sector is erased once every 64 saves.
 ### 2.1 Pages
 
 `settings_t` is longer than one slot's payload, so it is stored as pages: page k holds bytes `236 * k` on.
-`SETTINGS_PAGES` is the number its size needs (2 now, 420 bytes); the page field allows 16 (3776 bytes). Each page is
+`SETTINGS_PAGES` is the number its size needs (2 now, 424 bytes); the page field allows 16 (3776 bytes). Each page is
 a record with its own length, so `settings_t` grows by appending fields, and a short page fills the fields it has.
 
 | Rule | Why |
@@ -360,8 +360,10 @@ send it:
 
 The private firmware keeps `aes_mi_res` at offsets 408-411 and stores the DMR, P25 and NXDN
 [receive AGC targets](rx-agc.md) at offsets 412-414. Each target defaults to Off. Offset 415 is
-`rx_audio_levels`, with 0 hidden and 1 shown. The layout stays at 1. Current saves write 420 payload bytes across
-two pages of 236 and 184 bytes.
+`rx_audio_levels`, with 0 hidden and 1 shown. The layout stays at 1. Current saves write 424 payload bytes across
+two pages of 236 and 188 bytes. Offsets 420 and 421 hold signed VHF/UHF display RSSI corrections in dB;
+422 and 423 are reserved zero alignment bytes. Older records read zero corrections. Values outside −20 to +20
+are displayed as zero; menu writes reject them. The AES marker and every preceding field retain their offsets.
 
 Earlier private AGC firmware put four audio settings at 408-411, where upstream firmware stores the AES
 reservation. The 412-byte settings format cannot identify the source of those bytes. An unmarked 416-byte record

@@ -766,6 +766,8 @@ int32_t ui_svc_setting_get(uint8_t id)
 
 bool ui_svc_setting_set(uint8_t id, int32_t value)
 {
+	if ((id == UI_SET_RSSI_VHF || id == UI_SET_RSSI_UHF) && (value < -20 || value > 20))
+		return false;
 #if CONFIG_RX_AGC
 	if (id >= UI_SET_RX_AGC_DMR && id <= UI_SET_RX_AUDIO_LEVELS)
 		return ui_svc_ram_set(id, value);
@@ -2235,6 +2237,9 @@ bool ui_svc_dual_rx(uint8_t pane, ui_dual_rx_t *out)
 	if (sim_receivers < 2 || pane > 1)
 		return false;
 	*out = sim_drx[pane];
+#if CONFIG_SIGNAL_METER
+	out->rssi_valid = out->active && out->rssi_dbm != 0;
+#endif
 	return true;
 }
 bool ui_svc_vfo_get(uint8_t index, channel_t *out)
@@ -2668,6 +2673,11 @@ static void step(void)
 		strcpy(ev.name, contact_name(check_id, false));
 		ui_notify(&ev);
 	}
+#if CONFIG_SIGNAL_METER
+	view.display_rssi_dbm = view.rssi_dbm;
+	view.display_rssi_hz = view.ch.rx_hz;
+	view.display_rssi_ms = now_ms;
+#endif
 	view.hotspot = hotspot_on;
 	view.hs_power = view.power;	// as the radio core with the host's RF level at its default (FF)
 	if (ui_app_tick(&view, now_ms))
@@ -2875,6 +2885,10 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 		ui_svc_setting_set(id, 0);
 #endif
 
+#if CONFIG_SIGNAL_METER
+	ui_svc_setting_set(UI_SET_RSSI_VHF, 0);
+	ui_svc_setting_set(UI_SET_RSSI_UHF, 0);
+#endif
 	ui_svc_setting_set(UI_SET_P25_ID_LOOKUP, 0);
 	ui_svc_setting_set(UI_SET_MESSAGE_TONE, 1);
 	ui_svc_setting_set(UI_SET_MSG_FORMAT, 255);
@@ -3392,6 +3406,13 @@ static bool run_token(char *t, char *err, size_t len)
 		x->dst = dst;
 		x->rssi_dbm = t[2] == 'b' ? -92 : -71;
 		strncpy(x->src_name, contact_name(src, false), sizeof x->src_name - 1);
+		changed();
+		advance(300);
+		return true;
+	}
+	if (strcmp(t, "rxheardboth") == 0) {
+		sim_drx[0].heard = sim_drx[0].active;
+		sim_drx[1].heard = sim_drx[1].active;
 		changed();
 		advance(300);
 		return true;

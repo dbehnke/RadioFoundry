@@ -8,6 +8,16 @@ Changes added to `kf8sfork` from its first feature commit on November 23, 2026, 
 This lists fork-specific changes, not the features inherited from upstream RadioFoundry.
 See the [usage and testing guide](README.md) for menu paths and test instructions.
 
+## Unbuilt source changes
+
+- Added the reviewed 13-cell receive S meter with numeric dBm on normal Home in analog and digital modes.
+- Added effective transmit-power metadata to dual display, with a compact-screen footer fallback.
+- Added Advanced RSSI correction: separate VHF/UHF values, −20 to +20 dB in 1 dB steps, default/reset 0.
+- Selected monochrome hollow S cells, filled over cells and inactive underlines, with no S9 divider.
+- Kept caller identity, large-text layout, and tested P25/DMR audio behavior.
+
+These source changes have not been built into firmware or added to the published package below.
+
 ## Current test build
 
 | Item | Value |

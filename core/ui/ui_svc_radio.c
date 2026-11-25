@@ -6,6 +6,7 @@
 // These are the strong definitions; ui_svc_stub.c keeps the weak ones for what other packages still have to provide.
 #include "ui_svc.h"
 #include "board.h"
+#include "hal_time.h"
 #include "radio/radio.h"
 #include "radio/beep.h"
 #include "radio/vibe.h"
@@ -330,6 +331,11 @@ bool ui_svc_dual_rx(uint8_t pane, ui_dual_rx_t *out)
 	if (pane == sel) {
 		out->active = out->heard = v->state == RS_RX;
 		out->rssi_dbm = v->rssi_dbm;
+#if CONFIG_SIGNAL_METER
+		out->rssi_dbm = v->display_rssi_dbm;
+		out->rssi_valid = v->display_rssi_hz == v->ch.rx_hz && v->display_rssi_dbm != 0 &&
+			(uint32_t)(hal_millis() - v->display_rssi_ms) < 2000u;
+#endif
 		out->dmr = v->ch.mode == RADIO_MODE_DMR;
 #if CONFIG_DMR
 		if (out->dmr) {
@@ -360,6 +366,9 @@ bool ui_svc_dual_rx(uint8_t pane, ui_dual_rx_t *out)
 	out->dmr = st.dmr;
 	out->group = st.group;
 	out->rssi_dbm = st.rssi_dbm;
+#if CONFIG_SIGNAL_METER
+	out->rssi_valid = st.tuned && st.rssi_dbm != 0;
+#endif
 	out->src = st.src;
 	out->dst = st.dst;
 	return true;

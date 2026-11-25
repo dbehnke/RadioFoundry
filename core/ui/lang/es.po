@@ -4363,6 +4363,21 @@ msgid "DMR ID and name"
 msgstr "ID DMR y nombre"
 
 #: core/ui/ui_menus.c
+msgctxt "SET_ROW_RSSI_VHF"
+msgid "VHF correction"
+msgstr "Corrección VHF"
+
+#: core/ui/ui_menus.c
+msgctxt "SET_ROW_RSSI_UHF"
+msgid "UHF correction"
+msgstr "Corrección UHF"
+
+#: core/ui/ui_menus.c
+msgctxt "SET_ROW_RSSI_RESET"
+msgid "Reset to default"
+msgstr "Restablecer valores"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_ROW_FACTORY_RESET"
 msgid "Factory reset"
 msgstr "Restablecer"
@@ -4371,6 +4386,11 @@ msgstr "Restablecer"
 msgctxt "SET_ROW_CRASH_LOG"
 msgid "Crash log"
 msgstr "Log de fallos"
+
+#: core/ui/ui_menus.c
+msgctxt "SET_TITLE_RSSI_CORRECTION"
+msgid "RSSI correction"
+msgstr "Corrección RSSI"
 
 #: core/ui/ui_menus.c
 msgctxt "SET_LABEL_RX_PAST_BANDS"
@@ -5543,14 +5563,14 @@ msgid "MON: digital monitor"
 msgstr "MON: monitor digital"
 
 #: core/ui/ui_screens.c
-msgctxt "ACTIVITY_STATE_SQUELCH_OPEN"
-msgid "Squelch open"
-msgstr "Squelch abierto"
-
-#: core/ui/ui_screens.c
 msgctxt "STATE_RECEIVING"
 msgid "Receiving"
 msgstr "Recibiendo"
+
+#: core/ui/ui_screens.c
+msgctxt "ACTIVITY_STATE_SQUELCH_OPEN"
+msgid "Squelch open"
+msgstr "Squelch abierto"
 
 #: core/ui/ui_screens.c
 msgctxt "STATE_SENDING"

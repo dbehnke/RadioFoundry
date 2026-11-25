@@ -452,6 +452,10 @@ typedef struct {
 	bool monitor;		// squelch held open by the user
 	bool tone_ok;		// the RX tone or code is heard (debounced; true when the channel has no RX tone)
 	int16_t rssi_dbm;
+#if CONFIG_SIGNAL_METER
+	int16_t display_rssi_dbm;	// latest raw status; 0 unknown (never the cross-channel peak hold)
+	uint32_t display_rssi_hz, display_rssi_ms;
+#endif
 	uint8_t noise;
 	uint8_t sql_close;	// polls over the close line the squelch's last close took (1 or 2 as a carrier goes, more
 				// after a voice peak hold); 0 none yet

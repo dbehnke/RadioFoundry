@@ -350,3 +350,14 @@ while receiving: input on the left, output on the right. These are averaged audi
 not RF signal strength. Pauses show dashes after one second. Off shows `AGC Off`. Small screens give this
 row space by hiding optional alias or location details. P25/NXDN large-text and all dual-watch layouts retain their
 usual information. See [receive AGC](../spec/rx-agc.md) for the measurement and limits.
+
+## RSSI correction
+
+When included in the build, **Advanced > RSSI correction** adjusts the receive signal display. VHF and UHF each
+have a separate setting from **−20 to +20 dB**, in **1 dB steps**, initially **0 dB**. Positive raises the reading;
+negative lowers it. **Reset to default** returns both to zero. Values are saved across power cycles.
+
+Use a known RF input level to choose a correction. If a known −93 dBm input reads −99 dBm, set +6 dB for that band.
+Both numeric dBm and meter segments use the correction. It does not change squelch, scanning, receiver gain or
+factory calibration. A constant correction cannot fix an error that changes with signal strength. Audio dBFS
+measurements cannot calibrate this RF meter.

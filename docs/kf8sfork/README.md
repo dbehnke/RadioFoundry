@@ -34,6 +34,23 @@ Back up your current settings/codeplug and follow [Installing](../user/02-instal
 and manifest. These images do not embed a stock AMBE codec; the manifests preserve the installed codec regions.
 A radio without a working codec still needs the normal supported codec installation procedure.
 
+## New display source changes awaiting a test build
+
+The new signal meter and RSSI correction are source changes, **not included in the published ZIP above**. No new
+firmware was built for this change. After a future test build:
+
+1. Receive FM, DMR and P25; check the bottom S meter, numeric dBm and return of ordinary hints after reception.
+2. In dual watch, check that A/B identifies the receiving channel even when PTT selects the other pane. If both
+   receive, the star identifies that condition while the letter identifies the meter source.
+3. Check power labels for explicit channel power, Default TX power and temporary power, including a split channel.
+4. Open **Settings > Advanced > RSSI correction**. Adjust each band independently; verify persistence after restart
+   and that **Reset to default** clears both. A known −93 dBm input should reach S9 after correction.
+5. Check normal caller identity, unknown caller IDs, large text, key lock, banners and menu navigation. Mono meters
+   should use hollow S cells, filled over cells and inactive underlines, with no divider after S9.
+
+Host tests cover scale thresholds, display correction, ownership/freshness, settings migration and UI navigation.
+Hardware size, feature-off firmware builds and radio validation remain for the next authorized firmware build.
+
 ## Suggested test order
 
 1. Confirm the build identity in **Settings > Advanced > About** and check ordinary channel/menu operation.

@@ -30,7 +30,7 @@ _Static_assert(offsetof(settings_t, dual_b) == SETTINGS_PAGE_BYTES, "page 1 star
 _Static_assert(offsetof(settings_t, ref_trim_ppb) % 2 == 0, "ref_trim_ppb is aligned");
 _Static_assert(offsetof(settings_t, aes_mi_res) == 408, "legacy AES reservation offset");
 _Static_assert(offsetof(settings_t, aes_migration) == 416, "AES migration marker offset");
-_Static_assert(sizeof(settings_t) == 420, "settings_t changed size: update docs/spec/settings-store.md 3 and this");
+_Static_assert(sizeof(settings_t) == 424, "settings_t changed size: update docs/spec/settings-store.md 3 and this");
 
 static settings_t live;			// under the quick lock
 static settings_t saved;		// what the newest record holds (or the defaults)

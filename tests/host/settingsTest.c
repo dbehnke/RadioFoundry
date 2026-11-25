@@ -960,7 +960,7 @@ static void test_settings_layout(void)
 		{ offsetof(settings_t, rx_audio_levels), 415 },
 		{ offsetof(settings_t, aes_migration), 416 },
 	};
-	CHECK(sizeof(settings_t) == 420);
+	CHECK(sizeof(settings_t) == 424);
 	for (unsigned i = 0; i < sizeof(offs) / sizeof(offs[0]); i++) {
 		if (offs[i].got != offs[i].want) {
 			printf("FAIL settings_t field %u at %zu, layout 1 has it at %zu\n", i, offs[i].got, offs[i].want);
@@ -1283,7 +1283,8 @@ enum {
 	PRE_AES_SETTINGS_BYTES = 408,
 	LEGACY_SETTINGS_BYTES = 412,
 	UNMARKED_SETTINGS_BYTES = 416,
-	CURRENT_SETTINGS_BYTES = 420,
+	PRE_RSSI_SETTINGS_BYTES = 420,
+	CURRENT_SETTINGS_BYTES = 424,
 };
 
 static void boot_audio_record(const settings_t *settings, uint16_t bytes)
@@ -1305,6 +1306,7 @@ static void check_audio_record(const settings_t *expected, settings_load_t load,
 	CHECK(memcmp(&s, expected, LEGACY_SETTINGS_BYTES) == 0);
 	CHECK(memcmp(s.rx_agc, expected->rx_agc, sizeof s.rx_agc) == 0 && s.rx_audio_levels == expected->rx_audio_levels);
 	CHECK(s.aes_migration == expected->aes_migration);
+	CHECK(memcmp(s.rssi_correction, expected->rssi_correction, sizeof s.rssi_correction) == 0);
 	CHECK(settings_aes_migration_required() == (expected->aes_migration != SETTINGS_AES_READY));
 	CHECK(settings_aes_keep_reservation_allowed() == (expected->aes_migration == SETTINGS_AES_BLOCKED));
 }
@@ -1335,6 +1337,10 @@ static void test_settings_receive_agc(void)
 	check_audio_record(&old, SETTINGS_UPGRADED, 2);
 
 	current.aes_mi_res = 0xfedcba98u;
+	boot_audio_record(&current, PRE_RSSI_SETTINGS_BYTES);
+	check_audio_record(&current, SETTINGS_UPGRADED, 2);
+	current.rssi_correction[0] = -20;
+	current.rssi_correction[1] = 20;
 	boot_audio_record(&current, CURRENT_SETTINGS_BYTES);
 	check_audio_record(&current, SETTINGS_LOADED, 2);
 	current.squelch = 5;
