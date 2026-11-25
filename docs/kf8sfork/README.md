@@ -10,9 +10,9 @@ features. Menu labels below are the English labels; available modes and options 
 
 ## Which build to test
 
-The current four-radio package is **`radiofoundry-kf8s-bac4b209-533acd6c-261124-7.zip`**.
-Its [Git tag](https://github.com/dbehnke/RadioFoundry/tree/kf8s-bac4b209-533acd6c-261124-7) points to firmware
-commit `533acd6c`, including upstream main `bac4b209`.
+The current four-radio package is **`radiofoundry-kf8s-5172c91a-65621980-261124-11.zip`**.
+Its [Git tag](https://github.com/dbehnke/RadioFoundry/tree/kf8s-5172c91a-65621980-261124-11) points to firmware
+commit `65621980`, including upstream main `5172c91a`.
 
 | Radio | Image prefix | Notes |
 |---|---|---|
@@ -21,23 +21,22 @@ commit `533acd6c`, including upstream main `bac4b209`.
 | Baofeng DM1701 | `rfoundry-dm1701-` | Uses this radio's own image and manifest |
 | Baofeng DM32 | `rfoundry-dm32-` | Uses this radio's own image and manifest |
 
-This package includes AES, TX/RX AGC, power controls and microphone-key changes, with the earlier receive
-display layout restored. The temporary P25
-calibration/parrot is **off**. Download the ZIP and checksum from the
-[GitHub release](https://github.com/dbehnke/RadioFoundry/releases/tag/kf8s-bac4b209-533acd6c-261124-7). Its SHA-256 is:
+This package includes AES, TX/RX AGC, power controls, microphone-key changes, the new receive S meter,
+dual power metadata and Advanced RSSI correction. The temporary P25 calibration/parrot is **off**.
+Download the ZIP and checksum from the
+[GitHub release](https://github.com/dbehnke/RadioFoundry/releases/tag/kf8s-5172c91a-65621980-261124-11). Its SHA-256 is:
 
 ```text
-b618b9cbf78f679211b81656554467e2e9b9331e008971782969c55ec6238c9c
+934c2cc8a286f3c8ce38b820963e73c89e4587779c6d3bb8e80ca177c6082c07
 ```
 
 Back up your current settings/codeplug and follow [Installing](../user/02-installing.md). Use the matching image
 and manifest. These images do not embed a stock AMBE codec; the manifests preserve the installed codec regions.
 A radio without a working codec still needs the normal supported codec installation procedure.
 
-## New display source changes awaiting a test build
+## New display features to test
 
-The new signal meter and RSSI correction are source changes, **not included in the published ZIP above**. No new
-firmware was built for this change. After a future test build:
+The current ZIP includes the new signal meter and RSSI correction. Test these on each radio:
 
 1. Receive FM, DMR and P25; check the bottom S meter, numeric dBm and return of ordinary hints after reception.
 2. In dual watch, check that A/B identifies the receiving channel even when PTT selects the other pane. If both
@@ -49,12 +48,14 @@ firmware was built for this change. After a future test build:
    should use hollow S cells, filled over cells and inactive underlines, with no divider after S9.
 
 Host tests cover scale thresholds, display correction, ownership/freshness, settings migration and UI navigation.
-Hardware size, feature-off firmware builds and radio validation remain for the next authorized firmware build.
+All four firmware images passed size, stack, provenance and warning checks. A separate firmware build with the
+meter disabled also passed. The shared startup stack gained 64 bytes to retain its required margin. Radio
+validation and RSSI calibration remain owner tests.
 
 ## Suggested test order
 
 1. Confirm the build identity in **Settings > Advanced > About** and check ordinary channel/menu operation.
-2. Test RX AGC and the restored caller display while receiving familiar calls.
+2. Test RX AGC and the caller display while receiving familiar calls.
 3. Check power selection and inheritance without transmitting first.
 4. Test microphone mappings and navigation on the MD9600.
 5. Compare transmit audio and power only on a suitable permitted test channel or bench setup.

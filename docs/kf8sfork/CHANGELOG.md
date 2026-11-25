@@ -8,7 +8,7 @@ Changes added to `kf8sfork` from its first feature commit on November 23, 2026, 
 This lists fork-specific changes, not the features inherited from upstream RadioFoundry.
 See the [usage and testing guide](README.md) for menu paths and test instructions.
 
-## Unbuilt source changes
+## Receive display and RSSI correction
 
 - Added the reviewed 13-cell receive S meter with numeric dBm on normal Home in analog and digital modes.
 - Added effective transmit-power metadata to dual display, with a compact-screen footer fallback.
@@ -16,27 +16,29 @@ See the [usage and testing guide](README.md) for menu paths and test instruction
 - Selected monochrome hollow S cells, filled over cells and inactive underlines, with no S9 divider.
 - Kept caller identity, large-text layout, and tested P25/DMR audio behavior.
 
-These source changes have not been built into firmware or added to the published package below.
+These changes are included in the current test package below. The shared startup stack gained 64 bytes after
+the firmware stack check identified an 8-byte margin shortfall; all four final images pass.
 
 ## Current test build
 
 | Item | Value |
 |---|---|
-| Firmware source | `533acd6c` |
-| Upstream main included | `bac4b209` |
-| Release tag | [`kf8s-bac4b209-533acd6c-261124-7`](https://github.com/dbehnke/RadioFoundry/tree/kf8s-bac4b209-533acd6c-261124-7) |
-| ZIP | `radiofoundry-kf8s-bac4b209-533acd6c-261124-7.zip` |
+| Firmware source | `65621980` |
+| Upstream main included | `5172c91a` |
+| Release tag | [`kf8s-5172c91a-65621980-261124-11`](https://github.com/dbehnke/RadioFoundry/tree/kf8s-5172c91a-65621980-261124-11) |
+| ZIP | `radiofoundry-kf8s-5172c91a-65621980-261124-11.zip` |
 | Images | RT3S / MD-UV380 standard 5 W, MD9600, DM1701, DM32 |
 | Optional calibration | Off in this package |
 | DMR AES | Enabled in this package |
 
 The tag identifies the firmware source. Later documentation commits do not change that firmware.
-The ZIP and checksum are available on the [GitHub release](https://github.com/dbehnke/RadioFoundry/releases/tag/kf8s-bac4b209-533acd6c-261124-7).
+The ZIP and checksum are available on the [GitHub release](https://github.com/dbehnke/RadioFoundry/releases/tag/kf8s-5172c91a-65621980-261124-11).
 
 ## November 24, 2026
 
 ### Upstream synchronization
 
+- Merged upstream through `5172c91a`, including DMR privacy/TMS key labels, ETSI IP addressing and HIL updates.
 - Merged upstream through `bac4b209`, including the FM Home receive-frequency/offset display change (#1043).
 - Reviewed upstream's microphone/P25 limiter follow-up (#1054). Kept the fork's existing shared DSP limiter,
   computed DC removal, manual P25 gain handling and -20 dBFS microphone AGC target in overlapping code.
@@ -48,8 +50,8 @@ The ZIP and checksum are available on the [GitHub release](https://github.com/db
 - Removed the digital RF signal-display enhancement because the added information crowded the display.
 - Restored the earlier caller/dual layouts and removed the added RX details preference and measurement metadata.
 - Preserved the earlier caller lookup/display improvements, RX/TX AGC, power controls and microphone keys.
-- Included in the current ZIP. The preceding `kf8s-dd67ecd6-eb02cb21-261124-6` package still has the meter
-  enhancement. The original feature branch is retained.
+- Released in the earlier `kf8s-bac4b209-533acd6c-261124-7` package. The new meter above uses a different
+  design. The original feature branch is retained.
 
 
 ### Microphone input and P25 calibration
