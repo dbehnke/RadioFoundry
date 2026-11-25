@@ -108,13 +108,12 @@ its meaning. A dual meter reads, for example, `A +20 [13 cells] -73`.
 
 ![Color meter at S3, S9, and S9+40](screens/mduv380/meter-states.png)
 
-For monochrome, the recommended version draws inactive cells as hollow boxes and fills active cells, including
-over-S9 cells. There is no divider after the ninth cell. The alternate interpretation uses hollow *active* S1–S9 cells
-and solid active over cells, with an underline for inactive positions. Both are shown for review; ordinary
-filled-active cells make the amount of received signal easier to scan.
+For monochrome, the owner-selected version uses hollow *active* S1–S9 cells and solid active over cells, with an
+underline for inactive positions. There is no divider after the ninth cell. The filled-active version with hollow
+inactive boxes remains below for comparison.
 
-![Recommended monochrome filled-active cells](screens/md9600/mono-fill.png)
-![Alternate monochrome hollow-active S cells](screens/md9600/mono-hollow.png)
+![Selected monochrome hollow-active S cells with inactive underlines](screens/md9600/mono-hollow.png)
+![Alternate monochrome filled-active cells](screens/md9600/mono-fill.png)
 
 ## The displayed number depends on receiver calibration
 
