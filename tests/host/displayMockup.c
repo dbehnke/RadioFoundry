@@ -68,7 +68,6 @@ static void meter(int y, int dbm, bool literal)
 			else gfx_hline(x, cy + h - 1, cw, ui_col.line);
 		}
 	}
-	gfx_vline(left + 9 * pitch - 1, cy - 1, h + 2, ui_col.fg);
 }
 static void top(const char *mode)
 {

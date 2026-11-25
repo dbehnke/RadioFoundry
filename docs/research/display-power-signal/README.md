@@ -20,8 +20,8 @@ priority before implementation. They do not change the recently restored product
   receiving pane, show 13 segments, then numeric dBm. Keep callers inside their panes. Restore the ordinary bottom
   controls when reception ends. Never rotate caller text and the meter on a timer.
 - On color panels, the nine S segments are green, the next two yellow, and the last two red. The colors mean
-  signal range, not danger, audio clipping, BER, or successful decoding. Keep the S9 divider and number so color
-  is not required to interpret the meter.
+  signal range, not danger, audio clipping, BER, or successful decoding. Keep the S reading and numeric dBm so color
+  is not required to interpret the meter. The meter has no divider line.
 - Use callsign and first name as the preferred compact identity **when structured data provides them**. Show
   additional names or location only after that identity fits. Preserve arbitrary contact labels and aliases as
   opaque text, using the existing fit/ellipsis rules. A space in a contact name does not prove a callsign/name
@@ -103,14 +103,13 @@ segments; S9+20 lights eleven. Numeric dBm is the unambiguous reference. Invalid
 show `--` and an empty meter, not a plausible minimum value. Different receiver floors may make the lowest
 segments unreachable; the full graphical range does not assert receiver sensitivity.
 
-Do not print all 13 tick labels on a small screen. The S reading at left, divider after segment nine, and dBm at
-right are sufficient. The screenshots abbreviate the left label above S9 to `+N`; the fixed S9 divider establishes
+Do not print all 13 tick labels on a small screen. The S reading at left and dBm at right are sufficient. The screenshots abbreviate the left label above S9 to `+N`; the over-S9 convention defines
 its meaning. A dual meter reads, for example, `A +20 [13 cells] -73`.
 
 ![Color meter at S3, S9, and S9+40](screens/mduv380/meter-states.png)
 
 For monochrome, the recommended version draws inactive cells as hollow boxes and fills active cells, including
-over-S9 cells. A divider separates the ninth cell. The alternate interpretation uses hollow *active* S1–S9 cells
+over-S9 cells. There is no divider after the ninth cell. The alternate interpretation uses hollow *active* S1–S9 cells
 and solid active over cells, with an underline for inactive positions. Both are shown for review; ordinary
 filled-active cells make the amount of received signal easier to scan.
 
