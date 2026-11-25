@@ -907,6 +907,53 @@ static void testMicGate(void)
 	ambeVoiceSetMicGate(NULL);
 }
 
+#if CONFIG_TX_MIC_LIMITER
+// A gated block holds the limiter: the gain it cut to, and the limited count, are what the speech after the beep starts
+// from. Control: the same number of quiet ungated blocks lets the gain recover
+static void gateBlocks(const dmr_voice_source_t *src, int n, int16_t amp)
+{
+	uint8_t frame[9];
+	for (int b = 0; b < n; b++) {
+		for (int i = 0; i < 160; i++)
+			mic[i] = (int16_t)(i & 1 ? -amp : amp);
+		block();
+		CHECK(src->next(frame, src->ctx), "frame queued");
+	}
+}
+
+static void testMicGateHoldsLimiter(void)
+{
+	const dmr_voice_source_t *src = ambeVoiceSource();
+	ambe_voice_stats_t cut, st;
+	ambeVoiceSetMicGainQ8(mic_gain_db_q8(12));
+	ambeVoiceSetMicGate(gateOn);
+	for (int run = 0; run < 2; run++) {
+		gate = false;
+		src->begin(src->ctx);
+		gateBlocks(src, 1, 32767);
+		ambeVoiceGetStats(&cut);
+		CHECK(cut.tx_limited_blocks == 1 && cut.tx_gain_q16 < (uint32_t)mic_gain_db_q8(12) << 8,
+		      "run %d: full scale cuts the gain", run);
+		gate = run == 0;
+		gateBlocks(src, 5, 200);
+		ambeVoiceGetStats(&st);
+		if (gate)
+			CHECK(st.tx_gain_q16 == cut.tx_gain_q16 && st.tx_limited_blocks == cut.tx_limited_blocks &&
+			      st.tx_mic_low_q8 == cut.tx_mic_low_q8 && st.tx_mic_muted == 5,
+			      "gated: gain %u (was %u), muted %u", (unsigned)st.tx_gain_q16, (unsigned)cut.tx_gain_q16,
+			      (unsigned)st.tx_mic_muted);
+		else
+			CHECK(st.tx_gain_q16 > cut.tx_gain_q16 && st.tx_mic_muted == 0, "quiet ungated blocks recover: %u > %u",
+			      (unsigned)st.tx_gain_q16, (unsigned)cut.tx_gain_q16);
+		src->end(src->ctx);
+		block();
+	}
+	gate = false;
+	ambeVoiceSetMicGate(NULL);
+	ambeVoiceSetMicGain(5);
+}
+#endif
+
 int main(void)
 {
 	ambeVoiceInit(&audio, &vocoder);
@@ -921,6 +968,9 @@ int main(void)
 	testTxTone();
 	testRepeats();
 	testMicGate();
+#if CONFIG_TX_MIC_LIMITER
+	testMicGateHoldsLimiter();
+#endif
 #if CONFIG_VOICE_CAPTURE
 	testCapture();
 #endif

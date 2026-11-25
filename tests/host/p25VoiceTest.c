@@ -867,6 +867,53 @@ static void testTxAgc(void)
 }
 #endif
 
+#if CONFIG_P25_TX_AGC && CONFIG_TX_DC_BLOCK
+// A gated block holds the leveling: the AGC gain, its limited count and the DC blocker's estimate carry over to the
+// speech after the beep. Run B is run A with 5 gated blocks in the middle; the gated blocks don't take mic samples
+// (mic_n holds), so both runs feed the controller the same speech and must end at the same gain
+static void gate_run(int gated, p25_voice_stats_t *s)
+{
+	int16_t mic[AUDIO_BLOCK_SAMPLES], spk[AUDIO_BLOCK_SAMPLES];
+	uint8_t f[P25_IMBE_BYTES];
+	begin();
+	p25VoiceSetAgc(true);
+	p25VoiceTx(true);
+	mic_n = 0;
+	for (int b = 0; b < 10 + gated + 4; b++) {
+		bool g = b >= 10 && b < 10 + gated;
+		p25VoiceSetMicGate(g ? gate_on : NULL);
+		if (!g) {
+			mic_block(mic, 300);
+			for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++)
+				mic[i] = (int16_t)(mic[i] + 2000);	// the mic's bias, for the DC blocker to remove
+		}
+		p25VoiceAudioBlock(mic, spk, NULL);
+		CHECK(hk->tx_voice(f, NULL), "block %d: a frame", b);
+		// (the encoder's analysis window still holds the speech for the first two gated blocks)
+		if (g && b >= 12)
+			CHECK(memcmp(f, imbe_silence, sizeof f) == 0, "block %d: a gated block is not a silence frame", b);
+	}
+	p25VoiceSetMicGate(NULL);
+	p25VoiceGetStats(s);
+	p25VoiceTx(false);
+	p25VoiceSetAgc(false);
+	p25VoiceEnd();
+}
+
+static void testMicGateHoldsLeveling(void)
+{
+	p25_voice_stats_t a, b;
+	gate_run(0, &a);
+	gate_run(5, &b);
+	CHECK(a.tx_gain_q16 > TX_LEVEL_UNITY, "quiet speech not boosted: %u", (unsigned)a.tx_gain_q16);
+	CHECK(b.tx_gain_q16 == a.tx_gain_q16 && b.tx_limited_blocks == a.tx_limited_blocks,
+	      "gate changed the leveling: gain %u vs %u, limited %u vs %u", (unsigned)b.tx_gain_q16,
+	      (unsigned)a.tx_gain_q16, (unsigned)b.tx_limited_blocks, (unsigned)a.tx_limited_blocks);
+	CHECK(a.tx_mic_muted == 0 && b.tx_mic_muted == 5, "muted %u, %u", (unsigned)a.tx_mic_muted,
+	      (unsigned)b.tx_mic_muted);
+}
+#endif
+
 int main(void)
 {
 	p25VoiceInit(&audio);
@@ -883,6 +930,9 @@ int main(void)
 	testTxManualCeiling();
 #if CONFIG_P25_TX_AGC
 	testTxAgc();
+#endif
+#if CONFIG_P25_TX_AGC && CONFIG_TX_DC_BLOCK
+	testMicGateHoldsLeveling();
 #endif
 #if CONFIG_P25_PARROT
 #if CONFIG_TX_DC_BLOCK
