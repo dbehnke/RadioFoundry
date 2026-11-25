@@ -785,6 +785,12 @@ bool ui_svc_setting_set(uint8_t id, int32_t value)
 }
 
 #if CONFIG_CALLER_DETAILS || CONFIG_P25_ID_LOOKUP
+static char caller_fixture[80];
+void sim_caller_fixture(const char *label)
+{
+	str_copy(caller_fixture, sizeof caller_fixture, label);
+}
+
 const char *ui_svc_caller_text(uint8_t mode, uint32_t id, bool *database)
 {
 	static char name[CODEPLUG_NAME_LEN + 1];
@@ -795,7 +801,7 @@ const char *ui_svc_caller_text(uint8_t mode, uint32_t id, bool *database)
 		return "";
 	if (sim_caller_database && id == 9991234) {
 		*database = true;
-		return "Q1ABC Joe Smith";
+		return caller_fixture[0] ? caller_fixture : "Q1ABC Joe Smith";
 	}
 	if (codeplug_contact_find(id, false, &c))
 		memcpy(name, c.name, sizeof name);
@@ -2713,6 +2719,9 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	parrot_sim_result = P25_CAL_OK;
 #endif
 	sim_caller_database = false;
+#if CONFIG_CALLER_DETAILS || CONFIG_P25_ID_LOOKUP
+	caller_fixture[0] = 0;
+#endif
 	emergency_on = false;
 	sim_foreign = sim_held = false;
 	disp.width = g->w;

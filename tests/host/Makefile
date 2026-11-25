@@ -2028,3 +2028,7 @@ run: run-powerview
 run-powerview: powerViewTest
 	./powerViewTest
 .PHONY: run-powerview
+
+# Review prototype only; no production behavior or gallery changes.
+displayMockup: displayMockup.c $(UIDEPS) $(CJK)
+	$(CC) $(UIFLAGS) $(UI_LANG_FLAG) -DCONFIG_P25=1 -o $@ displayMockup.c $(UIAPP) $(CJK) -lz

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 The RadioFoundry Authors
+// Copyright (c) 2026 David Behnke
 // Host simulator for the UI (docs/spec/ui.md 7): the real core/ui code against a simulated board (any display
 // geometry, any of the reference key maps), radio core, codeplug (the usability-test codeplug) and the services of
 // other packages. Key sequences are scripts of logical actions; screens are saved as PNG.
@@ -33,6 +34,8 @@ const sim_geom_t *sim_geom_find(const char *name);
 
 // Start over: the radio on zone 0 channel 1 (DMR), no calls heard, an empty inbox, Home
 void sim_reset(const sim_geom_t *g, sim_map_t map);
+// Optional database fixture for ID 9991234; reset clears it. Host review tools only.
+void sim_caller_fixture(const char *label);
 // Run a script (tokens separated by spaces; see ui_sim.c). Returns false and fills err on the first failure
 bool sim_run(const char *script, char *err, size_t err_len);
 // Color themes (Settings > Display), as ui_theme_set numbers them: "dark", "light", "high_contrast", "night"; theme: in a
