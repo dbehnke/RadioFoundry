@@ -50,7 +50,8 @@
 #define START_TASK_PRIORITY	5
 // words: the radio core's set-up runs here at boot (radio_sm_init, 584 bytes of frame on an HR_C7000 radio, then the APRS
 // identity load or a DMR VFO's contact search down to the flash driver); 512 left that radio 88 bytes (make stack-check)
-#define START_TASK_STACK	640
+// Settings growth must retain the startup channel-loading path's stack margin.
+#define START_TASK_STACK	656
 #define HOUSEKEEPING_MS		100
 #define POWER_OFF_TX_MS		200	// after the PTT release, before the latch drops
 #define POWER_OFF_DEREG_MS	3000	// at most this long for the ARS deregistration (gotcha 7.4)
