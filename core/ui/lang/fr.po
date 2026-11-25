@@ -4388,14 +4388,14 @@ msgid "Crash log"
 msgstr "Journal plantages"
 
 #: core/ui/ui_menus.c
-msgctxt "SET_LABEL_RX_PAST_BANDS"
-msgid "RX past bands"
-msgstr "RX hors bandes"
-
-#: core/ui/ui_menus.c
 msgctxt "SET_TITLE_RSSI_CORRECTION"
 msgid "RSSI correction"
 msgstr "Correction RSSI"
+
+#: core/ui/ui_menus.c
+msgctxt "SET_LABEL_RX_PAST_BANDS"
+msgid "RX past bands"
+msgstr "RX hors bandes"
 
 #: core/ui/ui_menus.c
 msgctxt "SET_ROW_FREQ_TRIM"
