@@ -767,3 +767,36 @@ HIL: `tests/hil/test_ui.py` (`tests/hil/README.md`) replays the main sequences o
   PTT then talks to it once, and the radio follows it for a reply window (the reply time setting, else the
   codeplug's hang time) before going back to the channel's talk target. A channel change, the call ending outside
   the window, Reply cancel or a new manual target end it.
+
+### Receive signal display and correction
+
+With `CONFIG_SIGNAL_METER=y`, normal Home uses the bottom hint row for a receive meter in analog and digital
+modes. Dual watch labels the measured pane A or B; `A*` or `B*` means both panes receive and identifies the
+foreground source. A heard receiver takes priority; when both report heard, the selected/main receiver wins.
+There is no timed rotation. Toasts, banners, entry, key lock and transmit states retain their controls. Large text
+keeps its existing layout. Ordinary hints return when reception ends; keys retain their actions while the meter
+is shown.
+
+The meter has 13 equal cells: S1–S9 at −141, −135, −129, −123, −117, −111, −105, −99 and −93 dBm, then
+S9+10, +20, +40 and +60 at −83, −73, −53 and −33 dBm. Above S9 the label shows the integer excess; below S1 it
+shows S0. The VHF/UHF S9 reference is −93 dBm. There is no divider after S9. Color cells use nine green, two
+yellow, then two red cells. Monochrome uses hollow active S cells, filled active over cells and underlines for
+inactive cells. Numeric dBm is shown alongside the cells. These are receiver estimates, not a claim of calibrated
+accuracy or standardized meter response timing.
+
+A display-only raw status sample carries receive frequency and sample time independently of the held RSSI used
+by squelch and scanning. A tune invalidates it; a frequency mismatch, raw unknown value (0), or age of 2 seconds
+makes the meter empty with `--`. Corrections never make an unavailable sample valid. A corrected numeric value
+of 0 is still valid. A second receiver's provider supplies validity when its tuned status is read.
+
+Settings > Advanced > RSSI correction has separate persistent VHF and UHF corrections, −20 to +20 dB in 1 dB
+steps, both defaulting to 0. Positive increases the displayed strength. Reset to default clears both. Choose by
+the measured receive frequency (below 300 MHz is VHF), not PTT selection or transmit frequency. Apply once before
+formatting numeric dBm, S label and cells. Receiver gain, squelch, scanning and factory data are unchanged.
+
+Normal dual panes show effective board power labels in their detail row when that row fits, using each pane's TX
+frequency and effective temporary/default/channel setting. DMR details retain the timeslot and omit color code
+before power when space is tight; the talk target shortens before the receive frequency. The shortest displays
+retain two-row panes and show selected power in the idle hint footer. Arbitrary contact names and aliases remain
+opaque. Structured database identities prefer callsign and first name on a compact row; taller layouts may show
+additional names on their own row, with numeric IDs retained.

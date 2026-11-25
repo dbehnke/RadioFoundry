@@ -110,3 +110,18 @@ The low and critical battery levels also limit transmitting. See [Battery and po
 it fits. The radio keeps this setting across power off. It keeps **Settings > Display > Hint row** too.
 
 <img src="../ux/screens/160x120i5/home_large_text.png" width="200" alt="Home in large text">
+
+## Receive signal meter
+
+Builds with the signal-meter feature show a segmented meter and numeric dBm in the bottom row during analog or
+digital reception. The usual bottom controls return afterward; their keys still work during reception. Large text
+retains its existing layout. The nine S cells reach S9 at −93 dBm; the four over cells mark +10, +20, +40 and +60 dB.
+The value at the right is estimated RF input power in dBm, not audio loudness. An unavailable reading shows `--`.
+
+On color displays, S1–S9 are green, the next two cells yellow and the final two red. On monochrome displays,
+active S cells are outlines, active over cells are filled and inactive positions are underlined. There is no divider
+after S9. In dual watch, A or B identifies the measured channel. A star means both channels receive; the letter
+still identifies the one shown. The meter does not rotate between callers.
+
+Normal dual panes also show the effective transmit-power label with their mode details where space permits. On
+short displays, selected power appears in the idle footer. These labels are settings, not measured transmit watts.

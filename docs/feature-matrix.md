@@ -176,6 +176,7 @@ is `tools/bringup.py list --radio <id>`.
 | `air_raw` | off | off | off | off | off | off | off | off |
 | `audio_probe` | not written | off | not written | not written | not written | off | off | not written |
 | `rx_agc` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
+| `signal_meter` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 <!-- end generated -->
 
 What the records don't hold yet: limits and known problems from the bring-up pages.
@@ -317,6 +318,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | `P25` | ● | ● | ● | ● | … | ● | ● | ● |
 | `P25_ID_LOOKUP` | ● | ● | ● | ● | ○ | ● | ● | ● |
 | `CALLER_DETAILS` | ● | ● | ● | ● | ● | ● | ● | ● |
+| `SIGNAL_METER` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `TX_DC_BLOCK` | ● | ● | ● | ● | ○ | ● | ● | ● |
 | `P25_TX_AGC` | ● | ● | ● | ● | ○ | ● | ● | ● |
 | `P25_PARROT` | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
