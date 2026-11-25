@@ -31,6 +31,9 @@
 #if CONFIG_NXDN
 #include "radio/radio_nxdn.h"
 #endif
+#if CONFIG_YSF
+#include "radio/radio_ysf.h"
+#endif
 #if CONFIG_P25
 #include "radio/radio_p25.h"
 #include "p25/p25Voice.h"
@@ -155,11 +158,63 @@ bool ui_svc_vfo_sfr(uint8_t a)
 #endif
 }
 
+#if CONFIG_YSF
+void ui_svc_ysf_rid(char out[RADIO_YSF_RID_LEN + 1], bool *weak)
+{
+	radio_ysf_rid(out, weak);
+}
+
+bool ui_svc_ysf_wx(uint8_t cmd, uint32_t arg, const char *text)
+{
+	radio_get_view(&ui_svc_view);
+	if (ui_svc_view.ch.mode != RADIO_MODE_YSF)
+		return false;
+	radio_req_ysf_wx(cmd, arg, text);
+	return true;
+}
+
+void ui_svc_ysf_wx_state(radio_ysf_wx_t *out)
+{
+	radio_ysf_wx(out);
+}
+
+bool ui_svc_ysf_wx_room(uint8_t i, ysf_wx_room_t *out)
+{
+	return radio_ysf_wx_room(i, out);
+}
+
+bool ui_svc_ysf_dgid(uint8_t dgid, uint16_t chan)
+{
+	radio_ysf_settings_t s;
+
+	if (dgid > RADIO_YSF_DGID_MAX)
+		return false;
+	radio_ysf_settings(&s);
+	if (chan == 0) {
+		s.tx_dgid = dgid;
+		s.rx_dgid = dgid;
+	} else {
+		s.temp_chan = chan;
+		s.temp_dgid = dgid;
+	}
+	radio_req_ysf_settings(&s);
+	return true;
+}
+
+void ui_svc_ysf_callsign(char out[RADIO_YSF_CALL_LEN + 1])
+{
+	char name[CODEPLUG_NAME_LEN + 1];
+
+	ui_svc_name_get(UI_NAME_RADIO, name);
+	radio_ysf_callsign(name, out);
+}
+#endif
+
 #if CONFIG_FM
 bool ui_svc_mode(uint8_t mode)
 {
 	if (mode != RADIO_MODE_FM && mode != RADIO_MODE_DMR && !(mode == RADIO_MODE_P25 && CONFIG_P25) &&
-	    !(mode == RADIO_MODE_NXDN && CONFIG_NXDN)) {
+	    !(mode == RADIO_MODE_NXDN && CONFIG_NXDN) && !(mode == RADIO_MODE_YSF && CONFIG_YSF)) {
 		return false;
 	}
 	radio_req_mode(mode);
@@ -225,6 +280,9 @@ uint32_t ui_svc_feat_radio(void)
 #endif
 #if CONFIG_NXDN
 	       (radio_nxdn_fits() ? UI_FEAT_NXDN : 0) |
+#endif
+#if CONFIG_YSF
+	       (radio_ysf_fits() ? UI_FEAT_YSF : 0) |
 #endif
 	       0;
 }

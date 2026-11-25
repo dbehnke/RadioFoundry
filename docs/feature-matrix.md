@@ -61,6 +61,7 @@ is `tools/bringup.py list --radio <id>`.
 | `p25_trunk` | not recorded | not recorded | not recorded | not recorded | not written | not recorded | not recorded | not recorded |
 | `nxdn` | not recorded | not recorded | not recorded | not recorded | not written | not recorded | not recorded | partial, needs re-run |
 | `nxdn_scrambler` | not recorded | not recorded | not recorded | not recorded | not written | not recorded | not recorded | not recorded |
+| `ysf` | not recorded | not written | not recorded | not recorded | not written | not written | not written | not recorded |
 | `dmr_voice` | pass (seed) | pass (seed) | pass (seed) | pass (seed) | pass (seed) | not recorded | partial, needs re-run | partial, needs re-run |
 | `dmr_privacy` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | partial, needs re-run |
 | `dmr_aes` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -174,7 +175,7 @@ is `tools/bringup.py list --radio <id>`.
 | `nand_storage` | ✕ | ✕ | ✕ | not recorded | ✕ | ✕ | ✕ | ✕ |
 | `codec_check` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | pass, needs re-run |
 | `air_raw` | off | off | off | off | off | off | off | off |
-| `air_rx_adapt` | off | not written | off | off | not written | not written | not written | off |
+| `air_rx_adapt` | not recorded | not written | not recorded | not recorded | not written | not written | not written | not recorded |
 | `audio_probe` | not written | off | not written | not written | not written | off | off | not written |
 | `rx_agc` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `signal_meter` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -326,8 +327,9 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | `P25_TRUNK` | ● | ● | ● | ● | … | ● | ● | ● |
 | `NXDN` | ● | ● | ● | ● | … | ● | ● | ● |
 | `NXDN_SCRAMBLER` | ● | ● | ● | ● | … | ● | ● | ● |
+| `YSF` | ● | … | ● | ● | … | … | … | ● |
 | `AIR_RAW` | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
-| `AIR_RX_ADAPT` | ○ | … | ○ | ○ | … | … | … | ○ |
+| `AIR_RX_ADAPT` | ● | … | ● | ● | … | … | … | ● |
 | Voltage reading (board, no switch) | Battery | Battery | Battery | None | Battery | Battery | Supply | Battery |
 | Clock kept through power-off (board, no switch) | Yes | ? | Yes | ? | ? | ? | ? | No (only while on) |
 <!-- end generated -->
@@ -356,6 +358,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | NXDN conventional voice, 4800 and 9600 bit/s: the frame codec, receive, the call layer, the engine and the NXDN mode in the radio core | `NXDN` | 10,512 | — | Needs `DMR` (its voice goes through the DMR vocoder path) and a board with an air interface provider (`board.air`); where the provider only receives a rate, PTT is refused at that rate. The VFO's mode tile, the debug link or a stored NXDN channel sets it ([nxdn.md](spec/nxdn.md) 6, [nxdn-codeplug.md](spec/nxdn-codeplug.md)). On the DM-1701 and the DM-32UV transmit is checked off air at both rates and receive with a bench transmitter, speech frames through the vocoder included (DM-1701); on the HR_C6000 radios the speaker plays NXDN speech through the chip's prompt tone FIFO, checked by ear on the DM-1701 and the MD-9600 ([modem-hrc6000.md](spec/modem-hrc6000.md) 10.6). RAM: 2,184 B on the DM-1701; with `P25` also on it shares P25's engine memory (9,464 B flash, 256 B RAM on top of P25) |
 | NXDN Scrambler (15-bit) | `NXDN_SCRAMBLER` | 448 | — | Needs `NXDN`; supports conventional voice calls. The NXDN air interface must support the requested direction. Checked on air against another radio running RadioFoundry and a commercial portable ([bring-up record](testing/dm32-bringup.md#nxdn-scrambler-interoperability)). |
 | Soft modem receive options: an equalizer, a CTCSS notch and a DCS remover, for a mode that asks for them | `AIR_RX_ADAPT` | — | — | HR_C7000 only so far (not written on these two radios). On the DM-32UV: 4,104 B flash, of which about 1.1 KB is copied to RAM (`RFOUNDRY_HOT_CODE`), and 20 B of static RAM; the options' state (about 1.6 KB) is lent by the mode's engine. Needs `SUBTONE` ([air-interface.md](spec/air-interface.md) 6.1). Measured 2026-11-25 |
+| YSF (C4FM) DN voice: the frame codec, receive, the call layer, the engine, the YSF mode in the radio core, the radio ID and rooms | `YSF` | — | — | Needs `DMR` (its voice goes through the DMR vocoder path, as NXDN's) and a board with an air interface provider (`board.air`). The VFO's mode tile, the debug link or a stored YSF channel sets it ([ysf.md](spec/ysf.md) 5, [ysf-codeplug.md](spec/ysf-codeplug.md)). The radio ID comes from the MCU's unique ID ([ysf.md](spec/ysf.md) 6). Checked on air on a DM-32UV: direct, through a repeater and a hotspot ([bring-up](testing/dm32-bringup.md#ysf-c4fm)). DM-32UV: 19,556 B flash, 3,392 B RAM with the room commands ([ysf.md](spec/ysf.md) 9) and the soft modem's equalizer and tone notch ([air-interface.md](spec/air-interface.md) 6.1, 3.1 KB and 1.2 KB of it); the engine shares NXDN's block; ARM sizes not measured yet |
 | Digital receive audio AGC with per-mode targets and recent-caller memory | `RX_AGC` | 3,892 | — | Off until a target is selected. DM-1701 figure with LTO, GCC 13.3 (2026-11-22); hardware listening and timing untested ([receive AGC](spec/rx-agc.md)) |
 | Basic privacy, 8-bit and 16-bit keys | `DMR_PRIVACY` | 6,260 | 7,340 |  |
 | AES-256 DMR voice, PI header and late-entry signaling | `DMR_AES` | 3,484 | 4,692 | Requires `DMR_PRIVACY`. DM-1701: 480 B RAM. TX to a receiver of another make needs the modem driver's burst F field (`set_burst_f`, [dmr-voice.md](spec/dmr-voice.md) 5.1): only the HR_C7000 driver has it (DM-32UV); on the HR_C6000 and other radios our AES overs reach radios running RadioFoundry only (#864). |
