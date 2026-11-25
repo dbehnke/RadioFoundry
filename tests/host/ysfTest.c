@@ -628,16 +628,14 @@ static void testRid(void)
 	ysf_rid_fallback(2602101, "N0CALL", b);
 	CHECK(strlen(a) == YSF_RID_LEN && strcmp(a, b), "fallback: %s %s", a, b);
 
-	// A caller heard, for the receive AGC's memory: the RID as its number, else the callsign's hash, never 0
-	CHECK(ysf_caller_key("00000", "N0CALL") == 1u && ysf_caller_key("ZZZZZ", NULL) == YSF_RID_SPACE,
-	      "caller key: RID range");
-	CHECK(ysf_caller_key("K7Q2Z", "A") == ysf_caller_key("K7Q2Z", "B") &&
-	      ysf_caller_key("K7Q2Z", "A") != ysf_caller_key("K7Q2Y", "A"), "caller key: the RID decides");
-	uint32_t cs = ysf_caller_key("", "N0CALL");
-	CHECK((cs & 0x80000000u) && cs == ysf_caller_key("k7q2z", "N0CALL") && cs == ysf_caller_key("K7Q2", "N0CALL") &&
-	      cs == ysf_caller_key("K7Q2ZZ", "N0CALL") && cs != ysf_caller_key(NULL, "N0CALM"),
-	      "caller key: no RID falls back to the callsign");
-	CHECK(ysf_caller_key("", "") == 0 && ysf_caller_key(NULL, NULL) == 0 && ysf_caller_key("K7-2Z", "") == 0,
+	// A caller heard, for the receive AGC's memory: the callsign's hash, else the RID as its number, never 0
+	uint32_t cs = ysf_caller_key("K7Q2Z", "N0CALL");
+	CHECK((cs & 0x80000000u) && cs == ysf_caller_key("", "N0CALL") && cs == ysf_caller_key(NULL, "N0CALL") &&
+	      cs != ysf_caller_key("K7Q2Z", "N0CALM"), "caller key: the callsign decides, the RID never changes it");
+	CHECK(ysf_caller_key("00000", "") == 1u && ysf_caller_key("ZZZZZ", NULL) == YSF_RID_SPACE &&
+	      ysf_caller_key("K7Q2Z", "") != ysf_caller_key("K7Q2Y", ""), "caller key: RID without a callsign");
+	CHECK(ysf_caller_key("", "") == 0 && ysf_caller_key(NULL, NULL) == 0 && ysf_caller_key("K7-2Z", "") == 0 &&
+	      ysf_caller_key("k7q2z", "") == 0 && ysf_caller_key("K7Q2", "") == 0 && ysf_caller_key("K7Q2ZZ", "") == 0,
 	      "caller key: nobody");
 }
 

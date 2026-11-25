@@ -46,9 +46,10 @@ corrupt audio; it does not repair it. Off remains bit-exact.
 Ten entries remember the most recently heard source IDs across the digital modes. The key is mode, source ID and a
 network scope when supplied by the call path. Unknown source ID 0 never occupies an entry. After five qualifying
 blocks, a smoothed input level updates the history and the mode's fallback. Pauses and concealment never replace it.
-YSF has no numeric source ID: its key is the caller's five-character radio ID read as a base-36 number plus 1
-(1 to 36^5), or, before or without one, a hash of its callsign with bit 31 set (`ysf_caller_key`). The scope is the
-DG-ID. A radio ID heard after the callsign relabels the running estimate, as a late identity does in any mode.
+YSF has no numeric source ID: its key is a hash of the caller's callsign with bit 31 set, or, with no callsign, its
+five-character radio ID read as a base-36 number plus 1 (1 to 36^5) (`ysf_caller_key`). The scope is the DG-ID. The
+callsign comes first because a call gives it before the radio ID: a key that changed mid-call would leave the early
+estimate stored under the old key and fill a second history entry.
 At the next call, the target and remembered input level determine the initial gain. Unknown callers start from the
 mode's last stable input level, or unity without history. A late identity labels the running estimate without a gain
 jump. History is RAM only and clears at boot. Changing the target preserves useful input-level history.

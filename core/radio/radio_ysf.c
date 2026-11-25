@@ -162,7 +162,7 @@ static void params(const channel_t *ch, uint16_t number, const char *radio_name,
 }
 
 // ── Voice: the DMR side's voice path (ambeVoice.h), as radio_nxdn.c uses it ──
-// The caller for the receive AGC's memory (rx-agc.md): its radio ID, else its callsign; the DG-ID as the scope. The
+// The caller for the receive AGC's memory (rx-agc.md): its callsign, else its radio ID; the DG-ID as the scope. The
 // fields fill in as the call goes on (a late entry learns them from the DCH), so the update passes them again
 #if CONFIG_RX_AGC
 static void v_identify(const ysf_call_t *c)
