@@ -195,6 +195,9 @@ static const struct { const char *name, *script; } gallery[] = {
 	{ "signaling_steps", "ok 7 up up ok down down down down down down ok" },
 	{ "signaling_step_edit", "ok 7 up up ok down down down down down down ok ok 1 5 7 0" },
 	{ "settings_advanced", "ok 7 up ok" },
+#if CONFIG_SIGNAL_METER
+	{ "settings_rssi_correction", "7 7 7 4 ok ok" },
+#endif
 	{ "factory_reset", "ok 7 up ok down down down ok" },
 #if CONFIG_UI_SETTINGS && CONFIG_DMR_AES
 	{ "aes_recovery", "aesrecover ok 7 up ok up ok expect:screen=aes-recovery expect:focus=Cancel" },

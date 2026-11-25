@@ -6744,6 +6744,71 @@ static void test_dmr_rssi_hold(void)
 	rssi_alt = false;
 }
 
+#if CONFIG_SIGNAL_METER
+static void test_display_rssi_publication(void)
+{
+	setup_codeplug();
+	start();
+	rx_signal(10, true);
+	poll_for(1000);
+	CHECK(sm.view.state == RS_RX);
+	// The UI task copies the published view only when the state-machine serial changes.
+	radio_view_t cached = sm.view;
+	uint32_t serial = sm.serial, last = now;
+	unsigned refreshes = 0;
+	for (unsigned i = 0; i < 160; i++) {
+		poll_for(RADIO_POLL_MS);
+		if (serial != sm.serial) {
+			serial = sm.serial;
+			cached = sm.view;
+			CHECK(now - last <= 500u + RADIO_POLL_MS);
+			last = now;
+			refreshes++;
+		}
+		CHECK(cached.display_rssi_hz == cached.ch.rx_hz);
+		CHECK(now - cached.display_rssi_ms < 2000u);
+		CHECK(cached.display_rssi_dbm == -80 && sm.view.rssi_dbm == -80);
+	}
+	CHECK(refreshes >= 2 && refreshes <= 160u * RADIO_POLL_MS / 500u + 1u);
+	// Monitor opens audio even on a quiet FM channel whose logical state stays idle.
+	rx_signal(120, true);
+	req(RREQ_MONITOR, 1);
+	poll_for(1000);
+	CHECK(sm.view.state == RS_IDLE && sm.view.monitor);
+	serial = sm.serial;
+	cached = sm.view;
+	for (unsigned i = 0; i < 120; i++) {
+		poll_for(RADIO_POLL_MS);
+		if (serial != sm.serial) {
+			serial = sm.serial;
+			cached = sm.view;
+		}
+		CHECK(now - cached.display_rssi_ms < 2000u);
+	}
+	req(RREQ_MONITOR, 0);
+	rx_signal(10, true);
+	poll_for(500);
+	serial = sm.serial;
+	hw.st.rssi_dbm = 0;
+	poll_for(RADIO_POLL_MS);
+	CHECK(sm.serial != serial && sm.view.display_rssi_dbm == 0);
+	req(RREQ_CH_STEP, 1);
+	CHECK(sm.view.display_rssi_hz == 0);
+	hw.st.rssi_dbm = -110;
+	poll_for(RADIO_POLL_MS);
+	CHECK(sm.view.display_rssi_hz == 162550000u && sm.view.display_rssi_dbm == -110);
+	// A digital peak held on the previous channel cannot become a fresh sample after retuning.
+	dmr_start(false);
+	hw.st.rssi_dbm = -70;
+	poll_for(RADIO_POLL_MS);
+	req(RREQ_CH_STEP, 1);
+	CHECK(sm.view.display_rssi_hz == 0);
+	hw.st.rssi_dbm = -120;
+	poll_for(RADIO_POLL_MS);
+	CHECK(sm.view.display_rssi_hz == sm.view.ch.rx_hz && sm.view.display_rssi_dbm == -120);
+}
+#endif
+
 // FM keeps the raw reading: no hold
 static void test_fm_rssi_raw(void)
 {
@@ -12251,6 +12316,9 @@ int main(void)
 	test_dmr_rx();
 	test_dmr_rssi_hold();
 	test_fm_rssi_raw();
+#if CONFIG_SIGNAL_METER
+	test_display_rssi_publication();
+#endif
 	test_dmr_tx();
 	test_dmr_tx_end();
 #if CONFIG_DMR_TRUNK_TX

@@ -265,6 +265,8 @@ typedef struct {
 	uint8_t rx_agc[3];
 	uint8_t rx_audio_levels; // optional input/output dBFS row
 	uint32_t aes_migration;	// SETTINGS_AES_*: whether the stored AES reservation can be used
+	int8_t rssi_correction[2];	// display-only dB offsets: VHF, UHF; older records read 0
+	uint8_t reserved_rssi[2];	// alignment, 0
 } settings_t;
 
 // Pages: settings_t is stored as records of SETTINGS_PAGE_BYTES each (settings-store.md 2.1). Only the pages its size

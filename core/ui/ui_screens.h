@@ -57,6 +57,12 @@ typedef struct {
 	uint8_t mode;		// radio_mode_t
 	bool am;		// an FM channel (or the VFO) received in AM: the air band (radio_am_channel)
 	uint32_t rx_hz;
+#if CONFIG_SIGNAL_METER
+	uint32_t tx_hz;
+	uint8_t power, squelch, bw;
+	bool no_tone;
+	bool rssi_valid;
+#endif
 	char name[CODEPLUG_NAME_LEN + 1];
 	char zone[CODEPLUG_NAME_LEN + 1];	// the zone's name, "VFO" for the VFO
 	char target[32];	// what PTT talks to here on DMR: "TG 3100 USA" ("" on FM: Home shows the frequency)

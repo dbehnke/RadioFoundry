@@ -157,6 +157,9 @@ typedef struct {
 	bool dmr;
 	bool group;
 	int16_t rssi_dbm;
+#if CONFIG_SIGNAL_METER
+	bool rssi_valid;
+#endif
 	uint32_t src, dst;
 	char src_name[24];
 } ui_dual_rx_t;
@@ -472,6 +475,7 @@ typedef enum {
 
 	UI_SET_P25_ID_LOOKUP = 165,	// optional P25 names from private contacts and the DMR ID database
 	UI_SET_MASTER_POWER,	// -1 factory default, else a board power level for default channels
+	UI_SET_RSSI_VHF, UI_SET_RSSI_UHF,
 	UI_SET_COUNT
 } ui_setting_t;
 

@@ -370,6 +370,9 @@
 #endif
 // P25 trunked: the codec of its systems and channels (docs/spec/p25-codeplug.md 3), the control channel decoded, voice
 // channel grants followed and, where the system allows it, registration and transmit on a grant (core/p25/p25_follow.c)
+#ifndef CONFIG_SIGNAL_METER
+#define CONFIG_SIGNAL_METER		1
+#endif
 #ifndef CONFIG_CALLER_DETAILS
 #define CONFIG_CALLER_DETAILS		CONFIG_DMR
 #endif

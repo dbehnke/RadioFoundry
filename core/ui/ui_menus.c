@@ -6813,7 +6813,7 @@ bool ui_menus_home_leave(ui_scr_t scr, bool text_open)
 typedef enum { ST_TOGGLE, ST_LIST, ST_NUMBER, ST_ACTION } set_type_t;
 enum { SA_DIAG, SA_FIRMWARE, SA_CODEPLUG, SA_RESET, SA_MY_RADIO, SA_CRASH, SA_LANGUAGE, SA_HARDWARE, SA_FIXED_POS,
 	SA_SAVE_GPS_POS, SA_DATA_SERVICES, SA_BL_TEST, SA_P25_PARROT, SA_AES_RECOVERY, SA_SIG_BEGIN, SA_SIG_END,
-	SA_SIG_IDLE };	// signaling tone steps, by sig_event_t
+	SA_SIG_IDLE, SA_RSSI, SA_RSSI_RESET };	// signaling tone steps, by sig_event_t
 
 typedef struct {
 	tr_id_t name;			// TRN; TR_NONE for a key's row (set_name)
@@ -7285,6 +7285,13 @@ static const set_item_t s_my_radio[] = {
 	// Also in Advanced, where users didn't look for it
 	ACTION(TRN(TITLE_ABOUT, "About"), "firmware version release build date", SA_FIRMWARE),
 };
+#if CONFIG_SIGNAL_METER
+static const set_item_t s_rssi[] = {
+	NUMBER(TRN(SET_ROW_RSSI_VHF, "VHF correction"), NULL, UI_SET_RSSI_VHF, -20, 20, 1, "dB"),
+	NUMBER(TRN(SET_ROW_RSSI_UHF, "UHF correction"), NULL, UI_SET_RSSI_UHF, -20, 20, 1, "dB"),
+	ACTION(TRN(SET_ROW_RSSI_RESET, "Reset to default"), NULL, SA_RSSI_RESET),
+};
+#endif
 static const set_item_t s_advanced[] = {
 	ACTION(TRN(TITLE_ABOUT, "About"), "firmware version license authors", SA_FIRMWARE),
 	ACTION(TRN(TITLE_CODEPLUG, "Codeplug"), NULL, SA_CODEPLUG),
@@ -7298,6 +7305,9 @@ static const set_item_t s_advanced[] = {
 	// After Factory reset, so its place (and its tests' key presses) stays
 #if CONFIG_CRASH_SCREEN
 	ACTION(TRN(SET_ROW_CRASH_LOG, "Crash log"), "crash report fault debug", SA_CRASH),
+#endif
+#if CONFIG_SIGNAL_METER
+	ACTION(TRN(SET_TITLE_RSSI_CORRECTION, "RSSI correction"), "signal meter calibration offset", SA_RSSI),
 #endif
 #if CONFIG_RX_EXT
 	TOGGLE(TRN(SET_LABEL_RX_PAST_BANDS, "RX past bands"), "extended out of band receive range", UI_SET_RX_EXT),
@@ -7398,6 +7408,10 @@ static bool set_hidden(const set_item_t *s)
 // The i-th setting of group g that this radio has, NULL past the end
 static const set_item_t *set_nth(uint8_t g, uint16_t i)
 {
+#if CONFIG_SIGNAL_METER
+	if (g == GROUPS)
+		return i < sizeof s_rssi / sizeof s_rssi[0] ? &s_rssi[i] : NULL;
+#endif
 	if (g >= GROUPS)
 		return NULL;
 	for (uint8_t k = 0; k < groups[g].count; k++) {
@@ -7683,7 +7697,7 @@ static int32_t set_value;
 static const set_item_t *set_item_at(uint16_t i)
 {
 	uint16_t g = ui_frame()->arg;
-	return g < GROUPS ? set_nth((uint8_t)g, i) : NULL;
+	return g <= GROUPS ? set_nth((uint8_t)g, i) : NULL;
 }
 
 #if CONFIG_KEY_ASSIGN
@@ -7959,6 +7973,13 @@ static void group_select(uint16_t i, bool hold)
 		break;
 	case ST_ACTION:
 		switch (s->id) {
+#if CONFIG_SIGNAL_METER
+		case SA_RSSI: ui_push(SCR_GROUP, GROUPS); break;
+		case SA_RSSI_RESET:
+			ui_svc_setting_set(UI_SET_RSSI_VHF, 0);
+			ui_svc_setting_set(UI_SET_RSSI_UHF, 0);
+			break;
+#endif
 		case SA_DIAG:
 			if (CONFIG_DIAG)
 				ui_push(SCR_DIAG, 0);
@@ -8080,6 +8101,10 @@ static void group_enter(void) { set_editing = false; }
 static const char *group_title(void)
 {
 	uint8_t g = (uint8_t)ui_frame()->arg;
+#if CONFIG_SIGNAL_METER
+	if (g == GROUPS)
+		return TR(SET_TITLE_RSSI_CORRECTION, "RSSI correction");
+#endif
 	return g < GROUPS ? tr(groups[g].title) : "";
 }
 

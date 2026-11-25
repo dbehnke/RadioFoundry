@@ -13,6 +13,7 @@
 #include "cjk_font.h"	// CJK_FONT_H: the line height a CJK language needs (CONFIG_LANG_ZH)
 #include "config.h"
 #include "audio/rx_agc.h"
+#include "ui_signal.h"
 #include "codeplug/codeplug_modes.h"	// channel kinds: the mode word
 #if CONFIG_DMR_TRUNK
 #include "dmr/trunk/t3_ms.h"	// the engine's states, for the trunked status words
@@ -263,6 +264,83 @@ void ui_layout_init(void)
 	L->activity_h = L->hint_y - y;
 	L->row_h = L->small->h + (w >= 220 ? 6 : tall ? 3 : h >= 100 ? 1 : 0);
 }
+
+#if CONFIG_SIGNAL_METER
+// Only Home calls this: a menu, modal, or emergency screen owns its own bottom row.
+static void draw_receive_signal(const radio_view_t *v, const ui_state_t *s)
+{
+	if (s->large_text || s->toast != NULL || s->banner.kind != UI_BANNER_NONE || s->locked || s->entry ||
+	    v->state == RS_TX || v->state == RS_TX_DENIED)
+		return;
+	int16_t raw = v->display_rssi_dbm;
+	uint32_t hz = v->ch.rx_hz;
+	bool valid = v->display_rssi_hz == hz && raw != 0 && (uint32_t)(s->now_ms - v->display_rssi_ms) < 2000u;
+	char prefix[8] = "";
+#if CONFIG_DUAL_WATCH
+	if (s->dual.on) {
+		if (s->dual.rx == UI_DUAL_NONE)
+			return;
+		const ui_dual_pane_t *p = &s->dual.pane[s->dual.rx];
+		if (!p->rx)
+			return;
+		raw = p->rssi_dbm;
+		valid = p->rssi_valid;
+		hz = p->rx_hz;
+		strcpy(prefix, s->dual.rx ? "B " : "A ");
+		if (s->dual.pane[0].rx && s->dual.pane[1].rx)
+			strcpy(prefix, s->dual.rx ? "B* " : "A* ");
+	} else
+#endif
+	if (v->state != RS_RX && !(v->state == RS_IDLE && v->monitor && v->ch.mode == RADIO_MODE_FM))
+		return;
+	int dbm = ui_signal_correct(raw, ui_svc_setting_get(hz < 300000000u ? UI_SET_RSSI_VHF : UI_SET_RSSI_UHF));
+	uint8_t n = valid ? ui_signal_segments(dbm) : 0;
+	char strength[16], value[16];
+	sbuf_t b;
+	sb_init(&b, strength, sizeof strength);
+	sb_str(&b, prefix);
+	if (!valid)
+		sb_str(&b, "--");
+	else if (dbm > -93) {
+		sb_chr(&b, '+');
+		sb_u32(&b, (uint32_t)(dbm + 93), 1);
+	} else {
+		sb_chr(&b, 'S');
+		sb_u32(&b, n, 1);
+	}
+	sb_init(&b, value, sizeof value);
+	if (valid)
+		sb_i32(&b, dbm);
+	else
+		sb_str(&b, "--");
+	const font_t *f = ui_layout.tiny;
+	int y = ui_layout.hint_y;
+	int left = 6 * f->w;
+	int right = gfx_width() - gfx_text_width(f, value);
+	int pitch = (right - f->w - left) / 13;
+	if (pitch < 2)
+		return;
+	gfx_fill(0, y, gfx_width(), gfx_height() - y, ui_col.bg);
+	gfx_text(f, 0, y, strength, ui_col.fg);
+	gfx_text(f, right, y, value, ui_col.fg);
+	int h = f->h >= 12 ? 9 : 7, cy = y + (f->h - h) / 2;
+	for (uint8_t i = 0; i < 13; i++) {
+		int x = left + i * pitch, cw = pitch - 1;
+		color_t c = gfx_bpp() == 1 ? ui_col.fg : i < 9 ? ui_col.rx : i < 11 ? ui_col.warn : ui_col.tx;
+		if (i < n) {
+			if (gfx_bpp() == 1 && i < 9)
+				gfx_rect(x, cy, cw, h, c);
+			else
+				gfx_fill(x, cy, cw, h, c);
+		} else if (gfx_bpp() == 1)
+			gfx_hline(x, cy + h - 1, cw, ui_col.line);
+		else
+			gfx_rect(x, cy, cw, h, ui_col.line);
+	}
+}
+#else
+#define draw_receive_signal(v, s) ((void)0)
+#endif
 
 // --- shared pieces ---
 
@@ -713,7 +791,7 @@ static const char *key_names(const char *text, char *out, size_t cap, bool hint)
 	size_t n = 0;
 	for (const char *p = text; *p && n + 1 < cap; p++) {
 		bool start = p == text || alt_mark(p[-1]) || (p - text >= 2 && p[-1] == ' ' && p[-2] == ' ');
-		if (start && !digits && *p >= '0' && *p <= '9') {
+		if (start && !digits && *p >= '0' && *p <= '9' && (p[1] == ' ' || p[1] == 0)) {
 			// Drop the group and one of the two-space separators around it
 			while (p[1] && !alt_mark(p[1]) && !(p[1] == ' ' && p[2] == ' '))
 				p++;
@@ -2067,6 +2145,12 @@ static int draw_caller_identity(uint8_t mode, uint32_t id, const char *fallback,
 	const font_t *f = rows >= 3 ? L->large : L->small;
 	if (text[0]) {
 		str_copy(caller_label, sizeof caller_label, text);
+		if (database && rows < 3) {
+			char *first = strchr(caller_label, ' ');
+			char *rest = first ? strchr(first + 1, ' ') : NULL;
+			if (rest)
+				*rest = 0;
+		}
 		char *name = database && rows >= 3 ? strchr(caller_label, ' ') : NULL;
 		if (name)
 			*name++ = 0;
@@ -2276,7 +2360,7 @@ static void draw_dmr_call(const radio_view_t *v, const ui_state_t *s)
 		levels = false;
 	}
 #endif
-	if (y + L->small->h <= L->hint_y) {
+	if ((!CONFIG_SIGNAL_METER || s->large_text) && y + L->small->h <= L->hint_y) {
 		int16_t dbm = d->rssi_dbm != 0 ? d->rssi_dbm : v->rssi_dbm;
 		sb_init(&b, buf, sizeof buf);
 		sb_i32(&b, dbm);
@@ -2400,9 +2484,11 @@ static bool draw_air_audio(const radio_view_t *v, const ui_state_t *s)
 	air_call_line(&c, L->small, y);
 	y += L->small->h;
 	sb_init(&b, buf, sizeof buf);
-	sb_i32(&b, v->rssi_dbm);
-	sb_str(&b, " dBm");
-	y = call_line(L->small, y, buf, ui_col.fg);
+	if (!CONFIG_SIGNAL_METER) {
+		sb_i32(&b, v->rssi_dbm);
+		sb_str(&b, " dBm");
+		y = call_line(L->small, y, buf, ui_col.fg);
+	}
 	rx_audio_text(v->ch.mode == RADIO_MODE_P25 ? RX_AGC_P25 : RX_AGC_NXDN, buf, sizeof buf);
 	call_line(L->small, y, buf, ui_col.dim);
 	ui_draw_hint(TR(HINT_PTT_REPLIES, "PTT replies"), false);
@@ -2436,6 +2522,15 @@ static void draw_activity(const radio_view_t *v, const ui_state_t *s)
 			break;
 		}
 #endif
+		if (CONFIG_SIGNAL_METER && !s->large_text && meter) {
+#if CONFIG_AIR
+			if (air_rx)
+				air_call_line(&ac, sm, y);
+			else
+#endif
+				gfx_text(sm, 0, y, TR(STATE_RECEIVING, "Receiving"), ui_col.rx);
+			break;
+		}
 		sb_i32(&b, v->rssi_dbm);
 		sb_str(&b, " dBm");
 		int tw = gfx_text_width(big, buf);
@@ -2676,7 +2771,7 @@ static void draw_p25_call(const radio_view_t *v, const ui_state_t *s)
 	y = call_line(L->small, y, buf, ui_col.dim);
 	if (ui_svc_rx_audio_text(RADIO_MODE_P25, buf, sizeof buf))
 		y = call_line(L->small, y, buf, ui_col.rx);
-	if (y + L->small->h <= L->hint_y) {
+	if (!CONFIG_SIGNAL_METER && y + L->small->h <= L->hint_y) {
 		sb_init(&b, buf, sizeof buf);
 		sb_i32(&b, v->rssi_dbm);
 		sb_str(&b, " dBm");
@@ -2699,6 +2794,7 @@ void ui_draw_home(const radio_view_t *v, const ui_state_t *s)
 	if (!s->large_text && v->ch.mode == RADIO_MODE_P25 && v->p25.src != 0 &&
 	    (v->p25.flags & (RADIO_P25_RX | RADIO_P25_PLAYED)) == (RADIO_P25_RX | RADIO_P25_PLAYED)) {
 		draw_p25_call(v, s);
+		draw_receive_signal(v, s);
 		return;
 	}
 #endif
@@ -2709,6 +2805,7 @@ void ui_draw_home(const radio_view_t *v, const ui_state_t *s)
 		ui_draw_banner(s);
 		if (s->toast != NULL)
 			ui_draw_hint(s->toast, true);
+		draw_receive_signal(v, s);
 		return;
 	}
 #endif
@@ -2717,6 +2814,7 @@ void ui_draw_home(const radio_view_t *v, const ui_state_t *s)
 		ui_draw_banner(s);
 		if (s->toast != NULL)
 			ui_draw_hint(s->toast, true);
+		draw_receive_signal(v, s);
 		return;
 	}
 #endif
@@ -2734,6 +2832,7 @@ void ui_draw_home(const radio_view_t *v, const ui_state_t *s)
 	}
 	ui_draw_banner(s);
 	ui_draw_bottom(s, home_hint(v, s));
+	draw_receive_signal(v, s);
 }
 
 #if CONFIG_DUAL_WATCH
@@ -2841,6 +2940,34 @@ static void dual_row3(const ui_dual_pane_t *p, char *buf, size_t len)
 {
 	sbuf_t b;
 	sb_init(&b, buf, len);
+#if CONFIG_SIGNAL_METER
+	if (p->mode == RADIO_MODE_DMR) {
+		sb_str(&b, TEXT_ALT_OPEN "DMR ");
+		sb_str(&b, p->detail);
+		sb_chr(&b, ' ');
+		sb_str(&b, ui_power_name(p->power, p->tx_hz));
+		sb_str(&b, TEXT_ALT_NEXT "DMR ");
+		// The timeslot is the first component of detail; CC is the optional component.
+		for (const char *c = p->detail; *c && *c != ' '; c++)
+			sb_chr(&b, *c);
+		sb_chr(&b, ' ');
+		sb_str(&b, ui_power_name(p->power, p->tx_hz));
+		sb_str(&b, TEXT_ALT_CLOSE);
+		return;
+	} else if (p->mode == RADIO_MODE_P25 || p->mode == RADIO_MODE_NXDN)
+		sb_str(&b, ui_mode_name(p->mode));
+	else if (p->no_tone && !p->am) {
+		sb_str(&b, p->bw == RADIO_BW_25K ? "25k" : "12.5k");
+	} else
+		sb_str(&b, p->detail);
+	sb_chr(&b, ' ');
+	sb_str(&b, ui_power_name(p->power, p->tx_hz));
+	if (p->mode == RADIO_MODE_FM && !p->am) {
+		sb_str(&b, " SQ");
+		sb_u32(&b, p->squelch, 1);
+	}
+	return;
+#endif
 	if (p->mode != RADIO_MODE_DMR || p->vfo) {
 		sb_str(&b, p->detail);
 		return;
@@ -3005,7 +3132,7 @@ static void dual_pane(const radio_view_t *v, const ui_state_t *s, int i, int y, 
 		c2 = ui_col.rx;
 	} else if (p->mode == RADIO_MODE_DMR) {
 		sb_str(&b, p->target[0] ? p->target : "DMR");
-		if (ft->detail == NULL && !p->vfo)
+		if ((!p->vfo && ft->detail == NULL) || (CONFIG_SIGNAL_METER && ft->detail != NULL))
 			sb_freq(&rb, p->rx_hz);
 		else if (ft->detail == NULL)
 			sb_str(&rb, p->detail);
@@ -3043,7 +3170,7 @@ static void dual_pane(const radio_view_t *v, const ui_state_t *s, int i, int y, 
 		gfx_pill(sm, r2, y2 + (tf->h - pill_h + 1) / 2, pill_h, "RX", ui_col.pill_dark_fg, ui_col.rx);
 		r2 -= sm->w / 2 + 1;
 	} else if (right[0]) {
-		int need = gfx_text_width(tf, buf) + sm->w;
+		int need = CONFIG_SIGNAL_METER && p->mode == RADIO_MODE_DMR ? 0 : gfx_text_width(tf, buf) + sm->w;
 		int nx = dual_right(sm, w, y2, tf->h, x0 + need, right, rc);
 		if (nx < w)
 			r2 = nx - sm->w;
@@ -3186,7 +3313,7 @@ static void dual_activity(const radio_view_t *v, const ui_state_t *s, int y, int
 			if (k)
 				sb_str(&b, TR(DUAL_STATE_MUTED, ", muted"));
 			int x = gfx_text(sm, 0, y, buf, ui_col.rx) + sm->w;
-			if (w - x >= 4 * sm->w)
+			if (!CONFIG_SIGNAL_METER && w - x >= 4 * sm->w)
 				draw_meter(x, y + sm->h / 4, w - x, sm->h / 2, d->pane[i].rssi_dbm);
 			y += sm->h;
 			lines--;
@@ -3199,8 +3326,9 @@ static void dual_activity(const radio_view_t *v, const ui_state_t *s, int y, int
 		dual_call(y, d->hist[k].pane, d->hist[k].caller, s->now_ms - d->hist[k].ms, k ? ui_col.dim : ui_col.fg);
 }
 
-static const char *dual_hint(const radio_view_t *v, const ui_state_t *s)
+static const char *dual_hint(const radio_view_t *v, const ui_state_t *s, bool power_fallback)
 {
+	(void)power_fallback;
 	const ui_dual_t *d = &s->dual;
 	if (v->state == RS_TX_DENIED)
 		return deny_action(v);
@@ -3223,6 +3351,18 @@ static const char *dual_hint(const radio_view_t *v, const ui_state_t *s)
 				TEXT_ALT_NEXT "# 1 talk on B" TEXT_ALT_CLOSE) :
 			TR(DUAL_HINT_TALK_ON_A, TEXT_ALT_OPEN "# 1 talk on A  Back stop"
 				TEXT_ALT_NEXT "# 1 talk on A" TEXT_ALT_CLOSE);
+#if CONFIG_SIGNAL_METER
+	if (!s->large_text && power_fallback && d->rx == UI_DUAL_NONE && v->state == RS_IDLE) {
+		static char hint[64];
+		sbuf_t b;
+		sb_init(&b, hint, sizeof hint);
+		const ui_dual_pane_t *p = &d->pane[d->sel];
+		sb_str(&b, ui_power_name(p->power, p->tx_hz));
+		sb_str(&b, "  ");
+		sb_str(&b, TR(DUAL_HINT_OPTIONS, "# options  Back stop"));
+		return hint;
+	}
+#endif
 	return TR(DUAL_HINT_OPTIONS, "# options  Back stop");
 }
 
@@ -3334,6 +3474,7 @@ void ui_draw_home_dual(const radio_view_t *v, const ui_state_t *s)
 	int w = gfx_width();
 	gfx_clear(ui_col.bg);
 	ui_draw_top(v, s, NULL, NULL);
+	bool power_fallback = false;
 	if (s->large_text) {
 		dual_large(v, s);
 	} else
@@ -3348,11 +3489,26 @@ void ui_draw_home_dual(const radio_view_t *v, const ui_state_t *s)
 		dual_choose(L->hint_y - top, gap, &fit, &pad);
 		const dual_fit_t *ft = &fit;
 		const font_t *sm = L->small;
-		int ph = dual_pane_h(ft) + 2 * pad;
 		const font_t *f0 = dual_name_font(s, 0, ft->name), *f1 = dual_name_font(s, 1, ft->name);
 		dual_nf = f0->h < f1->h ? f0 : f1;
 		if (dual_nf->h < ft->target->h)
 			dual_nf = ft->target;	// never smaller than the row under it: a long name is shortened instead
+#if CONFIG_SIGNAL_METER
+		// Reclaim only space the existing name fitting already left unused. Short names keep their large font.
+		dual_fit_t detail = fit;
+		detail.name = dual_nf;
+		detail.detail = L->tiny;
+		detail.zone = false;
+		detail.act = 0;
+		int used = 2 * dual_pane_h(&detail) + gap;
+		if (fit.detail == NULL && gfx_height() > 64 && used <= L->hint_y - top) {
+			fit = detail;
+			pad = (L->hint_y - top - used) / 4;
+			if (pad > 1) pad = 1;
+		}
+		power_fallback = fit.detail == NULL;
+#endif
+		int ph = dual_pane_h(ft) + 2 * pad;
 		dual_pane(v, s, 0, top, ph, pad, ft);
 		gfx_hline(0, top + ph + gap / 2, w, ui_col.line);
 		dual_pane(v, s, 1, top + ph + gap, ph, pad, ft);
@@ -3360,7 +3516,8 @@ void ui_draw_home_dual(const radio_view_t *v, const ui_state_t *s)
 		dual_activity(v, s, ay, ft->act ? (L->hint_y - ay) / sm->h : 0);
 	}
 	ui_draw_banner(s);
-	ui_draw_bottom(s, dual_hint(v, s));
+	ui_draw_bottom(s, dual_hint(v, s, power_fallback));
+	draw_receive_signal(v, s);
 }
 #endif
 

@@ -197,6 +197,9 @@ static void pane_fill(uint8_t i)
 	p->rx = rx;
 	p->heard = heard;
 	p->rssi_dbm = rssi;
+#if CONFIG_SIGNAL_METER
+	p->rssi_valid = false;	// a rebuilt pane must acquire its own current measurement
+#endif
 	strcpy(p->caller, caller);
 	memset(&ch, 0, sizeof ch);
 	if (ref[i].vfo) {
@@ -218,6 +221,13 @@ static void pane_fill(uint8_t i)
 	p->mode = shown_mode(&ch);
 	p->am = p->mode == RADIO_MODE_FM && radio_am_channel(&ch);	// as the receiver hears it (Home's mode word)
 	p->rx_hz = ch.rx_hz;
+#if CONFIG_SIGNAL_METER
+	p->tx_hz = ch.tx_hz;
+	p->power = s->valid ? s->power : ch.power != CODEPLUG_POWER_DEFAULT ? ch.power : ui_default_power();
+	p->squelch = s->valid ? s->squelch : ui_view()->squelch;
+	p->bw = ch.bw;
+	p->no_tone = ch.rx_tone.type == TONE_NONE && ch.tx_tone.type == TONE_NONE;
+#endif
 	if (p->mode == RADIO_MODE_P25 || p->mode == RADIO_MODE_NXDN)
 		return;	// no tone or slot: the engine's own squelch (the channel's settings say which)
 	sbuf_t b;
@@ -267,7 +277,7 @@ static void snap_take(uint8_t i, const radio_view_t *v)
 {
 	snap_t *s = &snap[i];
 	bool was = s->valid;
-	uint8_t power = s->power;
+	uint8_t power = s->power, squelch = s->squelch;
 	static channel_t ch;
 	ch = s->ch;
 #if CONFIG_DMR
@@ -315,7 +325,7 @@ static void snap_take(uint8_t i, const radio_view_t *v)
 	if (target != s->target_id || ts != s->ts)
 		refill[i] = true;
 #endif
-	if (!was || power != s->power || memcmp(&ch, &s->ch, sizeof ch) != 0)
+	if (!was || power != s->power || squelch != s->squelch || memcmp(&ch, &s->ch, sizeof ch) != 0)
 		refill[i] = true;
 }
 
@@ -377,7 +387,7 @@ static void snap_seed(uint8_t i, const radio_view_t *v)
 		s->ch.mode = RADIO_MODE_FM;	// as the radio core tunes it (pane_fill)
 	s->am = radio_am_channel(&s->ch);	// as the radio core's view has it: Home's chips, the mode tile's refusal
 	s->tot_s = v->tot_s;
-	s->power = s->ch.power != CODEPLUG_POWER_DEFAULT ? s->ch.power : v->power;	// the default level, as on the other
+	s->power = s->ch.power != CODEPLUG_POWER_DEFAULT ? s->ch.power : ui_default_power();	// the default level, as on the other
 	s->squelch = v->squelch;
 #if CONFIG_DMR
 	s->active = s->ch.mode == RADIO_MODE_DMR;
@@ -1123,6 +1133,11 @@ __attribute__((noinline)) bool ui_dual_tick(const radio_view_t *v, uint32_t now)
 			ui_dual_rx_t *x = &r[t];
 			x->active = x->heard = true;
 			x->rssi_dbm = v->rssi_dbm;
+#if CONFIG_SIGNAL_METER
+			x->rssi_dbm = v->display_rssi_dbm;
+			x->rssi_valid = v->display_rssi_hz == v->ch.rx_hz && v->display_rssi_dbm != 0 &&
+				(uint32_t)(now - v->display_rssi_ms) < 2000u;
+#endif
 			x->dmr = shown_mode(&v->ch) == RADIO_MODE_DMR;	// a P25 or NXDN record keeps DMR
 #if CONFIG_DMR
 			if (x->dmr)
@@ -1166,7 +1181,7 @@ __attribute__((noinline)) bool ui_dual_tick(const radio_view_t *v, uint32_t now)
 				strcpy(p->caller, caller_buf);
 				dirty = true;
 			}
-			if (x->heard || heard == UI_DUAL_NONE)
+			if (heard == UI_DUAL_NONE || (x->heard && (!r[heard].heard || i == d->sel)))
 				heard = i;
 		}
 		bool busy = !own && !x->active && (v->dual_busy & (1u << i)) != 0;
@@ -1176,6 +1191,11 @@ __attribute__((noinline)) bool ui_dual_tick(const radio_view_t *v, uint32_t now)
 		p->rx = x->active;
 		p->heard = x->heard;
 		p->rssi_dbm = x->rssi_dbm;
+#if CONFIG_SIGNAL_METER
+		if (p->rssi_valid != (x->active && x->rssi_valid))
+			dirty = true;
+		p->rssi_valid = x->active && x->rssi_valid;
+#endif
 	}
 	if (heard != d->rx) {
 		d->rx = heard;

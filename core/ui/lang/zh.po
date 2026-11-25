@@ -4365,6 +4365,21 @@ msgid "DMR ID and name"
 msgstr "DMR ID 和名称"
 
 #: core/ui/ui_menus.c
+msgctxt "SET_ROW_RSSI_VHF"
+msgid "VHF correction"
+msgstr "VHF 校正"
+
+#: core/ui/ui_menus.c
+msgctxt "SET_ROW_RSSI_UHF"
+msgid "UHF correction"
+msgstr "UHF 校正"
+
+#: core/ui/ui_menus.c
+msgctxt "SET_ROW_RSSI_RESET"
+msgid "Reset to default"
+msgstr "恢复默认值"
+
+#: core/ui/ui_menus.c
 msgctxt "SET_ROW_FACTORY_RESET"
 msgid "Factory reset"
 msgstr "恢复出厂设置"
@@ -4378,6 +4393,11 @@ msgstr "崩溃日志"
 msgctxt "SET_LABEL_RX_PAST_BANDS"
 msgid "RX past bands"
 msgstr "超频段接收"
+
+#: core/ui/ui_menus.c
+msgctxt "SET_TITLE_RSSI_CORRECTION"
+msgid "RSSI correction"
+msgstr "RSSI 校正"
 
 #: core/ui/ui_menus.c
 msgctxt "SET_ROW_FREQ_TRIM"
@@ -5545,14 +5565,14 @@ msgid "MON: digital monitor"
 msgstr "MON：数字监听"
 
 #: core/ui/ui_screens.c
-msgctxt "ACTIVITY_STATE_SQUELCH_OPEN"
-msgid "Squelch open"
-msgstr "静噪打开"
-
-#: core/ui/ui_screens.c
 msgctxt "STATE_RECEIVING"
 msgid "Receiving"
 msgstr "接收中"
+
+#: core/ui/ui_screens.c
+msgctxt "ACTIVITY_STATE_SQUELCH_OPEN"
+msgid "Squelch open"
+msgstr "静噪打开"
 
 #: core/ui/ui_screens.c
 msgctxt "STATE_SENDING"

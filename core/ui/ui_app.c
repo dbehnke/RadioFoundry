@@ -2551,6 +2551,15 @@ __attribute__((noinline)) bool ui_app_tick(const radio_view_t *v, uint32_t now_m
 #endif
 	now = now_ms;
 	ui_st.now_ms = now_ms;
+#if CONFIG_SIGNAL_METER
+	static bool signal_valid_seen;
+	bool signal_valid = v->display_rssi_dbm != 0 && v->display_rssi_hz == v->ch.rx_hz &&
+		now_ms - v->display_rssi_ms < 2000u;
+	if (signal_valid != signal_valid_seen) {
+		signal_valid_seen = signal_valid;
+		dirty = true;
+	}
+#endif
 #if CONFIG_P25_PARROT
 	static uint32_t parrot_draw_ms;
 	if (stack[sp].scr == SCR_P25_PARROT) {

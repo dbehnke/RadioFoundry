@@ -877,6 +877,9 @@ static void satellite_apply_pending(radio_sm_t *sm, uint32_t now_ms);
 
 static void tune(radio_sm_t *sm, uint32_t now_ms)
 {
+#if CONFIG_SIGNAL_METER
+	sm->view.display_rssi_hz = 0;
+#endif
 	#if CONFIG_SATELLITE_TLE
 	if ((sm->satellite_session || (sm->satellite_pending && sm->satellite_restore_config_pending)) &&
 	    !satellite_same_channel(sm)) {
@@ -9862,6 +9865,19 @@ void radio_sm_poll(radio_sm_t *sm, uint32_t now_ms)
 	}
 #endif
 	sm->view.rssi_dbm = rssi_held(sm, st.rssi_dbm);
+#if CONFIG_SIGNAL_METER
+	// The UI caches by serial. Refresh steady levels twice per second, plus validity transitions, without
+	// making each status poll repaint the display. Keep scan/squelch on their original held measurements.
+	bool display_due = now_ms / 500u != sm->view.display_rssi_ms / 500u ||
+		(st.rssi_dbm == 0) != (sm->view.display_rssi_dbm == 0) ||
+		sm->view.display_rssi_hz != (own_rx ? sm->view.ch.rx_hz : 0);
+	sm->view.display_rssi_dbm = st.rssi_dbm;
+	sm->view.display_rssi_hz = own_rx ? sm->view.ch.rx_hz : 0;
+	sm->view.display_rssi_ms = now_ms;
+	if (display_due && (sm->view.state == RS_RX ||
+	    (sm->view.state == RS_IDLE && sm->view.monitor && sm->view.ch.mode == RADIO_MODE_FM)))
+		changed(sm);
+#endif
 	sm->view.noise = st.noise;
 #if CONFIG_DMR
 	// The modem may not report a level per burst: then the call's level is the held one while a call is heard. A

@@ -643,3 +643,9 @@ switch = "RX_AGC"
 spec = "docs/spec/rx-agc.md"
 source = ["core/audio", "core/dsp/speech_meter.h", "core/dmr/ambe/ambeVoice.c", "core/p25/p25Voice.c", "core/radio/radio_nxdn.c"]
 manual = "Receive quiet and loud digital speech, check convergence and recalled caller gain, listen for distortion and gaps."
+
+[feature.signal_meter]
+switch = "SIGNAL_METER"
+spec = "docs/spec/ui.md"
+source = ["core/ui/ui_signal.h", "core/ui/ui_screens.c", "core/ui/ui_dual.c", "core/ui/ui_menus.c", "core/ui/ui_svc_storage.c", "core/radio/radio_sm.c"]
+manual = ["Check the receive meter and source letter in analog and digital reception, correction in both bands, and return of ordinary controls after reception."]
