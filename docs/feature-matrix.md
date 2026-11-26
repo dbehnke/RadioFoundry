@@ -116,7 +116,7 @@ is `tools/bringup.py list --radio <id>`.
 | `hotspot` | pass (seed) | pass (seed) | pass (seed) | pass (seed) | not recorded | not recorded | pass, needs re-run | off |
 | `split_duplex` | pass (seed) | pass (seed) | pass (seed) | not written | not written | not recorded | partial, needs re-run | not written |
 | `debuglink` | pass (seed) | pass (seed) | pass (seed) | pass (seed) | pass (seed) | not recorded | pass, needs re-run | partial, needs re-run |
-| `task_stacks` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | pass, needs re-run |
+| `task_stacks` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass | pass |
 | `cps_openfw` | not recorded | pass (seed) | not recorded | pass (seed) | pass (seed) | not recorded | pass, needs re-run | pass, needs re-run |
 | `cps_fast` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `stub_entry` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -174,6 +174,7 @@ is `tools/bringup.py list --radio <id>`.
 | `nand_storage` | ✕ | ✕ | ✕ | not recorded | ✕ | ✕ | ✕ | ✕ |
 | `codec_check` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | pass, needs re-run | pass, needs re-run |
 | `air_raw` | off | off | off | off | off | off | off | off |
+| `debuglink_dmrip` | off | off | off | off | off | off | off | off |
 | `audio_probe` | not written | off | not written | not written | not written | off | off | not written |
 | `rx_agc` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | `signal_meter` | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -256,6 +257,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | `HOTSPOT` | ● | ● | ● | ● | ● | ● | ● | ○ |
 | `HOTSPOT_SPLIT` | ● | ● | ● | … | … | ● | ● | … |
 | `DEBUGLINK` | ● | ● | ● | ● | ● | ● | ● | ● |
+| `DEBUGLINK_DMRIP` | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 | `CPS_OPENFW` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `CPS_FAST` | ● | ● | ● | ● | ● | ● | ● | ● |
 | `VFO` | ● | ● | ● | ● | ● | ● | ● | ✕ |
@@ -483,6 +485,7 @@ clock`; ? = not known yet). No driver reads the clock yet ([radio-features.md](s
 | P25 AGC calibration | `P25_PARROT` | — | — | Opt-in temporary test: two seconds of conditioned PCM, repeated input-target sweeps and a verified recommendation for -25 dBFS decoded speech. Requires a compact memory profile; no transmission ([p25.md](spec/p25.md) 5.3) |
 | Audio path probe (debug link 0x10) | `AUDIO_PROBE` | 1,176* | — | Bench only, never in a release |
 | Air interface bench: raw symbols and tap samples (debug link 0x24) | `AIR_RAW` | 3,560* | — | Bench only, never in a release ([debuglink.md](spec/debuglink.md) 3.28) |
+| Debug link over the air (UDP 3335 over DMR IP) and the detour (debug link 0x27, 0x28) | `DEBUGLINK_DMRIP` | 6,836* | 6,524* | Bench only, never in a release. About 0.8 KB RAM ([debuglink.md](spec/debuglink.md) 7) |
 | Voice capture for receive tests: the next 32 voice frames received, read over the debug link | `VOICE_CAPTURE` | 264* | 284* | Bench only, never in a release ([debuglink](spec/debuglink.md)) |
 
 ## Whole images
