@@ -66,6 +66,12 @@ CONFIG_LANG_ES ?= n
 CONFIG_RX_EXT ?= n
 BOARD_NOT_WRITTEN += RX_EXT	# no receive range in its chip documents (a PLL and an IF chain, no single receiver chip)
 
-# YSF (C4FM) is written and checked on the HR_C7000 radios only; on this platform it overflows the RAM and
-# the task stacks with the rest of the default build and has not been fitted or brought up
-BOARD_NOT_WRITTEN += YSF	# not fitted to this platform yet (docs/spec/ysf.md)
+# kf8sforkysf experiment: YSF (C4FM DN) on this radio, made room for by leaving trunking out. P25, NXDN and
+# conventional DMR stay. YSF receives through the soft modem on the FM copy (the HR_C6000's correlator can't sync on
+# YSF frames); untested on this radio
+CONFIG_DMR_TRUNK ?= n
+CONFIG_P25_TRUNK ?= n
+CONFIG_YSF ?= y
+# The soft modem's tone and code removal for YSF through repeaters (docs/spec/air-interface.md 6.1): the platform lists
+# it as not written; on here for the experiment, untested on this radio
+CONFIG_AIR_RX_ADAPT ?= y
