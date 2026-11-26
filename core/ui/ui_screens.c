@@ -3055,7 +3055,7 @@ static const font_t *dual_name_font(const ui_state_t *s, int i, const font_t *nf
 // Row 3's text: a DMR channel's frequency then its chips, else the chips. At their widest (440.6125, CC12) they
 // overflow the narrowest row they share (240 px less a bezel inset, the big font), so the shorter forms give up the
 // gap, then the unit, never a digit: the end was cut there before ("CC1", #837)
-static char dual_r3[80];	// its three forms: static, the ui task's stack is tight
+static char dual_r3[112];	// its three forms: static, the ui task's stack is tight
 
 static void dual_row3(const ui_dual_pane_t *p, char *buf, size_t len)
 {
@@ -3075,18 +3075,27 @@ static void dual_row3(const ui_dual_pane_t *p, char *buf, size_t len)
 		sb_str(&b, ui_power_name(p->power, p->tx_hz));
 		sb_str(&b, TEXT_ALT_CLOSE);
 		return;
-	} else if (p->mode == RADIO_MODE_P25 || p->mode == RADIO_MODE_NXDN)
-		sb_str(&b, ui_mode_name(p->mode));
-	else if (p->no_tone && !p->am) {
-		sb_str(&b, p->bw == RADIO_BW_25K ? "25k" : "12.5k");
-	} else
-		sb_str(&b, p->detail);
-	sb_chr(&b, ' ');
-	sb_str(&b, ui_power_name(p->power, p->tx_hz));
-	if (p->mode == RADIO_MODE_FM && !p->am) {
-		sb_str(&b, " SQ");
-		sb_u32(&b, p->squelch, 1);
 	}
+	// The whole row where it fits, else without the squelch, else without the power too: the PTT pill may need the
+	// room (dual_pane's pill3), and a channel's tone and bandwidth say more than either
+	const char *what = p->mode == RADIO_MODE_P25 || p->mode == RADIO_MODE_NXDN ? ui_mode_name(p->mode) :
+		p->no_tone && !p->am ? (p->bw == RADIO_BW_25K ? "25k" : "12.5k") : p->detail;
+	bool sq = p->mode == RADIO_MODE_FM && !p->am;
+	sb_str(&b, TEXT_ALT_OPEN);
+	for (unsigned k = sq ? 0 : 1; k < 3; k++) {
+		if (k > (sq ? 0u : 1u))
+			sb_str(&b, TEXT_ALT_NEXT);
+		sb_str(&b, what);
+		if (k < 2) {
+			sb_chr(&b, ' ');
+			sb_str(&b, ui_power_name(p->power, p->tx_hz));
+		}
+		if (k == 0) {
+			sb_str(&b, " SQ");
+			sb_u32(&b, p->squelch, 1);
+		}
+	}
+	sb_str(&b, TEXT_ALT_CLOSE);
 	return;
 #endif
 	if (p->mode != RADIO_MODE_DMR || p->vfo) {
@@ -3189,7 +3198,7 @@ static void dual_pane(const radio_view_t *v, const ui_state_t *s, int i, int y, 
 		}
 		// Row 3 has room for it after the frequency and chips
 		dual_row3(p, dual_r3, sizeof dual_r3);
-		int room3 = w - x0 - gfx_text_width(ft->detail, dual_r3) - 2 * ft->detail->w;
+		int room3 = w - x0 - gfx_text_width_min(ft->detail, dual_r3) - 2 * ft->detail->w;
 		pill3 = x0 + need > w - dual_pill_w(word) - sm->w / 2 - 1 && room3 >= dual_pill_w(word);
 	}
 	if ((tx || sel) && !pill3) {
@@ -3291,7 +3300,7 @@ static void dual_pane(const radio_view_t *v, const ui_state_t *s, int i, int y, 
 		gfx_pill(sm, r2, y2 + (tf->h - pill_h + 1) / 2, pill_h, "RX", ui_col.pill_dark_fg, ui_col.rx);
 		r2 -= sm->w / 2 + 1;
 	} else if (right[0]) {
-		int need = CONFIG_SIGNAL_METER && p->mode == RADIO_MODE_DMR ? 0 : gfx_text_width(tf, buf) + sm->w;
+		int need = gfx_text_width(tf, buf) + sm->w;	// the name or target whole first: the right side yields
 		int nx = dual_right(sm, w, y2, tf->h, x0 + need, right, rc);
 		if (nx < w)
 			r2 = nx - sm->w;
