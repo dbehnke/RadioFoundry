@@ -877,6 +877,22 @@ void gfx_text_fit_end(const font_t *f, const char *s, int max_w, char *out, size
 }
 #endif
 
+int gfx_text_width_min(const font_t *f, const char *s)
+{
+	if (!strchr(s, TEXT_ALT_OPEN[0]))
+		return gfx_text_width(f, s);
+	char alt[ALT_TEXT_MAX];
+	int least = -1;
+	bool more = true;
+	for (int level = 0; more; level++) {
+		alt_expand(s, level, alt, sizeof alt, &more);
+		int w = gfx_text_width(f, alt);
+		if (least < 0 || w < least)
+			least = w;
+	}
+	return least;
+}
+
 void gfx_text_fit(const font_t *f, const char *src, int max_w, char *out, size_t out_len)
 {
 	if (out_len == 0)

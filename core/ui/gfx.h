@@ -93,6 +93,8 @@ int gfx_text(const font_t *f, int x, int y, const char *s, color_t fg);
 // The same with each glyph cell filled with bg first
 int gfx_text_bg(const font_t *f, int x, int y, const char *s, color_t fg, color_t bg);
 int gfx_text_width(const font_t *f, const char *s);
+// The width of s's narrowest set of text alternates (font.h), the least gfx_text_fit can draw it in without shortening
+int gfx_text_width_min(const font_t *f, const char *s);
 // Text alternates (font.h): s with every group at its alternative number level (or its last one) into out; *more says
 // whether a higher level would give something different. Returns the length
 size_t gfx_text_alt(const char *s, int level, char *out, size_t cap, bool *more);
