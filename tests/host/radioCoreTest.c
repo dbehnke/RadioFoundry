@@ -165,10 +165,12 @@ static bool r_ref_trim(int16_t ppb) { ref_trim_ppb = ppb; return true; }
 static bool (*direct_q)(void);	// hal_radio_t.dmr_direct_query: what the board asks as it keys a burst
 static void r_dmr_direct_query(bool (*q)(void)) { direct_q = q; }
 static int direct_now(void) { return direct_q != NULL ? direct_q() : -1; }	// the board's answer at a burst now
+static int8_t mic_input_steps = 99;	// mic_input: the last steps (99: never called)
+static void r_mic_input(int8_t steps) { mic_input_steps = steps; }
 static hal_radio_t fake_radio = { .init = r_init, .set_mode = r_set_mode, .rx = r_rx, .tx = r_tx, .tx_off = r_tx_off,
 					.status = r_status, .audio = r_audio, .tx_tone = r_tx_tone,
 					.tx_tone_key = r_tx_tone_key, .tx_dtmf = r_tx_dtmf, .ref_trim = r_ref_trim,
-					.dmr_direct_query = r_dmr_direct_query };
+					.dmr_direct_query = r_dmr_direct_query, .mic_input = r_mic_input };
 
 // (fake_radio.volume is set by test_soft_volume only)
 static void p_led(uint8_t which, bool on) { hw.led[which] = on; }
@@ -4371,6 +4373,16 @@ void radio_req_dmr_timeslot(uint8_t ts) { req(RREQ_DMR_TS, ts); }
 void radio_req_dmr_color_code(uint8_t cc) { req(RREQ_DMR_CC, cc); }
 void radio_req_vfo_sfr(uint8_t a) { req(RREQ_VFO_SFR, a); }
 void radio_req_mode(uint8_t mode) { req(RREQ_MODE, mode); }
+void radio_req_mic_input(int8_t steps)
+{
+	radio_req_t r = { RREQ_MIC, RADIO_MIC_INPUT, (uint32_t)(int32_t)steps };
+	radio_sm_request(&sm, &r, now);
+}
+void radio_req_mic_check(bool on)
+{
+	radio_req_t r = { RREQ_MIC, RADIO_MIC_CHECK, on };
+	radio_sm_request(&sm, &r, now);
+}
 #if CONFIG_P25
 // As radio_task.c: the settings copied in, then the request
 void radio_req_p25_settings(const radio_p25_settings_t *s) { radio_p25_set_settings(s); req(RREQ_P25_SET, 0); }
@@ -12634,6 +12646,30 @@ static void detour_req(uint8_t op, uint32_t backstop_ms)
 
 // A detour (docs/spec/debuglink.md 7.4): every setting the debug link can change while one runs is back after the
 // deadline, and nothing of it was stored, not by the save timer, not by a power-off's flush
+// The Mic input setting reaches the board's hook, a negative step intact; the Mic check follows the channel
+static void test_mic(void)
+{
+	dmr_start(true);
+	radio_req_mic_input(-3);
+	CHECK(mic_input_steps == -3);
+	radio_req_mic_input(5);
+	CHECK(mic_input_steps == 5);
+	radio_req_mic_check(true);
+	CHECK(sm.mic_check);
+	run(50);
+#if CONFIG_MIC_CHECK
+	ambe_mic_check_t v;
+	ambeVoiceMicCheckView(&v);
+	CHECK(v.on && v.profile == AMBE_TX_DMR);	// a DMR channel, the board in DMR
+#endif
+	radio_req_mic_check(false);
+	CHECK(!sm.mic_check);
+#if CONFIG_MIC_CHECK
+	ambeVoiceMicCheckView(&v);
+	CHECK(!v.on);
+#endif
+}
+
 static void test_detour(void)
 {
 	sim_flash_create(0x40000u, &reset_map);
@@ -12969,6 +13005,7 @@ int main(void)
 #endif
 #if CONFIG_RADIO_DETOUR
 	test_detour();
+	test_mic();
 #endif
 	test_volume_step_of();
 	CHECK(rekeys == 0);	// every keying in every test above was ended before the next

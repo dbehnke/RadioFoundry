@@ -20,6 +20,7 @@
 #include "radio/radio.h"
 #include "settings/settings.h"
 #include "radio/ref_trim.h"
+#include "dsp/tx_level.h"
 #include "storage/storage.h"
 #include "codeplug/codeplug.h"
 #include "codeplug/codeplug_kv.h"
@@ -376,6 +377,17 @@ static __attribute__((noinline)) int32_t setting_get_flash(uint8_t id)
 		return (SETTINGS_FIELD(accent) & SETTINGS_AUDIO_NO_NOISE_REDUCTION) == 0;
 	case UI_SET_MIC_AGC:
 		return (SETTINGS_FIELD(accent) & SETTINGS_AUDIO_AGC) != 0;
+#if CONFIG_TX_MIC_LIMITER
+	case UI_SET_TX_LEVEL_DMR:
+	case UI_SET_TX_LEVEL_YSF: {
+		uint8_t c = id == UI_SET_TX_LEVEL_DMR ? SETTINGS_FIELD(tx_level_dmr) : SETTINGS_FIELD(tx_level_ysf);
+		return c < TX_LEVEL_CHOICES ? c : 0;
+	}
+	case UI_SET_MIC_INPUT: {
+		int8_t v = (int8_t)SETTINGS_FIELD(mic_input);
+		return v >= HAL_MIC_INPUT_MIN && v <= HAL_MIC_INPUT_MAX ? v : 0;
+	}
+#endif
 #if CONFIG_DMR_PRIVACY
 	case UI_SET_PRIVACY_TYPE: {
 		uint8_t type = SETTINGS_FIELD(privacy_type[0]);
@@ -705,6 +717,20 @@ bool ui_svc_setting_set(uint8_t id, int32_t value)
 #if CONFIG_DMR
 	case UI_SET_DMR_ID:
 		return dmr_id_post((uint32_t)value);
+#endif
+#if CONFIG_TX_MIC_LIMITER
+	case UI_SET_TX_LEVEL_DMR:	// ui_svc_apply hands them on
+	case UI_SET_TX_LEVEL_YSF:
+	case UI_SET_MIC_INPUT:
+		st = settings_begin();
+		if (id == UI_SET_MIC_INPUT)
+			st->mic_input = (int8_t)(value >= HAL_MIC_INPUT_MIN && value <= HAL_MIC_INPUT_MAX ? value : 0);
+		else if (id == UI_SET_TX_LEVEL_DMR)
+			st->tx_level_dmr = (uint8_t)(value >= 0 && value < (int32_t)TX_LEVEL_CHOICES ? value : 0);
+		else
+			st->tx_level_ysf = (uint8_t)(value >= 0 && value < (int32_t)TX_LEVEL_CHOICES ? value : 0);
+		settings_end(hal_millis());
+		return true;
 #endif
 	case UI_SET_NOISE_REDUCTION:	// ui_svc_apply hands them to the vocoder
 	case UI_SET_MIC_AGC: {

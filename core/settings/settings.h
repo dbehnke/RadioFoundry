@@ -249,7 +249,7 @@ typedef struct {
 	// SETTINGS_T3_KILLED set, no DMR at all until a factory reset
 	uint8_t t3_kill;
 	uint8_t satellite_index;	// reserved10[0]: selected TLE record; older records select the first
-	uint8_t reserved10[1];		// 0
+	int8_t mic_input;		// was reserved10[0]: hal mic_input steps, the Mic input setting (0: the board's level)
 	// Signaling tones (core/radio/sigtone.h), appended at the end so a record written before reads them as 0:
 	// per event (start of a transmission, its end, a reception's end) where it sounds in DMR and in FM (sig_out_t).
 	// 0 = the default output, as an older record reads. The event's chain of steps is only in its codeplug record
@@ -258,7 +258,7 @@ typedef struct {
 	uint8_t sig_dmr[3];
 	uint8_t sig_fm[3];
 	uint8_t caller_flags;		// was reserved11[0]: SETTINGS_CALLER_* (0: numeric P25 caller IDs)
-	uint8_t reserved11[1];		// 0
+	uint8_t tx_level_dmr;		// was reserved11[0]: DMR/NXDN TX leveling, a tx_level_choice (0 Off: manual gain)
 	// DMR AES: the end of the MI positions reserved for our overs (dmrAesSeq_t, dmr-voice.md 5.1; appended: an older
 	// record reads 0, no position yet). A restart starts here, past every position sent
 	uint32_t aes_mi_res;
@@ -268,7 +268,7 @@ typedef struct {
 	uint32_t aes_migration;	// SETTINGS_AES_*: whether the stored AES reservation can be used
 	int8_t rssi_correction[2];	// display-only dB offsets: VHF, UHF; older records read 0
 	uint8_t rx_agc_ysf;		// was reserved_rssi[0]: YSF's rx_agc choice (0 Off, as an older record reads)
-	uint8_t reserved_rssi[1];	// alignment, 0
+	uint8_t tx_level_ysf;		// was reserved_rssi[0]: YSF TX leveling, a tx_level_choice (0 Off)
 } settings_t;
 
 // Pages: settings_t is stored as records of SETTINGS_PAGE_BYTES each (settings-store.md 2.1). Only the pages its size

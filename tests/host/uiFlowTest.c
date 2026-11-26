@@ -611,6 +611,18 @@ static const flow_t flows[] = {
 	{ "11 dual watch modes: NXDN call", "nxdn chkind:3,nxdn up down quick 7 tune:a", "fmrx",
 	  "dual=1 shows=NXDN_call hides=FM_signal hides=DMR_call", 0, false },
 #endif
+#if CONFIG_MIC_CHECK
+	{ "S Mic check opens", "", "ok 7 up ok up up ok",
+	  "screen=miccheck shows=Mic_check shows=Record_speech shows=Live:_no_RF shows=YSF_TX_level", 7, false },
+	{ "S Mic check meters", "ok 7 up ok up up ok", "down down down",
+	  "screen=miccheck focus=Mic_dBFS shows=-31.2/-9.5", 3, false },
+	{ "S Mic check encoder level", "ok 7 up ok up up ok", "down down down down down",
+	  "screen=miccheck focus=Encoder_dBFS shows=-20.1/-4.1", 5, false },
+	{ "S Mic check decoded level", "ok 7 up ok up up ok", "down down down down down down down down",
+	  "screen=miccheck focus=Decoded_dBFS shows=-23.6/-6.2", 8, false },
+	{ "S Mic check steps the YSF target", "ok 7 up ok up up ok", "down ok",
+	  "screen=miccheck shows=YSF_TX_level shows=-30_dBFS", 2, false },
+#endif
 #if CONFIG_P25_PARROT
 	{ "S P25 calibration opens", "", "ok 7 up ok up ok",
 	  "screen=p25parrot shows=P25_calibration shows=Record_speech shows=Ready:_no_RF shows=Decode_goal_dBFS", 6, false },

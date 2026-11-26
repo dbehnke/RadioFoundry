@@ -2800,6 +2800,9 @@ void sim_reset(const sim_geom_t *g, sim_map_t map)
 	parrot_sim_result = P25_CAL_OK;
 #endif
 	sim_caller_database = false;
+	// The TX levels and mic input start fresh each run: a flow's stepping doesn't reach the next radio
+	sim_late[UI_SET_TX_LEVEL_DMR - UI_SET_RAM_COUNT] = sim_late[UI_SET_TX_LEVEL_YSF - UI_SET_RAM_COUNT] = 0;
+	sim_late[UI_SET_MIC_INPUT - UI_SET_RAM_COUNT] = 0;
 	emergency_on = false;
 	sim_foreign = sim_held = false;
 	disp.width = g->w;

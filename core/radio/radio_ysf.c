@@ -390,6 +390,7 @@ static bool ysf_tx_prepare(void)
 	}
 	if (!ysf_engine_tx_prepare(eng))
 		return false;
+	ambeVoiceTxProfile(AMBE_TX_YSF);	// its own leveling target (ambeVoice.h); begin() takes it
 	radio_air_voice_tx(true);
 	return true;
 }

@@ -8835,6 +8835,7 @@ enum {
 
 static const uint8_t req_flags[RREQ_COUNT] = {
 	[RREQ_BEEP] = RQ_ALERT,
+	[RREQ_MIC] = RQ_ALERT | RQ_KEEP_APRS,
 	[RREQ_VIBRATE] = RQ_ALERT,
 	[RREQ_VOLUME] = RQ_ALERT,
 	[RREQ_VOLUME_OVERRIDE] = RQ_ALERT,
@@ -9626,6 +9627,34 @@ static void parrot_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_
 }
 #endif
 
+// The Mic check follows the channel: on while the board is in its digital mode for an AMBE channel (DMR, NXDN, YSF),
+// with the profile that channel transmits; the stream stays up as those modes keep it (dmr_end, radio_ysf_end stop it)
+static void mic_check_follow(radio_sm_t *sm)
+{
+#if CONFIG_MIC_CHECK
+	uint8_t mode = sm->view.ch.mode;
+	bool ambe = mode == RADIO_MODE_DMR || (CONFIG_NXDN && mode == RADIO_MODE_NXDN) ||
+		    (CONFIG_YSF && mode == RADIO_MODE_YSF);
+	bool on = sm->mic_check && ambe && sm->board_mode == RADIO_MODE_DMR && !sm->hotspot && !BENCH_HELD(sm);
+	if (on)
+		ambeVoiceStart();
+	ambeVoiceMicCheck(on, mode == RADIO_MODE_YSF ? AMBE_TX_YSF : AMBE_TX_DMR);
+#else
+	(void)sm;
+#endif
+}
+
+static void mic_request(radio_sm_t *sm, const radio_req_t *req)
+{
+	if (req->arg == RADIO_MIC_INPUT) {
+		if (board.radio->mic_input != NULL)
+			board.radio->mic_input((int8_t)(int32_t)req->arg2);
+	} else if (req->arg == RADIO_MIC_CHECK) {
+		sm->mic_check = req->arg2 != 0;
+		mic_check_follow(sm);
+	}
+}
+
 void radio_sm_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_ms)
 {
 	sm->led_now = now_ms;
@@ -9697,6 +9726,7 @@ void radio_sm_request(radio_sm_t *sm, const radio_req_t *req, uint32_t now_ms)
 			vfo_copy(sm, now_ms);
 		}
 		break;
+	case RREQ_MIC: mic_request(sm, req); break;
 	case RREQ_VFO_SET: vfo_set_request(sm, req, busy, now_ms); break;
 	case RREQ_VFO_TX: vfo_tx_request(sm, req, busy); break;
 #if CONFIG_AM_RX
@@ -10567,6 +10597,8 @@ void radio_sm_tick(radio_sm_t *sm, uint32_t now_ms)
 #if CONFIG_P25_PARROT
 	if (sm->p25_parrot) return;
 #endif
+	if (sm->mic_check)
+		mic_check_follow(sm);	// a channel or mode change takes it along
 	if (codeplug_kv_serial() != kv_seen) {
 #if CONFIG_DMR_AES
 		if (sm->dmr_running && sm->view.ch.kind == CODEPLUG_KIND_DMR_AES)

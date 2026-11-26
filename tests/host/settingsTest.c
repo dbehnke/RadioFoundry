@@ -982,16 +982,17 @@ static void test_settings_layout(void)
 		{ offsetof(settings_t, t3_stun), 396 },
 		{ offsetof(settings_t, t3_kill), 397 },
 		{ offsetof(settings_t, satellite_index), 398 },
-		{ offsetof(settings_t, reserved10), 399 },
+		{ offsetof(settings_t, mic_input), 399 },
 		{ offsetof(settings_t, sig_dmr), 400 },
 		{ offsetof(settings_t, sig_fm), 403 },
 		{ offsetof(settings_t, caller_flags), 406 },
-		{ offsetof(settings_t, reserved11), 407 },
+		{ offsetof(settings_t, tx_level_dmr), 407 },
 		{ offsetof(settings_t, aes_mi_res), 408 },
 		{ offsetof(settings_t, rx_agc), 412 },
 		{ offsetof(settings_t, rx_audio_levels), 415 },
 		{ offsetof(settings_t, aes_migration), 416 },
 		{ offsetof(settings_t, rx_agc_ysf), 422 },
+		{ offsetof(settings_t, tx_level_ysf), 423 },
 	};
 	CHECK(sizeof(settings_t) == 424);
 	for (unsigned i = 0; i < sizeof(offs) / sizeof(offs[0]); i++) {

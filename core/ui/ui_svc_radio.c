@@ -27,6 +27,7 @@
 #endif
 #if CONFIG_DMR
 #include "dmr/ambe/ambeVoice.h"
+#include "dsp/tx_level.h"
 #endif
 #if CONFIG_NXDN
 #include "radio/radio_nxdn.h"
@@ -527,6 +528,17 @@ void ui_svc_apply(uint8_t id, int32_t value)
 	case UI_SET_MIC_GAIN:		// the board's gain (FM and DMR) or DMR's sample scaling (radio/mic_gain.h)
 		apply_mic_gain(value, ui_svc_setting_get(UI_SET_MIC_AGC) != 0);
 		return;
+#if CONFIG_TX_MIC_LIMITER
+	case UI_SET_TX_LEVEL_DMR:	// the leveling target of a profile (ambeVoice.h); 0 = the manual gain
+	case UI_SET_TX_LEVEL_YSF:
+		ambeVoiceSetTxTarget(id == UI_SET_TX_LEVEL_DMR ? AMBE_TX_DMR : AMBE_TX_YSF,
+				     tx_level_choice_rms((uint8_t)(value < 0 ? 0 : value)));
+		return;
+	case UI_SET_MIC_INPUT:		// the board's analog input gain (hal_radio_t.mic_input), in the radio task
+		if (board.radio->mic_input != NULL)
+			radio_req_mic_input((int8_t)value);
+		return;
+#endif
 	case UI_SET_REF_TRIM:		// the board's reference, receive and transmit (radio/ref_trim.h)
 		if (radio_set_ref_trim(value))
 			radio_req_retune();	// a board that applies it when it tunes
@@ -624,6 +636,13 @@ void ui_svc_apply(uint8_t id, int32_t value)
 	rs_send(&was);
 }
 
+#if CONFIG_MIC_CHECK
+void ui_svc_mic_check(bool on) { radio_req_mic_check(on); }
+void ui_svc_mic_check_record(void) { ambeVoiceMicCheckRecord(); }
+void ui_svc_mic_check_play(void) { ambeVoiceMicCheckPlay(); }
+void ui_svc_mic_check_view(ambe_mic_check_t *out) { ambeVoiceMicCheckView(out); }
+bool ui_svc_mic_input_available(void) { return board.radio->mic_input != NULL; }
+#endif
 #if CONFIG_P25_PARROT
 bool ui_svc_p25_parrot(uint8_t command, bool agc, int8_t target)
 {
